@@ -1,0 +1,99 @@
+'use server';
+/**
+ * @fileOverview This file defines a Genkit flow for generating smart alerts for CoinVault users.
+ *
+ * - generateSmartAlerts - A function that generates AI-powered alerts based on user transactions and market data.
+ * - SmartAlertsInput - The input type for the generateSmartAlerts function.
+ * - SmartAlertsOutput - The return type for the generateSmartAlerts function.
+ */
+
+import { ai } from '@/ai/genkit';
+import { z } from 'genkit';
+
+// Input Schema
+const TransactionSchema = z.object({
+  id: z.string().describe('Unique identifier for the transaction.'),
+  type: z.enum(['send', 'receive']).describe('Type of transaction: "send" or "receive".'),
+  currency: z.string().describe('Cryptocurrency involved (e.g., "BTC", "ETH").'),
+  amount: z.number().describe('Amount of cryptocurrency transacted.'),
+  fiatValueUSD: z.number().describe('Fiat value of the transaction in USD.'),
+  timestamp: z.string().datetime().describe('ISO 8601 formatted timestamp of the transaction.'),
+  fromAddress: z.string().optional().describe('Sender address for "receive" transactions, or user address for "send".'),
+  toAddress: z.string().optional().describe('Receiver address for "send" transactions, or user address for "receive".'),
+  description: z.string().optional().describe('Optional description for the transaction.'),
+});
+
+const WalletBalanceSchema = z.object({
+  currency: z.string().describe('Cryptocurrency symbol (e.g., "BTC", "ETH").'),
+  amount: z.number().describe('Current balance of the cryptocurrency.'),
+  fiatValueUSD: z.number().describe('Current fiat value of the balance in USD.'),
+});
+
+const MarketDataEntrySchema = z.object({
+  currency: z.string().describe('Cryptocurrency symbol.'),
+  currentPriceUSD: z.number().describe('Current price in USD.'),
+  dailyChangePercent: z.number().describe('Percentage change in price over the last 24 hours.'),
+  weeklyChangePercent: z.number().describe('Percentage change in price over the last 7 days.'),
+  volume24hUSD: z.number().describe('24-hour trading volume in USD.'),
+});
+
+const SmartAlertsInputSchema = z.object({
+  userId: z.string().describe('The unique identifier for the user.'),
+  walletBalances: z.array(WalletBalanceSchema).describe('Current balances across all cryptocurrencies in the user wallet.'),
+  recentTransactions: z.array(TransactionSchema).describe('A list of recent transactions for the user.'),
+  marketData: z.array(MarketDataEntrySchema).describe('Recent market data for relevant cryptocurrencies.'),
+  userAverageTransactionAmountUSD: z.number().optional().describe('Optional: Average transaction amount for the user in USD, to help identify unusual transactions.'),
+  userHighValueThresholdUSD: z.number().optional().describe('Optional: A threshold in USD above which a transaction is considered large for this user.'),
+});
+export type SmartAlertsInput = z.infer<typeof SmartAlertsInputSchema>;
+
+// Output Schema
+const AlertSchema = z.object({
+  type: z.enum(['unusual_transaction', 'large_transaction', 'significant_market_movement', 'low_balance_warning']).describe('The type of alert.'),
+  title: z.string().describe('A concise title for the alert.'),
+  description: z.string().describe('Detailed reasoning and insights for the alert.'),
+  severity: z.enum(['low', 'medium', 'high', 'critical']).describe('The severity of the alert.'),
+  relatedAsset: z.string().optional().describe('The cryptocurrency symbol related to the alert (e.g., "BTC").'),
+  transactionId: z.string().optional().describe('The ID of the transaction if the alert is transaction-related.'),
+  timestamp: z.string().datetime().describe('ISO 8601 formatted timestamp when the alert was generated.'),
+});
+
+const SmartAlertsOutputSchema = z.object({
+  alerts: z.array(AlertSchema).describe('A list of generated smart alerts for the user.'),
+});
+export type SmartAlertsOutput = z.infer<typeof SmartAlertsOutputSchema>;
+
+export async function generateSmartAlerts(input: SmartAlertsInput): Promise<SmartAlertsOutput> {
+  return smartAlertsFlow(input);
+}
+
+const smartAlertsPrompt = ai.definePrompt({
+  name: 'smartAlertsPrompt',
+  input: { schema: SmartAlertsInputSchema },
+  output: { schema: SmartAlertsOutputSchema },
+  prompt: `You are an expert financial analyst for CoinVault, a secure cryptocurrency wallet application.\nYour goal is to provide generative-AI-powered smart alerts to users based on their transaction history, wallet balances, and current market movements.\nAnalyze the provided data and identify any unusual or large transactions, as well as significant market changes that might impact the user's holdings.\nProvide clear reasoning and actionable insights for each alert.\n\nConsider the following criteria for generating alerts:\n1.  **Unusual Transactions**:\n    *   Transactions with amounts significantly different (e.g., 2x or 0.5x) from the user's typical average transaction amount, if provided.\n    *   (Note: Identifying 'frequently interacted addresses' is not possible with current input; AI will infer 'unusual' primarily from amount deviations.)\n2.  **Large Transactions**:\n    *   Any single transaction (send or receive) exceeding a predefined 'userHighValueThresholdUSD' if provided, or a general high value (e.g., >$10,000 USD) otherwise.\n3.  **Significant Market Movements**:\n    *   Cryptocurrencies with a daily price change (up or down) greater than 10-15%.\n    *   Cryptocurrencies with significant volume spikes not correlated with small price changes.\n4.  **Low Balance Warning**:\n    *   If a user's balance in a primary cryptocurrency (e.g., BTC, ETH) drops below a certain threshold (e.g., <$100 USD or 0.001 BTC equivalent).\n\nFocus on alerts that provide genuine value and security insights to the user. Avoid generating trivial alerts.\nThe 'description' field should provide comprehensive reasoning and potential implications.\nThe 'timestamp' for the alert should be the current time when the alert is generated.\n\nUser ID: {{{userId}}}\nCurrent Wallet Balances:\n{{#each walletBalances}}\n- Currency: {{{currency}}}, Amount: {{{amount}}}, Fiat Value: $${{{fiatValueUSD}}}\n{{/each}}\n\nRecent Transactions (last 24-48 hours):\n{{#each recentTransactions}}\n- ID: {{{id}}}, Type: {{{type}}}, Currency: {{{currency}}}, Amount: {{{amount}}}, Fiat Value: $${{{fiatValueUSD}}}, Timestamp: {{{timestamp}}}, From: {{{fromAddress}}}, To: {{{toAddress}}}, Description: {{{description}}}\n{{/each}}\n\nCurrent Market Data:\n{{#each marketData}}\n- Currency: {{{currency}}}, Current Price: $${{{currentPriceUSD}}}, Daily Change: {{{dailyChangePercent}}}%, Weekly Change: {{{weeklyChangePercent}}}%, 24h Volume: $${{{volume24hUSD}}}\n{{/each}}\n\nAdditional User Behavior Context:\nUser Average Transaction Amount (USD): {{{userAverageTransactionAmountUSD}}}\nUser High Value Transaction Threshold (USD): {{{userHighValueThresholdUSD}}}\n\nPlease generate a JSON object containing an array of alerts, following the 'SmartAlertsOutputSchema'.\nEnsure that all fields in the AlertSchema are correctly populated for each alert.\nThe 'timestamp' for each alert should be the current time, so use the timestamp of the flow execution.\nIf no significant alerts are found, return an empty array for 'alerts'.\n`,
+});
+
+const smartAlertsFlow = ai.defineFlow(
+  {
+    name: 'smartAlertsFlow',
+    inputSchema: SmartAlertsInputSchema,
+    outputSchema: SmartAlertsOutputSchema,
+  },
+  async (input) => {
+    const currentTimestamp = new Date().toISOString();
+    const { output } = await smartAlertsPrompt(input);
+
+    if (!output) {
+      throw new Error('Failed to generate smart alerts: LLM returned no output.');
+    }
+
+    // Ensure each alert has a timestamp, falling back to the current time if the LLM somehow missed it.
+    const alertsWithCurrentTimestamp = output.alerts.map(alert => ({
+      ...alert,
+      timestamp: alert.timestamp || currentTimestamp 
+    }));
+
+    return { alerts: alertsWithCurrentTimestamp };
+  }
+);

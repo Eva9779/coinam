@@ -1,0 +1,17 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "wallet-hero",
+      "description": "Secure digital wallet concept",
+      "imageUrl": "https://picsum.photos/seed/coinvault1/1200/600",
+      "imageHint": "digital wallet"
+    },
+    {
+      "id": "security-bg",
+      "description": "Abstract security pattern",
+      "imageUrl": "https://picsum.photos/seed/coinvault2/800/800",
+      "imageHint": "security network"
+    }
+  ]
+}
