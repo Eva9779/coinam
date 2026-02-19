@@ -10,6 +10,7 @@ export interface WalletAsset {
   fiatValueUSD: number;
   address: string;
   isLive?: boolean;
+  privateKey?: `0x${string}`;
 }
 
 export interface Transaction {
@@ -77,12 +78,13 @@ export function useVaultStore() {
   const generateNewWallet = (currency: string) => {
     let address = '';
     let isLive = false;
+    let privateKey: `0x${string}` | undefined;
 
-    // Real cryptographic account generation
     if (currency === 'ETH' || currency === 'USDC') {
-      const privateKey = generatePrivateKey();
-      const account = privateKeyToAccount(privateKey);
+      const pKey = generatePrivateKey();
+      const account = privateKeyToAccount(pKey);
       address = account.address;
+      privateKey = pKey;
       isLive = true;
     } else {
       address = `${currency.toLowerCase()}_${Math.random().toString(36).substring(2, 14)}`;
@@ -93,7 +95,8 @@ export function useVaultStore() {
       amount: 0,
       fiatValueUSD: 0,
       address,
-      isLive
+      isLive,
+      privateKey
     };
     setAssets(prev => [...prev, newAsset]);
     return address;

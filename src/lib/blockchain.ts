@@ -1,10 +1,10 @@
 
-import { createPublicClient, http, formatEther } from 'viem';
+import { createPublicClient, createWalletClient, http, formatEther, parseEther } from 'viem';
 import { mainnet } from 'viem/chains';
+import { privateKeyToAccount } from 'viem/accounts';
 
 /**
  * Public client for interacting with the Ethereum Mainnet.
- * Uses a public RPC endpoint for data retrieval.
  */
 export const publicClient = createPublicClient({
   chain: mainnet,
@@ -25,7 +25,6 @@ export async function getLiveBlockNumber() {
 
 /**
  * Fetches the live balance of an Ethereum address.
- * @param address The ETH address to check.
  */
 export async function getLiveBalance(address: string) {
   try {
@@ -44,9 +43,28 @@ export async function getLiveBalance(address: string) {
 export async function getLiveGasPrice() {
   try {
     const gasPrice = await publicClient.getGasPrice();
-    return Number(gasPrice) / 1e9; // Convert to Gwei
+    return Number(gasPrice) / 1e9;
   } catch (error) {
     console.error('Failed to fetch gas price:', error);
     return 0;
   }
+}
+
+/**
+ * Signs and broadcasts a real transaction to the Ethereum Mainnet.
+ */
+export async function sendLiveTransaction(privateKey: `0x${string}`, to: string, amount: string) {
+  const account = privateKeyToAccount(privateKey);
+  const walletClient = createWalletClient({
+    account,
+    chain: mainnet,
+    transport: http(),
+  });
+
+  const hash = await walletClient.sendTransaction({
+    to: to as `0x${string}`,
+    value: parseEther(amount),
+  });
+
+  return hash;
 }
