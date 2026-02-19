@@ -102,9 +102,9 @@ export function useVaultStore() {
   };
 
   /**
-   * Clears the vault data and resets the state.
+   * Signs out the user by clearing the vault data and resetting the state.
    */
-  const clearVault = () => {
+  const signOut = () => {
     if (typeof window === 'undefined') return;
     localStorage.removeItem('cv_assets_v1');
     localStorage.removeItem('cv_txs_v1');
@@ -119,7 +119,7 @@ export function useVaultStore() {
     addTransaction, 
     updateBalance, 
     generateNewWallet,
-    clearVault,
+    signOut,
     initialized 
   };
 }

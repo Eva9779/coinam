@@ -23,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const [blockHeight, setBlockHeight] = useState<string>('Syncing...');
-  const { clearVault } = useVaultStore();
+  const { signOut } = useVaultStore();
 
   useEffect(() => {
     async function syncNetwork() {
@@ -97,9 +97,9 @@ export default function RootLayout({
                       <User className="mr-2 h-4 w-4" />
                       <span>Vault Profile</span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10" onClick={clearVault}>
+                    <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10" onClick={signOut}>
                       <LogOut className="mr-2 h-4 w-4" />
-                      <span>Disconnect Vault</span>
+                      <span>Sign Out</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
