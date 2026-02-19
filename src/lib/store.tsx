@@ -3,6 +3,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
+import { useUserHook } from '@/firebase';
 
 export interface WalletAsset {
   currency: string;
@@ -25,18 +26,10 @@ export interface Transaction {
   description: string;
 }
 
-export interface UserSession {
-  email: string;
-  uid: string;
-}
-
 interface VaultContextType {
   assets: WalletAsset[];
   transactions: Transaction[];
-  user: UserSession | null;
   initialized: boolean;
-  signIn: (email: string) => UserSession;
-  signOut: () => void;
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
   updateBalance: (currency: string, amountChange: number, fiatPrice: number) => void;
   generateNewWallet: (currency: string) => string;
@@ -47,15 +40,14 @@ const VaultContext = createContext<VaultContextType | undefined>(undefined);
 export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [user, setUser] = useState<UserSession | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const { user } = useUserHook();
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !user) return;
 
-    const savedAssets = localStorage.getItem('cv_assets_v1');
-    const savedTxs = localStorage.getItem('cv_txs_v1');
-    const savedUser = localStorage.getItem('cv_user_v1');
+    const savedAssets = localStorage.getItem(`cv_assets_${user.uid}`);
+    const savedTxs = localStorage.getItem(`cv_txs_${user.uid}`);
     
     if (savedAssets) {
       try {
@@ -63,6 +55,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         console.error("Failed to parse assets", e);
       }
+    } else {
+      setAssets([]);
     }
     
     if (savedTxs) {
@@ -71,47 +65,19 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       } catch (e) {
         console.error("Failed to parse transactions", e);
       }
-    }
-
-    if (savedUser) {
-      try {
-        setUser(JSON.parse(savedUser));
-      } catch (e) {
-        console.error("Failed to parse user", e);
-      }
+    } else {
+      setTransactions([]);
     }
     
     setInitialized(true);
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    if (initialized && typeof window !== 'undefined') {
-      localStorage.setItem('cv_assets_v1', JSON.stringify(assets));
-      localStorage.setItem('cv_txs_v1', JSON.stringify(transactions));
-      if (user) {
-        localStorage.setItem('cv_user_v1', JSON.stringify(user));
-      } else {
-        localStorage.removeItem('cv_user_v1');
-      }
+    if (initialized && user && typeof window !== 'undefined') {
+      localStorage.setItem(`cv_assets_${user.uid}`, JSON.stringify(assets));
+      localStorage.setItem(`cv_txs_${user.uid}`, JSON.stringify(transactions));
     }
   }, [assets, transactions, user, initialized]);
-
-  const signIn = (email: string) => {
-    const newUser = { email, uid: `u_${Math.random().toString(36).substring(2, 11)}` };
-    setUser(newUser);
-    return newUser;
-  };
-
-  const signOut = () => {
-    setUser(null);
-    setAssets([]);
-    setTransactions([]);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('cv_assets_v1');
-      localStorage.removeItem('cv_txs_v1');
-      localStorage.removeItem('cv_user_v1');
-    }
-  };
 
   const addTransaction = (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
     const newTx: Transaction = {
@@ -157,10 +123,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     <VaultContext.Provider value={{ 
       assets, 
       transactions, 
-      user, 
       initialized, 
-      signIn, 
-      signOut, 
       addTransaction, 
       updateBalance, 
       generateNewWallet 

@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -8,18 +9,19 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { ShieldCheck, Loader2, Mail, Lock, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useVaultStore } from '@/lib/store';
+import { useAuth } from '@/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { signIn } = useVaultStore();
+  const auth = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (password.length < 6) {
@@ -41,16 +43,22 @@ export default function RegisterPage() {
     }
 
     setLoading(true);
-    // Local session initialization
-    setTimeout(() => {
-      signIn(email);
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
       toast({
         title: "Identity Provisioned",
         description: "Welcome to the secure vault network.",
       });
       router.push('/');
+    } catch (error: any) {
+      toast({
+        title: "Provisioning Failed",
+        description: error.message || "An error occurred during account initialization.",
+        variant: "destructive"
+      });
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   return (

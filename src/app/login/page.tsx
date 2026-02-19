@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -8,30 +9,37 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { ShieldCheck, Loader2, Mail, Lock, LogIn } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useVaultStore } from '@/lib/store';
+import { useAuth } from '@/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signIn } = useVaultStore();
+  const auth = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     
-    // Local session initialization
-    setTimeout(() => {
-      signIn(email);
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
       toast({
         title: "Access Granted",
         description: "Authenticated with the secure vault network.",
       });
       router.push('/');
+    } catch (error: any) {
+      toast({
+        title: "Authentication Failed",
+        description: error.message || "Please verify your credentials and try again.",
+        variant: "destructive"
+      });
+    } finally {
       setLoading(false);
-    }, 800);
+    }
   };
 
   return (

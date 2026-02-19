@@ -1,10 +1,10 @@
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyCwacURkgUAOappG9UD7edyLyrdTrwArdw",
-  authDomain: "noble-descent-468019-p9.firebaseapp.com",
-  projectId: "noble-descent-468019-p9",
-  storageBucket: "noble-descent-468019-p9.firebasestorage.app",
-  messagingSenderId: "1016035087942",
-  appId: "1:1016035087942:web:c65b6385b8ad9687685c47",
-  measurementId: "G-TXJESXBFZ2"
+  apiKey: "AIzaSyDA-h7PgXR34cp56IkeKH5I-UZR6Z-LQlQ",
+  authDomain: "coinvault-989b4.firebaseapp.com",
+  projectId: "coinvault-989b4",
+  storageBucket: "coinvault-989b4.firebasestorage.app",
+  messagingSenderId: "682930631625",
+  appId: "1:682930631625:web:0133362d584c8c4e85ae18",
+  measurementId: "G-4C0GEWBNVN"
 };
