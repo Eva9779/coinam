@@ -71,7 +71,52 @@ const smartAlertsPrompt = ai.definePrompt({
   name: 'smartAlertsPrompt',
   input: { schema: SmartAlertsInputSchema },
   output: { schema: SmartAlertsOutputSchema },
-  prompt: `You are an expert financial analyst for CoinVault, a secure cryptocurrency wallet application.\nYour goal is to provide generative-AI-powered smart alerts to users based on their transaction history, wallet balances, and current market movements.\nAnalyze the provided data and identify any unusual or large transactions, as well as significant market changes that might impact the user's holdings.\nProvide clear reasoning and actionable insights for each alert.\n\nConsider the following criteria for generating alerts:\n1.  **Unusual Transactions**:\n    *   Transactions with amounts significantly different (e.g., 2x or 0.5x) from the user's typical average transaction amount, if provided.\n    *   (Note: Identifying 'frequently interacted addresses' is not possible with current input; AI will infer 'unusual' primarily from amount deviations.)\n2.  **Large Transactions**:\n    *   Any single transaction (send or receive) exceeding a predefined 'userHighValueThresholdUSD' if provided, or a general high value (e.g., >$10,000 USD) otherwise.\n3.  **Significant Market Movements**:\n    *   Cryptocurrencies with a daily price change (up or down) greater than 10-15%.\n    *   Cryptocurrencies with significant volume spikes not correlated with small price changes.\n4.  **Low Balance Warning**:\n    *   If a user's balance in a primary cryptocurrency (e.g., BTC, ETH) drops below a certain threshold (e.g., <$100 USD or 0.001 BTC equivalent).\n\nFocus on alerts that provide genuine value and security insights to the user. Avoid generating trivial alerts.\nThe 'description' field should provide comprehensive reasoning and potential implications.\nThe 'timestamp' for the alert should be the current time when the alert is generated.\n\nUser ID: {{{userId}}}\nCurrent Wallet Balances:\n{{#each walletBalances}}\n- Currency: {{{currency}}}, Amount: {{{amount}}}, Fiat Value: $${{{fiatValueUSD}}}\n{{/each}}\n\nRecent Transactions (last 24-48 hours):\n{{#each recentTransactions}}\n- ID: {{{id}}}, Type: {{{type}}}, Currency: {{{currency}}}, Amount: {{{amount}}}, Fiat Value: $${{{fiatValueUSD}}}, Timestamp: {{{timestamp}}}, From: {{{fromAddress}}}, To: {{{toAddress}}}, Description: {{{description}}}\n{{/each}}\n\nCurrent Market Data:\n{{#each marketData}}\n- Currency: {{{currency}}}, Current Price: $${{{currentPriceUSD}}}, Daily Change: {{{dailyChangePercent}}}%, Weekly Change: {{{weeklyChangePercent}}}%, 24h Volume: $${{{volume24hUSD}}}\n{{/each}}\n\nAdditional User Behavior Context:\nUser Average Transaction Amount (USD): {{{userAverageTransactionAmountUSD}}}\nUser High Value Transaction Threshold (USD): {{{userHighValueThresholdUSD}}}\n\nPlease generate a JSON object containing an array of alerts, following the 'SmartAlertsOutputSchema'.\nEnsure that all fields in the AlertSchema are correctly populated for each alert.\nThe 'timestamp' for each alert should be the current time, so use the timestamp of the flow execution.\nIf no significant alerts are found, return an empty array for 'alerts'.\n`,
+  prompt: `You are an expert financial analyst for CoinVault, a secure cryptocurrency wallet application.
+Your goal is to provide generative-AI-powered smart alerts to users based on their transaction history, wallet balances, and current market movements.
+Analyze the provided data and identify any unusual or large transactions, as well as significant market changes that might impact the user's holdings.
+Provide clear reasoning and actionable insights for each alert.
+
+Consider the following criteria for generating alerts:
+1.  **Unusual Transactions**:
+    *   Transactions with amounts significantly different (e.g., 2x or 0.5x) from the user's typical average transaction amount, if provided.
+    *   (Note: Identifying 'frequently interacted addresses' is not possible with current input; AI will infer 'unusual' primarily from amount deviations.)
+2.  **Large Transactions**:
+    *   Any single transaction (send or receive) exceeding a predefined 'userHighValueThresholdUSD' if provided, or a general high value (e.g., >$10,000 USD) otherwise.
+3.  **Significant Market Movements**:
+    *   Cryptocurrencies with a daily price change (up or down) greater than 10-15%.
+    *   Cryptocurrencies with significant volume spikes not correlated with small price changes.
+4.  **Low Balance Warning**:
+    *   If a user's balance in a primary cryptocurrency (e.g., BTC, ETH) drops below a certain threshold (e.g., <$100 USD or 0.001 BTC equivalent).
+
+Focus on alerts that provide genuine value and security insights to the user. Avoid generating trivial alerts.
+The 'description' field should provide comprehensive reasoning and potential implications.
+The 'timestamp' for the alert should be the current time when the alert is generated.
+
+User ID: {{{userId}}}
+Current Wallet Balances:
+{{#each walletBalances}}
+- Currency: {{{currency}}}, Amount: {{{amount}}}, Fiat Value: \${{{fiatValueUSD}}}
+{{/each}}
+
+Recent Transactions (last 24-48 hours):
+{{#each recentTransactions}}
+- ID: {{{id}}}, Type: {{{type}}}, Currency: {{{currency}}}, Amount: {{{amount}}}, Fiat Value: \${{{fiatValueUSD}}}, Timestamp: {{{timestamp}}}, From: {{{fromAddress}}}, To: {{{toAddress}}}, Description: {{{description}}}
+{{/each}}
+
+Current Market Data:
+{{#each marketData}}
+- Currency: {{{currency}}}, Current Price: \${{{currentPriceUSD}}}, Daily Change: {{{dailyChangePercent}}}%, Weekly Change: {{{weeklyChangePercent}}}%, 24h Volume: \${{{volume24hUSD}}}
+{{/each}}
+
+Additional User Behavior Context:
+User Average Transaction Amount (USD): {{{userAverageTransactionAmountUSD}}}
+User High Value Transaction Threshold (USD): {{{userHighValueThresholdUSD}}}
+
+Please generate a JSON object containing an array of alerts, following the 'SmartAlertsOutputSchema'.
+Ensure that all fields in the AlertSchema are correctly populated for each alert.
+The 'timestamp' for each alert should be the current time, so use the timestamp of the flow execution.
+If no significant alerts are found, return an empty array for 'alerts'.
+`,
 });
 
 const smartAlertsFlow = ai.defineFlow(
