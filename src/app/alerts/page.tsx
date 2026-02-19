@@ -10,11 +10,9 @@ import { AlertCircle, ShieldAlert, TrendingUp, Zap, Sparkles, RefreshCw } from "
 import { useVaultStore } from "@/lib/store";
 import { INITIAL_MARKET_DATA } from "@/lib/data";
 import { cn } from "@/lib/utils";
-import { useUserHook } from "@/firebase";
 
 export default function AlertsPage() {
-  const { assets, transactions, initialized } = useVaultStore();
-  const { user } = useUserHook();
+  const { assets, transactions, user, initialized } = useVaultStore();
   const [data, setData] = useState<SmartAlertsOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);

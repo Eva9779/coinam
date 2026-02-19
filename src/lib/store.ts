@@ -25,13 +25,19 @@ export interface Transaction {
   description: string;
 }
 
+export interface UserSession {
+  email: string;
+  uid: string;
+}
+
 /**
  * Live Vault Store
- * Manages persistent on-chain keys and transaction history locally.
+ * Manages persistent on-chain keys, transaction history, and user sessions locally.
  */
 export function useVaultStore() {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [user, setUser] = useState<UserSession | null>(null);
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -39,6 +45,7 @@ export function useVaultStore() {
 
     const savedAssets = localStorage.getItem('cv_assets_v1');
     const savedTxs = localStorage.getItem('cv_txs_v1');
+    const savedUser = localStorage.getItem('cv_user_v1');
     
     if (savedAssets) {
       setAssets(JSON.parse(savedAssets));
@@ -46,6 +53,10 @@ export function useVaultStore() {
     
     if (savedTxs) {
       setTransactions(JSON.parse(savedTxs));
+    }
+
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
     }
     
     setInitialized(true);
@@ -55,8 +66,19 @@ export function useVaultStore() {
     if (initialized && typeof window !== 'undefined') {
       localStorage.setItem('cv_assets_v1', JSON.stringify(assets));
       localStorage.setItem('cv_txs_v1', JSON.stringify(transactions));
+      if (user) {
+        localStorage.setItem('cv_user_v1', JSON.stringify(user));
+      } else {
+        localStorage.removeItem('cv_user_v1');
+      }
     }
-  }, [assets, transactions, initialized]);
+  }, [assets, transactions, user, initialized]);
+
+  const signIn = (email: string) => {
+    const newUser = { email, uid: `u_${Math.random().toString(36).substring(2, 11)}` };
+    setUser(newUser);
+    return newUser;
+  };
 
   const addTransaction = (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
     const newTx: Transaction = {
@@ -81,9 +103,6 @@ export function useVaultStore() {
     }));
   };
 
-  /**
-   * Generates a real cryptographic keypair for the specified network.
-   */
   const generateNewWallet = (currency: string) => {
     const pKey = generatePrivateKey();
     const account = privateKeyToAccount(pKey);
@@ -101,24 +120,25 @@ export function useVaultStore() {
     return account.address;
   };
 
-  /**
-   * Signs out the user by clearing the vault data and resetting the state.
-   */
   const signOut = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.removeItem('cv_assets_v1');
-    localStorage.removeItem('cv_txs_v1');
+    setUser(null);
     setAssets([]);
     setTransactions([]);
-    window.location.href = '/';
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('cv_assets_v1');
+      localStorage.removeItem('cv_txs_v1');
+      localStorage.removeItem('cv_user_v1');
+    }
   };
 
   return { 
     assets, 
     transactions, 
+    user,
     addTransaction, 
     updateBalance, 
     generateNewWallet,
+    signIn,
     signOut,
     initialized 
   };

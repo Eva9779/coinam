@@ -1,8 +1,7 @@
+
 'use client';
 
 import { useState } from 'react';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,31 +9,24 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { ShieldCheck, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast';
+import { useVaultStore } from '@/lib/store';
 
 export default function LoginPage() {
-  const auth = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
+  const { signIn } = useVaultStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
+    // Simulate direct login without Firebase
+    setTimeout(() => {
+      signIn(email);
       router.push('/');
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Authentication Failed',
-        description: error.message || 'Invalid email or password.',
-      });
-    } finally {
       setLoading(false);
-    }
+    }, 800);
   };
 
   return (
@@ -44,8 +36,8 @@ export default function LoginPage() {
           <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <ShieldCheck className="h-8 w-8 text-secondary" />
           </div>
-          <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
-          <CardDescription>Enter your credentials to access the vault.</CardDescription>
+          <CardTitle className="text-2xl font-bold">Vault Access</CardTitle>
+          <CardDescription>Enter your credentials to access the secure network.</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
           <CardContent className="space-y-4">
@@ -73,12 +65,12 @@ export default function LoginPage() {
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full h-11" disabled={loading}>
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Sign In'}
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Enter Vault'}
             </Button>
             <div className="text-sm text-center text-muted-foreground">
-              Don't have an account?{' '}
+              New to the network?{' '}
               <Link href="/register" className="text-primary hover:underline font-medium">
-                Create one
+                Create Account
               </Link>
             </div>
           </CardFooter>

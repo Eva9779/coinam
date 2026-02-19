@@ -8,8 +8,6 @@ import { ShieldCheck, Database, LogOut, User as UserIcon, Loader2 } from 'lucide
 import { useEffect, useState } from 'react';
 import { getLiveBlockNumber } from '@/lib/blockchain';
 import { useVaultStore } from '@/lib/store';
-import { FirebaseClientProvider, useUserHook, useAuth } from '@/firebase';
-import { signOut as firebaseSignOut } from 'firebase/auth';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   DropdownMenu,
@@ -21,25 +19,22 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useUserHook();
+  const { user, initialized, signOut } = useVaultStore();
   const pathname = usePathname();
   const router = useRouter();
-  const auth = useAuth();
-  const { signOut: clearVault } = useVaultStore();
 
   useEffect(() => {
-    if (!loading && !user && pathname !== '/login' && pathname !== '/register') {
+    if (initialized && !user && pathname !== '/login' && pathname !== '/register') {
       router.push('/login');
     }
-  }, [user, loading, pathname, router]);
+  }, [user, initialized, pathname, router]);
 
-  const handleSignOut = async () => {
-    await firebaseSignOut(auth);
-    clearVault();
+  const handleSignOut = () => {
+    signOut();
     router.push('/login');
   };
 
-  if (loading) {
+  if (!initialized) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -55,7 +50,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <AppContent onSignOut={handleSignOut} userEmail={user.email || 'User'}>
+      <AppContent onSignOut={handleSignOut} userEmail={user.email}>
         {children}
       </AppContent>
     </div>
@@ -105,14 +100,6 @@ function AppContent({ children, onSignOut, userEmail }: { children: React.ReactN
         <header className="h-16 border-b bg-card flex items-center justify-between px-8 shrink-0">
           <h1 className="font-semibold text-lg uppercase tracking-tight opacity-70 text-xs">Secure Asset Vault</h1>
           <div className="flex items-center gap-4">
-            <button className="text-muted-foreground hover:text-foreground relative">
-              <span className="absolute -top-1 -right-1 h-2 w-2 bg-secondary rounded-full border-2 border-card" />
-              <span className="sr-only">Notifications</span>
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-            </button>
-            
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-xs shadow-inner hover:ring-2 hover:ring-secondary/50 transition-all outline-none">
@@ -120,9 +107,9 @@ function AppContent({ children, onSignOut, userEmail }: { children: React.ReactN
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuLabel>Account Session</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-pointer">
+                <DropdownMenuItem className="cursor-default">
                   <UserIcon className="mr-2 h-4 w-4" />
                   <span>{userEmail}</span>
                 </DropdownMenuItem>
@@ -154,15 +141,13 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-        <title>CoinVault | Institutional Asset Management</title>
+        <title>CoinVault | Asset Security</title>
       </head>
       <body className="font-body antialiased bg-background text-foreground overflow-hidden">
-        <FirebaseClientProvider>
-          <AuthGuard>
-            {children}
-          </AuthGuard>
-          <Toaster />
-        </FirebaseClientProvider>
+        <AuthGuard>
+          {children}
+        </AuthGuard>
+        <Toaster />
       </body>
     </html>
   );

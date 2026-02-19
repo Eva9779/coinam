@@ -1,8 +1,7 @@
+
 'use client';
 
 import { useState } from 'react';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -10,55 +9,27 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { ShieldCheck, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast';
+import { useVaultStore } from '@/lib/store';
 
 export default function RegisterPage() {
-  const auth = useAuth();
   const router = useRouter();
-  const { toast } = useToast();
+  const { signIn } = useVaultStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleRegister = async (e: React.FormEvent) => {
+  const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (password !== confirmPassword) {
-      toast({
-        variant: 'destructive',
-        title: 'Validation Error',
-        description: 'Passwords do not match.',
-      });
-      return;
-    }
-
-    if (password.length < 6) {
-      toast({
-        variant: 'destructive',
-        title: 'Security Requirement',
-        description: 'Password must be at least 6 characters.',
-      });
-      return;
-    }
+    if (password !== confirmPassword) return;
 
     setLoading(true);
-    try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      toast({
-        title: "Account Created",
-        description: "Welcome to CoinVault.",
-      });
+    // Simulate direct account creation without Firebase
+    setTimeout(() => {
+      signIn(email);
       router.push('/');
-    } catch (error: any) {
-      toast({
-        variant: 'destructive',
-        title: 'Registration Failed',
-        description: error.message || 'Could not create account. Please try again.',
-      });
-    } finally {
       setLoading(false);
-    }
+    }, 800);
   };
 
   return (
@@ -68,8 +39,8 @@ export default function RegisterPage() {
           <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
             <ShieldCheck className="h-8 w-8 text-secondary" />
           </div>
-          <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-          <CardDescription>Securely join the CoinVault network.</CardDescription>
+          <CardTitle className="text-2xl font-bold">Secure Registration</CardTitle>
+          <CardDescription>Initialize your identity on the secure ledger.</CardDescription>
         </CardHeader>
         <form onSubmit={handleRegister}>
           <CardContent className="space-y-4">
@@ -92,7 +63,6 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
               />
             </div>
             <div className="space-y-2">
@@ -103,16 +73,15 @@ export default function RegisterPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
-                minLength={6}
               />
             </div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full h-11" disabled={loading}>
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Register'}
+              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : 'Create Identity'}
             </Button>
             <div className="text-sm text-center text-muted-foreground">
-              Already have an account?{' '}
+              Already verified?{' '}
               <Link href="/login" className="text-primary hover:underline font-medium">
                 Sign In
               </Link>
