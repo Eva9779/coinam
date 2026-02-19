@@ -46,8 +46,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // Render auth pages without the sidebar layout
   if (!user || isAuthPage) {
     if (isAuthPage) return <>{children}</>;
-    // While redirecting to login, show nothing to prevent layout flash
-    if (!user && !isAuthPage) return null;
+    // While redirecting, show a simple loader to prevent UI flashes
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
   }
 
   const handleSignOut = () => {
@@ -147,14 +151,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
         <title>CoinVault | Asset Security</title>
       </head>
-      <body className="font-body antialiased bg-background overflow-hidden">
+      <body className="font-body antialiased bg-background text-foreground overflow-hidden">
         <VaultProvider>
           <AuthGuard>
             {children}
