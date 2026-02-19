@@ -101,12 +101,25 @@ export function useVaultStore() {
     return account.address;
   };
 
+  /**
+   * Clears the vault data and resets the state.
+   */
+  const clearVault = () => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem('cv_assets_v1');
+    localStorage.removeItem('cv_txs_v1');
+    setAssets([]);
+    setTransactions([]);
+    window.location.href = '/';
+  };
+
   return { 
     assets, 
     transactions, 
     addTransaction, 
     updateBalance, 
     generateNewWallet,
+    clearVault,
     initialized 
   };
 }

@@ -1,11 +1,21 @@
+
 "use client";
 
 import './globals.css';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { Toaster } from '@/components/ui/toaster';
-import { ShieldCheck, Database } from 'lucide-react';
+import { ShieldCheck, Database, LogOut, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getLiveBlockNumber } from '@/lib/blockchain';
+import { useVaultStore } from '@/lib/store';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function RootLayout({
   children,
@@ -13,6 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const [blockHeight, setBlockHeight] = useState<string>('Syncing...');
+  const { clearVault } = useVaultStore();
 
   useEffect(() => {
     async function syncNetwork() {
@@ -72,9 +83,26 @@ export default function RootLayout({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                   </svg>
                 </button>
-                <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-xs shadow-inner">
-                  JD
-                </div>
+                
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-xs shadow-inner hover:ring-2 hover:ring-secondary/50 transition-all outline-none">
+                      JD
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="cursor-pointer">
+                      <User className="mr-2 h-4 w-4" />
+                      <span>Vault Profile</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10" onClick={clearVault}>
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Disconnect Vault</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </header>
 
