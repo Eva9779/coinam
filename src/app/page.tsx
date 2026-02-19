@@ -1,13 +1,15 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   ArrowUpRight, 
   ArrowDownLeft, 
   TrendingUp, 
   ShieldCheck, 
   Wallet,
-  Activity
+  Activity,
+  Info
 } from "lucide-react";
 import { MOCK_WALLET_BALANCES, MOCK_TRANSACTIONS, MOCK_MARKET_DATA } from "@/lib/data";
 
@@ -16,6 +18,14 @@ export default function Dashboard() {
   
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
+      <Alert variant="default" className="bg-amber-50 border-amber-200">
+        <Info className="h-4 w-4 text-amber-600" />
+        <AlertTitle className="text-amber-800">Demo Environment</AlertTitle>
+        <AlertDescription className="text-amber-700">
+          This is a user interface demonstration. No real cryptocurrency transactions are processed, and all balances are simulated for preview purposes.
+        </AlertDescription>
+      </Alert>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Main Balance Card */}
         <Card className="md:col-span-2 bg-primary text-primary-foreground overflow-hidden relative shadow-xl">

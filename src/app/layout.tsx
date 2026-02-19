@@ -6,8 +6,8 @@ import { Toaster } from '@/components/ui/toaster';
 import { ShieldCheck } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'CoinVault | Secure Digital Wallet',
-  description: 'AI-powered secure cryptocurrency management platform.',
+  title: 'CoinVault | Secure Digital Wallet Prototype',
+  description: 'AI-powered secure cryptocurrency management platform demonstration.',
 };
 
 export default function RootLayout({
@@ -35,10 +35,10 @@ export default function RootLayout({
             <SidebarNav />
             <div className="mt-auto p-4">
               <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground">
-                <p className="font-semibold mb-1 text-foreground">Secure Node</p>
+                <p className="font-semibold mb-1 text-foreground">Development Node</p>
                 <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                  Connected to Mainnet
+                  <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                  Simulation Mode
                 </div>
               </div>
             </div>
@@ -50,6 +50,9 @@ export default function RootLayout({
             <header className="h-16 border-b bg-card flex items-center justify-between px-8 shrink-0">
               <h1 className="font-semibold text-lg">Digital Assets Overview</h1>
               <div className="flex items-center gap-4">
+                <div className="hidden lg:block text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-1 rounded border border-amber-200">
+                  PROTOTYPE MODE: DATA IS MOCKED
+                </div>
                 <button className="text-muted-foreground hover:text-foreground relative">
                   <span className="absolute -top-1 -right-1 h-2 w-2 bg-secondary rounded-full border-2 border-card" />
                   <span className="sr-only">Notifications</span>
