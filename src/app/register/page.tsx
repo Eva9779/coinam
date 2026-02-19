@@ -8,10 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { ShieldCheck, Loader2 } from 'lucide-react';
+import { ShieldCheck, Loader2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 export default function RegisterPage() {
   const auth = useAuth();
@@ -21,9 +22,12 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    
     if (password !== confirmPassword) {
       toast({
         variant: 'destructive',
@@ -32,15 +36,25 @@ export default function RegisterPage() {
       });
       return;
     }
+
     setLoading(true);
     try {
       await createUserWithEmailAndPassword(auth, email, password);
+      toast({
+        title: "Account Created",
+        description: "Welcome to CoinVault.",
+      });
       router.push('/');
     } catch (error: any) {
+      const message = error.code === 'auth/permission-denied' 
+        ? "Access Denied: Please ensure 'Email/Password' is enabled in the Firebase Console."
+        : error.message || 'Could not create account.';
+      
+      setError(message);
       toast({
         variant: 'destructive',
         title: 'Registration Failed',
-        description: error.message || 'Could not create account.',
+        description: message,
       });
     } finally {
       setLoading(false);
@@ -59,6 +73,15 @@ export default function RegisterPage() {
         </CardHeader>
         <form onSubmit={handleRegister}>
           <CardContent className="space-y-4">
+            {error && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Configuration Required</AlertTitle>
+                <AlertDescription className="text-xs">
+                  {error}
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
               <Input
