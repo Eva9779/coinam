@@ -4,12 +4,14 @@ import { mainnet } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 
 /**
- * Public client for interacting with the Ethereum Mainnet.
- * Connects directly to the live peer-to-peer network using Coinbase infrastructure.
+ * Live Network Gateway
+ * Uses Coinbase CDP RPC for high-performance Ethereum Mainnet access.
  */
+const RPC_URL = `https://api.developer.coinbase.com/rpc/v1/mainnet/0TGjjV5EHjnHktxmAkRgECJwFYQa9AIV`;
+
 export const publicClient = createPublicClient({
   chain: mainnet,
-  transport: http(), // Can be configured with specific Coinbase RPC URL in production
+  transport: http(RPC_URL),
 });
 
 /**
@@ -19,6 +21,7 @@ export async function getLiveBlockNumber() {
   try {
     return await publicClient.getBlockNumber();
   } catch (error) {
+    console.error("Failed to fetch block height:", error);
     return null;
   }
 }
@@ -28,10 +31,11 @@ export async function getLiveBlockNumber() {
  */
 export async function getLiveBalance(address: string) {
   try {
-    if (!address.startsWith('0x')) return '0';
+    if (!address || !address.startsWith('0x')) return '0';
     const balance = await publicClient.getBalance({ address: address as `0x${string}` });
     return formatEther(balance);
   } catch (error) {
+    console.error("Failed to fetch balance:", error);
     return '0';
   }
 }
@@ -44,20 +48,21 @@ export async function getLiveGasPrice() {
     const gasPrice = await publicClient.getGasPrice();
     return Number(gasPrice) / 1e9;
   } catch (error) {
+    console.error("Failed to fetch gas price:", error);
     return 0;
   }
 }
 
 /**
  * Signs and broadcasts a live transaction to the Ethereum Mainnet.
- * This operation is final and irreversible once transmitted to the network.
+ * This operation is final and irreversible.
  */
 export async function sendLiveTransaction(privateKey: `0x${string}`, to: string, amount: string) {
   const account = privateKeyToAccount(privateKey);
   const walletClient = createWalletClient({
     account,
     chain: mainnet,
-    transport: http(),
+    transport: http(RPC_URL),
   });
 
   const hash = await walletClient.sendTransaction({

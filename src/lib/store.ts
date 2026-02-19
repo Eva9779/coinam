@@ -28,7 +28,6 @@ export interface Transaction {
 /**
  * Live Vault Store
  * Manages persistent on-chain keys and transaction history locally.
- * All wallet generation is real cryptographic keypair creation.
  */
 export function useVaultStore() {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
@@ -36,6 +35,8 @@ export function useVaultStore() {
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
     const savedAssets = localStorage.getItem('cv_assets_v1');
     const savedTxs = localStorage.getItem('cv_txs_v1');
     
@@ -51,7 +52,7 @@ export function useVaultStore() {
   }, []);
 
   useEffect(() => {
-    if (initialized) {
+    if (initialized && typeof window !== 'undefined') {
       localStorage.setItem('cv_assets_v1', JSON.stringify(assets));
       localStorage.setItem('cv_txs_v1', JSON.stringify(transactions));
     }
@@ -82,7 +83,6 @@ export function useVaultStore() {
 
   /**
    * Generates a real cryptographic keypair for the specified network.
-   * Only Ethereum-compatible keys are provisioned to ensure production compatibility.
    */
   const generateNewWallet = (currency: string) => {
     const pKey = generatePrivateKey();

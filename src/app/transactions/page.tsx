@@ -71,13 +71,18 @@ export default function TransactionsPage() {
       return;
     }
 
+    if (!asset.privateKey) {
+      toast({ 
+        title: "Legacy Wallet Endpoint", 
+        description: "This endpoint was created without a signing key. Please provision a new Mainnet Key in the Wallet tab.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsSending(true);
     
     try {
-      if (!asset.privateKey) {
-        throw new Error("Private key not found for signing this transaction.");
-      }
-
       // BROADCAST DIRECTLY TO LIVE MAINNET
       const txHash = await sendLiveTransaction(asset.privateKey, recipient, amount);
 
@@ -159,8 +164,8 @@ export default function TransactionsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {assets.length > 0 ? assets.map(a => (
-                          <SelectItem key={a.currency} value={a.currency}>
-                            {a.currency} ({a.amount.toFixed(4)})
+                          <SelectItem key={a.address} value={a.currency}>
+                            {a.currency} ({a.amount.toFixed(4)}) - {a.address.slice(0, 6)}...
                           </SelectItem>
                         )) : (
                           <SelectItem value="ETH" disabled>No active assets provisioned</SelectItem>
@@ -172,12 +177,12 @@ export default function TransactionsPage() {
                   <div className="space-y-2">
                     <Label htmlFor="amount" className="text-xs uppercase tracking-widest font-bold opacity-70">Transfer Volume</Label>
                     <div className="relative">
-                      <Input 
+                      <input 
                         id="amount" 
                         type="number" 
                         step="any"
                         placeholder="0.00" 
-                        className="pr-16 text-xl font-bold h-12 bg-background/50 border-primary/10"
+                        className="flex h-12 w-full rounded-md border border-primary/10 bg-background/50 px-3 py-2 pr-16 text-xl font-bold ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
                         required
@@ -192,12 +197,12 @@ export default function TransactionsPage() {
                 <div className="space-y-2">
                   <Label htmlFor="recipient" className="text-xs uppercase tracking-widest font-bold opacity-70">Destination Address</Label>
                   <div className="space-y-1">
-                    <Input 
+                    <input 
                       id="recipient" 
                       placeholder="0x..." 
                       value={recipient}
                       onChange={(e) => { setRecipient(e.target.value); setAddressError(""); }}
-                      className={cn("h-12 font-mono text-xs bg-background/50", addressError && "border-destructive")}
+                      className={cn("flex h-12 w-full rounded-md border bg-background/50 px-3 py-2 font-mono text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50", addressError ? "border-destructive" : "border-input")}
                       required
                     />
                     {addressError && (
