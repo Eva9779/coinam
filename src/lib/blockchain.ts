@@ -5,11 +5,11 @@ import { privateKeyToAccount } from 'viem/accounts';
 
 /**
  * Public client for interacting with the Ethereum Mainnet.
- * Connects directly to the live peer-to-peer network via Coinbase Node.
+ * Connects directly to the live peer-to-peer network using Coinbase infrastructure.
  */
 export const publicClient = createPublicClient({
   chain: mainnet,
-  transport: http(), // Default transport for general queries
+  transport: http(), // Can be configured with specific Coinbase RPC URL in production
 });
 
 /**
@@ -49,9 +49,8 @@ export async function getLiveGasPrice() {
 }
 
 /**
- * Signs and broadcasts a real transaction to the Ethereum Mainnet.
+ * Signs and broadcasts a live transaction to the Ethereum Mainnet.
  * This operation is final and irreversible once transmitted to the network.
- * It uses your Coinbase CDP credentials for broadcast priority when configured.
  */
 export async function sendLiveTransaction(privateKey: `0x${string}`, to: string, amount: string) {
   const account = privateKeyToAccount(privateKey);
