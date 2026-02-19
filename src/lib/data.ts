@@ -1,12 +1,12 @@
 
-export const MOCK_WALLET_BALANCES = [
+export const INITIAL_WALLET_BALANCES = [
   { currency: 'BTC', amount: 0.45, fiatValueUSD: 28540.50 },
   { currency: 'ETH', amount: 5.2, fiatValueUSD: 12480.00 },
   { currency: 'SOL', amount: 150.0, fiatValueUSD: 14250.00 },
   { currency: 'USDC', amount: 5000.0, fiatValueUSD: 5000.00 },
 ];
 
-export const MOCK_TRANSACTIONS = [
+export const INITIAL_TRANSACTIONS = [
   {
     id: 'tx_001',
     type: 'receive' as const,
@@ -14,8 +14,8 @@ export const MOCK_TRANSACTIONS = [
     amount: 0.05,
     fiatValueUSD: 3100.00,
     timestamp: new Date(Date.now() - 3600000).toISOString(),
-    fromAddress: 'bc1qxy2kg3...',
-    description: 'Payment for freelance services',
+    fromAddress: 'bc1qxy2kg36dn52cc5tx0hhaasdg78489',
+    description: 'Payment for professional services',
   },
   {
     id: 'tx_002',
@@ -25,7 +25,7 @@ export const MOCK_TRANSACTIONS = [
     fiatValueUSD: 3600.00,
     timestamp: new Date(Date.now() - 86400000).toISOString(),
     toAddress: '0x71C765...',
-    description: 'Transfer to Ledger',
+    description: 'Internal vault transfer',
   },
   {
     id: 'tx_003',
@@ -45,11 +45,11 @@ export const MOCK_TRANSACTIONS = [
     fiatValueUSD: 6300.00,
     timestamp: new Date(Date.now() - 259200000).toISOString(),
     toAddress: 'bc1q9...xyz',
-    description: 'Purchase of equipment',
+    description: 'Asset liquidation',
   }
 ];
 
-export const MOCK_MARKET_DATA = [
+export const INITIAL_MARKET_DATA = [
   {
     currency: 'BTC',
     currentPriceUSD: 63423.50,

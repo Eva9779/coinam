@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { INITIAL_WALLET_BALANCES, INITIAL_TRANSACTIONS } from './data';
 
 export interface WalletAsset {
   currency: string;
@@ -22,12 +23,12 @@ export interface Transaction {
   description: string;
 }
 
-const DEFAULT_ASSETS: WalletAsset[] = [
-  { currency: 'BTC', amount: 0.45, fiatValueUSD: 28540.50, address: 'bc1q8h...v9f' },
-  { currency: 'ETH', amount: 5.2, fiatValueUSD: 12480.00, address: '0x71C...65e' },
-  { currency: 'SOL', amount: 150.0, fiatValueUSD: 14250.00, address: 'GvT9...vXw' },
-  { currency: 'USDC', amount: 5000.0, fiatValueUSD: 5000.00, address: '0xUSDC...abc' },
-];
+const DEFAULT_ASSETS: WalletAsset[] = INITIAL_WALLET_BALANCES.map(asset => ({
+  ...asset,
+  address: asset.currency === 'BTC' ? 'bc1q8h...v9f' : 
+           asset.currency === 'ETH' ? '0x71C...65e' :
+           asset.currency === 'SOL' ? 'GvT9...vXw' : '0xUSDC...abc'
+}));
 
 export function useVaultStore() {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
@@ -38,10 +39,17 @@ export function useVaultStore() {
     const savedAssets = localStorage.getItem('cv_assets');
     const savedTxs = localStorage.getItem('cv_txs');
     
-    if (savedAssets) setAssets(JSON.parse(savedAssets));
-    else setAssets(DEFAULT_ASSETS);
+    if (savedAssets) {
+      setAssets(JSON.parse(savedAssets));
+    } else {
+      setAssets(DEFAULT_ASSETS);
+    }
     
-    if (savedTxs) setTransactions(JSON.parse(savedTxs));
+    if (savedTxs) {
+      setTransactions(JSON.parse(savedTxs));
+    } else {
+      setTransactions(INITIAL_TRANSACTIONS as any);
+    }
     
     setInitialized(true);
   }, []);
@@ -56,10 +64,10 @@ export function useVaultStore() {
   const addTransaction = (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
     const newTx: Transaction = {
       ...tx,
-      id: `tx_${Math.random().toString(36).substr(2, 9)}`,
+      id: `tx_${Math.random().toString(36).substring(2, 11)}`,
       timestamp: new Date().toISOString(),
     };
-    setTransactions([newTx, ...transactions]);
+    setTransactions(prev => [newTx, ...prev]);
   };
 
   const updateBalance = (currency: string, amountChange: number, fiatPrice: number) => {
@@ -77,14 +85,14 @@ export function useVaultStore() {
   };
 
   const generateNewWallet = (currency: string) => {
-    const randomAddr = `${currency.toLowerCase()}_${Math.random().toString(36).substr(2, 12)}`;
+    const randomAddr = `${currency.toLowerCase()}_${Math.random().toString(36).substring(2, 14)}`;
     const newAsset: WalletAsset = {
       currency,
       amount: 0,
       fiatValueUSD: 0,
       address: randomAddr
     };
-    setAssets([...assets, newAsset]);
+    setAssets(prev => [...prev, newAsset]);
     return randomAddr;
   };
 

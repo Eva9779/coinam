@@ -7,22 +7,40 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, ShieldAlert, TrendingUp, Zap, Sparkles, RefreshCw } from "lucide-react";
-import { MOCK_WALLET_BALANCES, MOCK_TRANSACTIONS, MOCK_MARKET_DATA } from "@/lib/data";
+import { useVaultStore } from "@/lib/store";
+import { INITIAL_MARKET_DATA } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
 export default function AlertsPage() {
+  const { assets, transactions, initialized } = useVaultStore();
   const [data, setData] = useState<SmartAlertsOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
   const fetchAlerts = async () => {
+    if (!initialized) return;
     setLoading(true);
     try {
+      // Map store data to match the flow input schema
       const response = await generateSmartAlerts({
-        userId: "user_12345",
-        walletBalances: MOCK_WALLET_BALANCES,
-        recentTransactions: MOCK_TRANSACTIONS,
-        marketData: MOCK_MARKET_DATA,
+        userId: "vault_user_main",
+        walletBalances: assets.map(a => ({
+          currency: a.currency,
+          amount: a.amount,
+          fiatValueUSD: a.fiatValueUSD
+        })),
+        recentTransactions: transactions.map(t => ({
+          id: t.id,
+          type: t.type === 'trade' ? 'send' : t.type, // Map 'trade' to 'send' for simple analysis
+          currency: t.currency.split(' ')[0],
+          amount: t.amount,
+          fiatValueUSD: t.fiatValueUSD,
+          timestamp: t.timestamp,
+          fromAddress: t.fromAddress,
+          toAddress: t.toAddress,
+          description: t.description
+        })),
+        marketData: INITIAL_MARKET_DATA,
         userAverageTransactionAmountUSD: 500,
         userHighValueThresholdUSD: 5000,
       });
@@ -36,8 +54,10 @@ export default function AlertsPage() {
 
   useEffect(() => {
     setMounted(true);
-    fetchAlerts();
-  }, []);
+    if (initialized) {
+      fetchAlerts();
+    }
+  }, [initialized]);
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
@@ -45,10 +65,10 @@ export default function AlertsPage() {
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-3">
             <Sparkles className="h-8 w-8 text-secondary" />
-            Smart Alerts
+            Active Intelligence
           </h2>
           <p className="text-muted-foreground">
-            AI-powered security insights and behavioral analysis for your assets.
+            Continuous AI monitoring for account security and market dynamics.
           </p>
         </div>
         <button 
@@ -57,7 +77,7 @@ export default function AlertsPage() {
           className="flex items-center gap-2 text-sm text-secondary hover:underline disabled:opacity-50"
         >
           <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
-          Refresh Analysis
+          Re-analyze Assets
         </button>
       </div>
 
@@ -80,7 +100,7 @@ export default function AlertsPage() {
           ))
         ) : data?.alerts.length ? (
           data.alerts.map((alert, idx) => (
-            <Card key={idx} className="border-l-4 overflow-hidden" style={{ borderLeftColor: getSeverityColor(alert.severity) }}>
+            <Card key={idx} className="border-l-4 overflow-hidden shadow-sm" style={{ borderLeftColor: getSeverityColor(alert.severity) }}>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between mb-2">
                   <Badge variant="outline" className="flex items-center gap-1 uppercase tracking-wider text-[10px] font-bold">
@@ -105,7 +125,7 @@ export default function AlertsPage() {
                     </div>
                   )}
                   <div className="text-xs">
-                    <span className="text-muted-foreground mr-1">Severity:</span>
+                    <span className="text-muted-foreground mr-1">Status:</span>
                     <span className="font-bold uppercase" style={{ color: getSeverityColor(alert.severity) }}>
                       {alert.severity}
                     </span>
@@ -113,7 +133,7 @@ export default function AlertsPage() {
                 </div>
                 {alert.transactionId && (
                   <button className="text-xs font-medium text-secondary hover:underline">
-                    View Transaction Details
+                    Investigate
                   </button>
                 )}
               </CardContent>
@@ -122,9 +142,9 @@ export default function AlertsPage() {
         ) : (
           <Card className="border-dashed border-2 flex flex-col items-center justify-center py-20 text-center">
             <Zap className="h-12 w-12 text-muted mb-4" />
-            <h3 className="text-xl font-semibold mb-2">No Alerts Detected</h3>
+            <h3 className="text-xl font-semibold mb-2">System Healthy</h3>
             <p className="text-muted-foreground max-w-sm">
-              Your account behavior looks normal and markets for your assets are relatively stable.
+              AI Guardian reports no anomalies in your account activity or current market exposure.
             </p>
           </Card>
         )}

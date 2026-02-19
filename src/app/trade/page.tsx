@@ -18,7 +18,6 @@ export default function TradePage() {
   const [amount, setAmount] = useState("");
   const [isSwapping, setIsSwapping] = useState(false);
 
-  // Mock rates for the prototype
   const rates: Record<string, number> = {
     "BTC": 64000,
     "ETH": 2400,
@@ -47,41 +46,47 @@ export default function TradePage() {
         currency: `${fromAsset} → ${toAsset}`,
         amount: val,
         fiatValueUSD: val * rates[fromAsset],
-        description: `Swapped ${val} ${fromAsset} for ${estimatedReceive.toFixed(6)} ${toAsset}`
+        description: `Exchanged ${val} ${fromAsset} for ${estimatedReceive.toFixed(6)} ${toAsset} via vault enclave`
       });
 
       setIsSwapping(false);
       setAmount("");
       toast({ 
-        title: "Trade Successful", 
-        description: `Exchanged ${val} ${fromAsset} for ${toAsset}.` 
+        title: "Trade Finalized", 
+        description: `Enclave confirmed exchange of ${val} ${fromAsset}.` 
       });
     }, 1500);
   };
 
-  if (!initialized) return null;
+  if (!initialized) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-xl mx-auto space-y-8">
       <div>
-        <h2 className="text-3xl font-bold text-primary">Instant Trade</h2>
-        <p className="text-muted-foreground">Exchange assets instantly with competitive rates.</p>
+        <h2 className="text-3xl font-bold text-primary">Exchange Portal</h2>
+        <p className="text-muted-foreground">High-liquidity swaps with institutional-grade pricing.</p>
       </div>
 
       <Card className="shadow-lg border-primary/10">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-xl">Swap</CardTitle>
+            <CardTitle className="text-xl">Sign Exchange</CardTitle>
             <RefreshCw className="h-4 w-4 text-muted-foreground cursor-pointer hover:rotate-180 transition-transform duration-500" />
           </div>
-          <CardDescription>Trade your crypto assets securely.</CardDescription>
+          <CardDescription>All swaps are executed directly on the secure vault enclave.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* FROM */}
           <div className="space-y-3">
             <div className="flex justify-between text-sm">
-              <Label>From</Label>
-              <span className="text-muted-foreground">Balance: {fromData?.amount.toFixed(4)} {fromAsset}</span>
+              <Label>Withdraw</Label>
+              <span className="text-muted-foreground">Available: {fromData?.amount.toFixed(4)} {fromAsset}</span>
             </div>
             <div className="flex gap-2">
               <Input 
@@ -92,7 +97,7 @@ export default function TradePage() {
                 className="text-lg font-bold h-12"
               />
               <Select value={fromAsset} onValueChange={setFromAsset}>
-                <SelectTrigger className="w-32 h-12">
+                <SelectTrigger className="w-32 h-12 font-semibold">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -115,7 +120,7 @@ export default function TradePage() {
           {/* TO */}
           <div className="space-y-3">
             <div className="flex justify-between text-sm">
-              <Label>To (Estimated)</Label>
+              <Label>Deposit (Net)</Label>
             </div>
             <div className="flex gap-2">
               <Input 
@@ -124,7 +129,7 @@ export default function TradePage() {
                 className="text-lg font-bold h-12 bg-muted/30"
               />
               <Select value={toAsset} onValueChange={setToAsset}>
-                <SelectTrigger className="w-32 h-12">
+                <SelectTrigger className="w-32 h-12 font-semibold">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -136,41 +141,41 @@ export default function TradePage() {
 
           <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 space-y-3">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Exchange Rate</span>
+              <span className="text-muted-foreground">Enclave Quote</span>
               <span className="font-medium">1 {fromAsset} = {exchangeRate.toFixed(6)} {toAsset}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Slippage Tolerance</span>
-              <span className="font-medium">0.5%</span>
+              <span className="text-muted-foreground">Network Fee</span>
+              <span className="font-medium text-green-600">Dynamic (Included)</span>
             </div>
           </div>
 
           <Button 
-            className="w-full h-14 text-lg gap-2" 
+            className="w-full h-14 text-lg gap-2 shadow-lg" 
             disabled={!amount || isSwapping}
             onClick={handleSwap}
           >
-            {isSwapping ? "Executing Trade..." : "Swap Assets"}
+            {isSwapping ? "Executing via Enclave..." : "Finalize Exchange"}
           </Button>
         </CardContent>
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="bg-muted/30 border-none">
+        <Card className="bg-muted/30 border-none shadow-none">
           <CardContent className="p-4 flex items-center gap-4">
             <TrendingUp className="h-5 w-5 text-secondary" />
             <div className="text-sm">
-              <div className="font-semibold">Best Price Found</div>
-              <div className="text-muted-foreground">Optimized via liquidity nodes</div>
+              <div className="font-semibold">Direct Liquidity</div>
+              <div className="text-muted-foreground">Connected to tier-1 pools</div>
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-muted/30 border-none">
+        <Card className="bg-muted/30 border-none shadow-none">
           <CardContent className="p-4 flex items-center gap-4">
             <Info className="h-5 w-5 text-primary" />
             <div className="text-sm">
-              <div className="font-semibold">Secure Swap</div>
-              <div className="text-muted-foreground">Direct enclave execution</div>
+              <div className="font-semibold">Secured Signing</div>
+              <div className="text-muted-foreground">Keys never leave hardware</div>
             </div>
           </CardContent>
         </Card>
