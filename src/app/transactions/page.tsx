@@ -14,6 +14,7 @@ import { useVaultStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { getLiveGasPrice, sendLiveTransaction } from "@/lib/blockchain";
+import { Badge } from "@/components/ui/badge";
 
 type FeeTier = 'slow' | 'average' | 'fast';
 
@@ -50,7 +51,7 @@ export default function TransactionsPage() {
   const validateAddress = (addr: string) => {
     if (!addr) return "";
     const ethRegex = /^0x[a-fA-F0-9]{40}$/;
-    if (currency === 'ETH' && !ethRegex.test(addr)) return "Invalid destination address for selected network";
+    if (!ethRegex.test(addr)) return "Invalid destination address for Mainnet broadcast";
     return "";
   };
 
@@ -66,7 +67,7 @@ export default function TransactionsPage() {
     const asset = assets.find(a => a.currency === currency);
     
     if (!asset || val > asset.amount) {
-      toast({ title: "Insufficient balance on ledger", variant: "destructive" });
+      toast({ title: "Insufficient balance on mainnet ledger", variant: "destructive" });
       return;
     }
 
@@ -99,7 +100,7 @@ export default function TransactionsPage() {
     } catch (err: any) {
       toast({
         title: "Broadcast Failed",
-        description: err.message || "Failed to transmit transaction to the network.",
+        description: err.message || "Failed to transmit transaction to the peer network.",
         variant: "destructive"
       });
     } finally {
@@ -121,7 +122,7 @@ export default function TransactionsPage() {
         <div>
           <h2 className="text-3xl font-bold text-primary flex items-center gap-3">
             <Database className="h-8 w-8 text-secondary" />
-            Network Gateway
+            Mainnet Gateway
           </h2>
           <p className="text-muted-foreground text-sm">Direct broadcast interface to decentralized peer networks.</p>
         </div>
@@ -143,9 +144,9 @@ export default function TransactionsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl font-bold">
                 <ShieldCheck className="h-6 w-6 text-secondary" />
-                Sign & Broadcast
+                Sign & Transmit
               </CardTitle>
-              <CardDescription className="text-xs">Finalize and transmit assets to the distributed ledger.</CardDescription>
+              <CardDescription className="text-xs">Finalize and transmit assets directly to the decentralized ledger.</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSend} className="space-y-6">
@@ -162,7 +163,7 @@ export default function TransactionsPage() {
                             {a.currency} ({a.amount.toFixed(4)})
                           </SelectItem>
                         )) : (
-                          <SelectItem value="ETH" disabled>No active assets</SelectItem>
+                          <SelectItem value="ETH" disabled>No active assets provisioned</SelectItem>
                         )}
                       </SelectContent>
                     </Select>
@@ -209,7 +210,7 @@ export default function TransactionsPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <Label className="text-xs uppercase tracking-widest font-bold opacity-70">Network Priority</Label>
+                  <Label className="text-xs uppercase tracking-widest font-bold opacity-70">Priority Level</Label>
                   <div className="grid grid-cols-3 gap-3">
                     {(['slow', 'average', 'fast'] as FeeTier[]).map((tier) => (
                       <button
@@ -234,7 +235,7 @@ export default function TransactionsPage() {
                     <span className="text-muted-foreground font-semibold uppercase tracking-widest text-[10px]">Network Fee</span>
                     <div className="flex flex-col items-end">
                       <span className="font-bold text-base">{getGasEstimate().toFixed(6)} {currency}</span>
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold">Verified on Chain</span>
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold">Market Rate</span>
                     </div>
                   </div>
                   <div className="h-px bg-primary/10 w-full" />
@@ -258,7 +259,7 @@ export default function TransactionsPage() {
           <Card className="border-none shadow-xl bg-card/50 backdrop-blur-md">
             <CardHeader>
               <CardTitle className="text-xl">Network Entrypoint</CardTitle>
-              <CardDescription className="text-xs">Incoming transfers are credited to your local ledger after chain confirmations.</CardDescription>
+              <CardDescription className="text-xs">Incoming transfers are credited to your local ledger after chain confirmation.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center space-y-8 py-10">
               <div className="p-8 bg-white rounded-3xl shadow-2xl border border-primary/5">
@@ -336,6 +337,9 @@ export default function TransactionsPage() {
                       </div>
                       <div className="text-sm text-muted-foreground font-bold opacity-70">
                         ${tx.fiatValueUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {mounted ? new Date(tx.timestamp).toLocaleDateString() : '...'}
                       </div>
                     </div>
                   </div>

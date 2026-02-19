@@ -9,7 +9,7 @@ export interface WalletAsset {
   amount: number;
   fiatValueUSD: number;
   address: string;
-  isLive?: boolean;
+  isLive: boolean;
   privateKey?: `0x${string}`;
 }
 
@@ -28,6 +28,7 @@ export interface Transaction {
 /**
  * Live Vault Store
  * Manages persistent on-chain keys and transaction history locally.
+ * All wallet generation is real cryptographic keypair creation.
  */
 export function useVaultStore() {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
@@ -71,8 +72,8 @@ export function useVaultStore() {
         const newAmount = asset.amount + amountChange;
         return {
           ...asset,
-          amount: newAmount,
-          fiatValueUSD: newAmount * fiatPrice
+          amount: Math.max(0, newAmount),
+          fiatValueUSD: Math.max(0, newAmount) * fiatPrice
         };
       }
       return asset;
@@ -81,32 +82,23 @@ export function useVaultStore() {
 
   /**
    * Generates a real cryptographic keypair for the specified network.
+   * Only Ethereum-compatible keys are provisioned to ensure production compatibility.
    */
   const generateNewWallet = (currency: string) => {
-    let address = '';
-    let isLive = false;
-    let privateKey: `0x${string}` | undefined;
-
-    if (currency === 'ETH' || currency === 'USDC') {
-      const pKey = generatePrivateKey();
-      const account = privateKeyToAccount(pKey);
-      address = account.address;
-      privateKey = pKey;
-      isLive = true;
-    } else {
-      address = `${currency.toLowerCase()}_${Math.random().toString(36).substring(2, 14)}`;
-    }
-
+    const pKey = generatePrivateKey();
+    const account = privateKeyToAccount(pKey);
+    
     const newAsset: WalletAsset = {
       currency,
       amount: 0,
       fiatValueUSD: 0,
-      address,
-      isLive,
-      privateKey
+      address: account.address,
+      isLive: true,
+      privateKey: pKey
     };
+    
     setAssets(prev => [...prev, newAsset]);
-    return address;
+    return account.address;
   };
 
   return { 

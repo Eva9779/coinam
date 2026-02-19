@@ -14,7 +14,6 @@ import {
   ShieldCheck,
   Cpu,
   Lock,
-  Database,
   RefreshCw
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -35,23 +34,22 @@ export default function WalletPage() {
 
   const handleGenerate = async () => {
     setIsGenerating(true);
-    const currency = Math.random() > 0.5 ? 'ETH' : 'USDC';
+    const currency = 'ETH';
     generateNewWallet(currency);
     setIsGenerating(false);
     toast({
       title: "Key Provisioned",
-      description: `New ${currency} endpoint is live on mainnet.`,
+      description: `${currency} endpoint is now live on mainnet.`,
     });
   };
 
   const handleSyncBalance = async (address: string, currency: string) => {
-    if (currency !== 'ETH') return;
     setSyncingBalances(prev => ({ ...prev, [address]: true }));
     try {
       const liveBal = await getLiveBalance(address);
       toast({
         title: "Network Sync Complete",
-        description: `On-chain balance: ${liveBal} ETH`,
+        description: `On-chain balance: ${liveBal} ${currency}`,
       });
     } catch (e) {
       toast({ title: "Sync failed", variant: "destructive" });
@@ -107,11 +105,8 @@ export default function WalletPage() {
                       <div>
                         <div className="font-bold text-xl flex items-center gap-2">
                           {asset.currency}
-                          <Badge variant="outline" className={cn(
-                            "text-[9px] h-4 font-bold uppercase tracking-widest",
-                            asset.isLive ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-blue-500/10 text-blue-600 border-blue-500/20"
-                          )}>
-                            {asset.isLive ? "MAINNET" : "ENCLAVE"}
+                          <Badge variant="outline" className="text-[9px] h-4 font-bold uppercase tracking-widest bg-green-500/10 text-green-600 border-green-500/20">
+                            MAINNET
                           </Badge>
                         </div>
                         <div className="text-[10px] text-muted-foreground font-mono font-bold flex items-center gap-2 mt-1 opacity-80">
@@ -134,24 +129,22 @@ export default function WalletPage() {
                         <div className="text-xs text-green-500 font-bold opacity-80">${asset.fiatValueUSD.toLocaleString()}</div>
                       </div>
                       <div className="flex gap-2">
-                        {asset.isLive && (
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            className="h-10 w-10 rounded-xl hover:bg-secondary/10"
-                            onClick={() => handleSyncBalance(asset.address, asset.currency)}
-                            disabled={syncingBalances[asset.address]}
-                          >
-                            <RefreshCw className={cn("h-4 w-4 text-secondary", syncingBalances[asset.address] && "animate-spin")} />
-                          </Button>
-                        )}
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-10 w-10 rounded-xl hover:bg-secondary/10"
+                          onClick={() => handleSyncBalance(asset.address, asset.currency)}
+                          disabled={syncingBalances[asset.address]}
+                        >
+                          <RefreshCw className={cn("h-4 w-4 text-secondary", syncingBalances[asset.address] && "animate-spin")} />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl hover:bg-muted"><MoreVertical className="h-4 w-4" /></Button>
                       </div>
                     </div>
                   </div>
                 )) : (
                   <div className="py-24 text-center text-muted-foreground border-2 border-dashed rounded-3xl opacity-50 font-bold uppercase text-xs tracking-widest">
-                    Provision a key to start
+                    Provision a mainnet key to start
                   </div>
                 )}
               </div>
@@ -167,12 +160,12 @@ export default function WalletPage() {
             <CardHeader className="relative z-10 pb-4">
               <CardTitle className="flex items-center gap-3 text-lg font-bold tracking-tight">
                 <Cpu className="h-6 w-6 text-secondary" />
-                Network Integrity
+                Vault Security
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6 relative z-10">
               <div className="p-5 bg-white/10 rounded-2xl space-y-4 backdrop-blur-xl border border-white/20 shadow-inner">
-                <div className="text-[10px] font-bold text-white/70 uppercase tracking-widest">Node Encryption Layer</div>
+                <div className="text-[10px] font-bold text-white/70 uppercase tracking-widest">Network Encryption Layer</div>
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-sm">VAULT-SECURE-V4</span>
                   <Badge className="bg-green-500 text-white border-none text-[10px] font-bold">ACTIVE</Badge>
@@ -182,11 +175,11 @@ export default function WalletPage() {
                 </div>
               </div>
               <p className="text-xs text-primary-foreground/70 leading-relaxed font-medium italic">
-                "Direct cryptographic signing via hardware isolation. Private material remains non-extractable."
+                "Direct cryptographic signing via hardware isolation. Private material remains non-extractable from the vault enclave."
               </p>
               <Button variant="secondary" className="w-full font-bold h-12 shadow-2xl flex items-center gap-2 rounded-xl text-primary">
                 <Key className="h-4 w-4" />
-                Security Audit
+                System Audit
               </Button>
             </CardContent>
           </Card>
