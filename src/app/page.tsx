@@ -40,10 +40,16 @@ export default function Dashboard() {
     async function fetchMarket() {
       try {
         const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=5&page=1&sparkline=false');
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
         const data = await res.json();
-        setMarketData(data);
+        if (Array.isArray(data)) {
+          setMarketData(data);
+        }
       } catch (err) {
-        console.error("Market fetch failed:", err);
+        // Log locally for debugging but do not crash the UI
+        console.warn("Market connectivity interrupted. Using local ledger values.");
       } finally {
         setLoading(false);
       }
@@ -113,25 +119,31 @@ export default function Dashboard() {
               Array.from({ length: 3 }).map((_, i) => (
                 <div key={i} className="h-10 w-full bg-muted animate-pulse rounded" />
               ))
-            ) : marketData.slice(0, 3).map((item) => (
-              <div key={item.id} className="flex items-center justify-between group">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center font-bold text-[10px] uppercase">
-                    {item.symbol}
+            ) : marketData.length > 0 ? (
+              marketData.slice(0, 3).map((item) => (
+                <div key={item.id} className="flex items-center justify-between group">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center font-bold text-[10px] uppercase">
+                      {item.symbol}
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium">{item.name}</div>
+                      <div className="text-xs text-muted-foreground">${item.current_price.toLocaleString()}</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-sm font-medium">{item.name}</div>
-                    <div className="text-xs text-muted-foreground">${item.current_price.toLocaleString()}</div>
+                  <div className={cn(
+                    "text-xs font-semibold px-2 py-1 rounded",
+                    item.price_change_percentage_24h >= 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                  )}>
+                    {item.price_change_percentage_24h >= 0 ? '+' : ''}{item.price_change_percentage_24h?.toFixed(2)}%
                   </div>
                 </div>
-                <div className={cn(
-                  "text-xs font-semibold px-2 py-1 rounded",
-                  item.price_change_percentage_24h >= 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                )}>
-                  {item.price_change_percentage_24h >= 0 ? '+' : ''}{item.price_change_percentage_24h?.toFixed(2)}%
-                </div>
+              ))
+            ) : (
+              <div className="py-8 text-center text-xs text-muted-foreground uppercase font-bold tracking-widest opacity-50">
+                Network Syncing...
               </div>
-            ))}
+            )}
             <Button variant="ghost" className="w-full text-xs text-muted-foreground mt-2 group" asChild>
               <Link href="/market">
                 Global market index <ArrowRight className="h-3 w-3 ml-2 group-hover:translate-x-1 transition-transform" />
@@ -149,25 +161,31 @@ export default function Dashboard() {
             Asset Breakdown
           </h3>
           <div className="grid gap-3">
-            {assets.filter(a => a.amount > 0).map((asset) => (
-              <Card key={asset.currency} className="hover:border-secondary transition-all cursor-pointer">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-full bg-primary/5 flex items-center justify-center font-bold text-sm text-primary">
-                      {asset.currency}
+            {assets.filter(a => a.amount > 0).length > 0 ? (
+              assets.filter(a => a.amount > 0).map((asset) => (
+                <Card key={asset.currency} className="hover:border-secondary transition-all cursor-pointer">
+                  <CardContent className="p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-full bg-primary/5 flex items-center justify-center font-bold text-sm text-primary">
+                        {asset.currency}
+                      </div>
+                      <div>
+                        <div className="font-semibold">{asset.currency}</div>
+                        <div className="text-xs text-muted-foreground">{asset.amount.toFixed(4)} {asset.currency}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="font-semibold">{asset.currency}</div>
-                      <div className="text-xs text-muted-foreground">{asset.amount.toFixed(4)} {asset.currency}</div>
+                    <div className="text-right">
+                      <div className="font-semibold">${asset.fiatValueUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                      <div className="text-xs text-green-500 font-medium">Synced</div>
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-semibold">${asset.fiatValueUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                    <div className="text-xs text-green-500 font-medium">Synced</div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <div className="py-20 text-center border-2 border-dashed rounded-xl opacity-30 uppercase text-xs font-bold tracking-tighter">
+                No active assets in vault
+              </div>
+            )}
           </div>
         </div>
 
@@ -180,39 +198,45 @@ export default function Dashboard() {
           <Card className="shadow-sm">
             <CardContent className="p-0">
               <div className="divide-y">
-                {transactions.slice(0, 4).map((tx) => (
-                  <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className={cn(
-                        "h-10 w-10 rounded-full flex items-center justify-center",
-                        tx.type === 'receive' ? "bg-green-100 text-green-600" : 
-                        tx.type === 'send' ? "bg-blue-100 text-blue-600" : "bg-purple-100 text-purple-600"
-                      )}>
-                        {tx.type === 'receive' ? <ArrowDownLeft className="h-5 w-5" /> : 
-                         tx.type === 'send' ? <ArrowUpRight className="h-5 w-5" /> : <Zap className="h-5 w-5" />}
-                      </div>
-                      <div>
-                        <div className="font-medium text-sm">
-                          {tx.type === 'receive' ? 'Received' : tx.type === 'send' ? 'Sent' : 'Trade'} {tx.currency}
+                {transactions.length > 0 ? (
+                  transactions.slice(0, 4).map((tx) => (
+                    <div key={tx.id} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <div className={cn(
+                          "h-10 w-10 rounded-full flex items-center justify-center",
+                          tx.type === 'receive' ? "bg-green-100 text-green-600" : 
+                          tx.type === 'send' ? "bg-blue-100 text-blue-600" : "bg-purple-100 text-purple-600"
+                        )}>
+                          {tx.type === 'receive' ? <ArrowDownLeft className="h-5 w-5" /> : 
+                           tx.type === 'send' ? <ArrowUpRight className="h-5 w-5" /> : <Zap className="h-5 w-5" />}
                         </div>
-                        <div className="text-xs text-muted-foreground truncate max-w-[150px]">
-                          {tx.description}
+                        <div>
+                          <div className="font-medium text-sm">
+                            {tx.type === 'receive' ? 'Received' : tx.type === 'send' ? 'Sent' : 'Trade'} {tx.currency}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate max-w-[150px]">
+                            {tx.description}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className={cn(
+                          "font-semibold text-sm",
+                          tx.type === 'receive' ? "text-green-600" : "text-foreground"
+                        )}>
+                          {tx.type === 'receive' ? '+' : '-'}{tx.amount} {tx.currency}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {mounted ? new Date(tx.timestamp).toLocaleDateString() : '...'}
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className={cn(
-                        "font-semibold text-sm",
-                        tx.type === 'receive' ? "text-green-600" : "text-foreground"
-                      )}>
-                        {tx.type === 'receive' ? '+' : '-'}{tx.amount} {tx.currency}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(tx.timestamp).toLocaleDateString()}
-                      </div>
-                    </div>
+                  ))
+                ) : (
+                  <div className="py-20 text-center opacity-30 uppercase text-xs font-bold tracking-tighter">
+                    No ledger history
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>

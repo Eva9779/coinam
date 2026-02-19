@@ -29,10 +29,15 @@ export default function MarketPage() {
     setLoading(true);
     try {
       const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50&page=1&sparkline=false');
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
       const data = await res.json();
-      setCoins(data);
+      if (Array.isArray(data)) {
+        setCoins(data);
+      }
     } catch (err) {
-      console.error("Failed to fetch market coins", err);
+      console.warn("Market connectivity interrupted. Using local registry.");
     } finally {
       setLoading(false);
     }
@@ -97,38 +102,49 @@ export default function MarketPage() {
                     ))}
                   </TableRow>
                 ))
-              ) : filteredCoins.map((coin) => (
-                <TableRow key={coin.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
-                  <TableCell className="font-medium text-muted-foreground">{coin.market_cap_rank}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-3">
-                      <img src={coin.image} alt={coin.name} className="h-6 w-6 rounded-full" />
-                      <div>
-                        <div className="font-bold">{coin.name}</div>
-                        <div className="text-xs text-muted-foreground uppercase">{coin.symbol}</div>
+              ) : filteredCoins.length > 0 ? (
+                filteredCoins.map((coin) => (
+                  <TableRow key={coin.id} className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <TableCell className="font-medium text-muted-foreground">{coin.market_cap_rank}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <img src={coin.image} alt={coin.name} className="h-6 w-6 rounded-full" />
+                        <div>
+                          <div className="font-bold">{coin.name}</div>
+                          <div className="text-xs text-muted-foreground uppercase">{coin.symbol}</div>
+                        </div>
                       </div>
+                    </TableCell>
+                    <TableCell className="text-right font-semibold">
+                      ${coin.current_price.toLocaleString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className={cn(
+                        "flex items-center justify-end gap-1 font-medium",
+                        coin.price_change_percentage_24h >= 0 ? "text-green-500" : "text-red-500"
+                      )}>
+                        {coin.price_change_percentage_24h >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                        {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right hidden md:table-cell text-muted-foreground">
+                      ${(coin.market_cap / 1e9).toFixed(2)}B
+                    </TableCell>
+                    <TableCell className="text-right hidden lg:table-cell text-muted-foreground">
+                      ${(coin.total_volume / 1e6).toFixed(2)}M
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-64 text-center">
+                    <div className="flex flex-col items-center justify-center space-y-2 opacity-50">
+                      <TrendingUp className="h-8 w-8 text-muted-foreground" />
+                      <p className="text-sm font-bold uppercase tracking-widest">Awaiting Network Market Data</p>
                     </div>
-                  </TableCell>
-                  <TableCell className="text-right font-semibold">
-                    ${coin.current_price.toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className={cn(
-                      "flex items-center justify-end gap-1 font-medium",
-                      coin.price_change_percentage_24h >= 0 ? "text-green-500" : "text-red-500"
-                    )}>
-                      {coin.price_change_percentage_24h >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                      {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right hidden md:table-cell text-muted-foreground">
-                    ${(coin.market_cap / 1e9).toFixed(2)}B
-                  </TableCell>
-                  <TableCell className="text-right hidden lg:table-cell text-muted-foreground">
-                    ${(coin.total_volume / 1e6).toFixed(2)}M
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>
