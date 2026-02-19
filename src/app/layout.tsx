@@ -7,7 +7,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { ShieldCheck, Database, LogOut, User as UserIcon, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getLiveBlockNumber } from '@/lib/blockchain';
-import { useVaultStore } from '@/lib/store';
+import { useVaultStore, VaultProvider } from '@/lib/store';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   DropdownMenu,
@@ -144,9 +144,11 @@ export default function RootLayout({
         <title>CoinVault | Asset Security</title>
       </head>
       <body className="font-body antialiased bg-background text-foreground overflow-hidden">
-        <AuthGuard>
-          {children}
-        </AuthGuard>
+        <VaultProvider>
+          <AuthGuard>
+            {children}
+          </AuthGuard>
+        </VaultProvider>
         <Toaster />
       </body>
     </html>

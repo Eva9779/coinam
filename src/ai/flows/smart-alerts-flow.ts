@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for generating smart alerts for CoinVault users.
@@ -89,17 +90,17 @@ Consider the following criteria for generating alerts:
 User ID: {{{userId}}}
 Current Wallet Balances:
 {{#each walletBalances}}
-- Currency: {{{currency}}}, Amount: {{{amount}}}, Fiat Value: \${{{fiatValueUSD}}}
+- Currency: {{{currency}}}, Amount: {{{amount}}}, Fiat Value: $ {{{fiatValueUSD}}}
 {{/each}}
 
 Recent Transactions:
 {{#each recentTransactions}}
-- ID: {{{id}}}, Type: {{{type}}}, Currency: {{{currency}}}, Amount: {{{amount}}}, Fiat Value: \${{{fiatValueUSD}}}, Timestamp: {{{timestamp}}}, Description: {{{description}}}
+- ID: {{{id}}}, Type: {{{type}}}, Currency: {{{currency}}}, Amount: {{{amount}}}, Fiat Value: $ {{{fiatValueUSD}}}, Timestamp: {{{timestamp}}}, Description: {{{description}}}
 {{/each}}
 
 Current Market Data:
 {{#each marketData}}
-- Currency: {{{currency}}}, Current Price: \${{{currentPriceUSD}}}, Daily Change: {{{dailyChangePercent}}}%, Volume: \${{{volume24hUSD}}}
+- Currency: {{{currency}}}, Current Price: $ {{{currentPriceUSD}}}, Daily Change: {{{dailyChangePercent}}}%, Volume: $ {{{volume24hUSD}}}
 {{/each}}
 
 Please generate a JSON object containing an array of alerts.
