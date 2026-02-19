@@ -29,7 +29,7 @@ export default function TransactionsPage() {
   const [feeTier, setFeeTier] = useState<FeeTier>('average');
   const [addressError, setAddressError] = useState("");
   const [mounted, setMounted] = useState(false);
-  const [baseGas, setBaseGas] = useState<number>(15);
+  const [baseGas, setBaseGas] = useState<number>(0);
 
   useEffect(() => {
     setMounted(true);
@@ -66,19 +66,19 @@ export default function TransactionsPage() {
     const asset = assets.find(a => a.currency === currency);
     
     if (!asset || val > asset.amount) {
-      toast({ title: "Insufficient ledger balance", variant: "destructive" });
+      toast({ title: "Insufficient balance on ledger", variant: "destructive" });
       return;
     }
 
     setIsSending(true);
     
     try {
-      let txHash = `local_${Math.random().toString(36).substring(7)}`;
-
-      // IF ETH AND PRIVATE KEY EXISTS, BROADCAST TO LIVE NETWORK
-      if (currency === 'ETH' && asset.privateKey) {
-        txHash = await sendLiveTransaction(asset.privateKey, recipient, amount);
+      if (!asset.privateKey) {
+        throw new Error("Private key not found for signing this transaction.");
       }
+
+      // BROADCAST DIRECTLY TO LIVE MAINNET
+      const txHash = await sendLiveTransaction(asset.privateKey, recipient, amount);
 
       updateBalance(currency, -val, asset.fiatValueUSD / Math.max(asset.amount, 1));
       addTransaction({
@@ -87,14 +87,14 @@ export default function TransactionsPage() {
         amount: val,
         fiatValueUSD: val * (asset.fiatValueUSD / Math.max(asset.amount, 1)),
         toAddress: recipient,
-        description: `Network broadcast | Hash: ${txHash.slice(0, 10)}...`
+        description: `Network Broadcast | Hash: ${txHash.slice(0, 10)}...`
       });
 
       setAmount("");
       setRecipient("");
       toast({
         title: "Broadcast Successful",
-        description: `TX signed and transmitted to network. Hash: ${txHash.slice(0, 12)}`,
+        description: `Transaction signed and transmitted. Hash: ${txHash.slice(0, 12)}`,
       });
     } catch (err: any) {
       toast({
@@ -258,7 +258,7 @@ export default function TransactionsPage() {
           <Card className="border-none shadow-xl bg-card/50 backdrop-blur-md">
             <CardHeader>
               <CardTitle className="text-xl">Network Entrypoint</CardTitle>
-              <CardDescription className="text-xs">Incoming transfers are audited and credited after confirmations.</CardDescription>
+              <CardDescription className="text-xs">Incoming transfers are credited to your local ledger after chain confirmations.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center space-y-8 py-10">
               <div className="p-8 bg-white rounded-3xl shadow-2xl border border-primary/5">

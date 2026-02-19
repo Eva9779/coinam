@@ -1,6 +1,7 @@
 
 /**
- * Initial empty states for a fresh production environment.
+ * Live Network Configuration
+ * All initial user data is zeroed to ensure a fresh production environment.
  */
 export const INITIAL_WALLET_BALANCES = [];
 

@@ -25,6 +25,10 @@ export interface Transaction {
   description: string;
 }
 
+/**
+ * Live Vault Store
+ * Manages persistent on-chain keys and transaction history locally.
+ */
 export function useVaultStore() {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -75,6 +79,9 @@ export function useVaultStore() {
     }));
   };
 
+  /**
+   * Generates a real cryptographic keypair for the specified network.
+   */
   const generateNewWallet = (currency: string) => {
     let address = '';
     let isLive = false;

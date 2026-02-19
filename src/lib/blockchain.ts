@@ -5,6 +5,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 
 /**
  * Public client for interacting with the Ethereum Mainnet.
+ * Connects directly to the live peer-to-peer network.
  */
 export const publicClient = createPublicClient({
   chain: mainnet,
@@ -18,7 +19,6 @@ export async function getLiveBlockNumber() {
   try {
     return await publicClient.getBlockNumber();
   } catch (error) {
-    console.error('Failed to fetch block number:', error);
     return null;
   }
 }
@@ -32,26 +32,25 @@ export async function getLiveBalance(address: string) {
     const balance = await publicClient.getBalance({ address: address as `0x${string}` });
     return formatEther(balance);
   } catch (error) {
-    console.error('Failed to fetch live balance:', error);
     return '0';
   }
 }
 
 /**
- * Fetches the current gas price in Gwei.
+ * Fetches the current gas price in Gwei directly from the network.
  */
 export async function getLiveGasPrice() {
   try {
     const gasPrice = await publicClient.getGasPrice();
     return Number(gasPrice) / 1e9;
   } catch (error) {
-    console.error('Failed to fetch gas price:', error);
     return 0;
   }
 }
 
 /**
  * Signs and broadcasts a real transaction to the Ethereum Mainnet.
+ * This operation is final and irreversible once transmitted to the network.
  */
 export async function sendLiveTransaction(privateKey: `0x${string}`, to: string, amount: string) {
   const account = privateKeyToAccount(privateKey);
