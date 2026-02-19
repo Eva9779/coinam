@@ -1,26 +1,48 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowUpRight, ArrowDownLeft, Send, CheckCircle2, History } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, Send, CheckCircle2, History, AlertCircle } from "lucide-react";
 import { MOCK_TRANSACTIONS } from "@/lib/data";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 export default function TransactionsPage() {
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab') || 'send';
+  
   const [isSending, setIsSending] = useState(false);
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
   const [currency, setCurrency] = useState("BTC");
+  const [addressError, setAddressError] = useState("");
+
+  const validateAddress = (addr: string) => {
+    if (!addr) return "";
+    // Basic regex for common address formats (Simplified)
+    const ethRegex = /^0x[a-fA-F0-9]{40}$/;
+    const btcRegex = /^[13][a-km-zA-HJ-NP-Z1-9]{25,34}$|^bc1[ac-hj-np-z02-9]{11,71}$/;
+    
+    if (currency === 'ETH' && !ethRegex.test(addr)) return "Invalid Ethereum address format";
+    if (currency === 'BTC' && !btcRegex.test(addr)) return "Invalid Bitcoin address format";
+    return "";
+  };
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
+    const error = validateAddress(recipient);
+    if (error) {
+      setAddressError(error);
+      return;
+    }
+
     if (!amount || !recipient) return;
     
     setIsSending(true);
@@ -38,11 +60,11 @@ export default function TransactionsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div>
-        <h2 className="text-3xl font-bold text-primary">Transactions</h2>
-        <p className="text-muted-foreground">Send, receive and track your asset movement.</p>
+        <h2 className="text-3xl font-bold text-primary">Transaction Hub</h2>
+        <p className="text-muted-foreground">Manage on-chain transfers and history.</p>
       </div>
 
-      <Tabs defaultValue="send" className="w-full">
+      <Tabs defaultValue={initialTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-8">
           <TabsTrigger value="send" className="gap-2"><ArrowUpRight className="h-4 w-4" /> Send</TabsTrigger>
           <TabsTrigger value="receive" className="gap-2"><ArrowDownLeft className="h-4 w-4" /> Receive</TabsTrigger>
@@ -53,13 +75,13 @@ export default function TransactionsPage() {
           <Card>
             <CardHeader>
               <CardTitle>Send Assets</CardTitle>
-              <CardDescription>Transfer cryptocurrency to any wallet address globally.</CardDescription>
+              <CardDescription>Initiate a secure transfer to another wallet.</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSend} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="currency">Select Asset</Label>
-                  <Select value={currency} onValueChange={setCurrency}>
+                  <Label htmlFor="currency">Asset</Label>
+                  <Select value={currency} onValueChange={(val) => { setCurrency(val); setAddressError(""); }}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select asset" />
                     </SelectTrigger>
@@ -74,13 +96,22 @@ export default function TransactionsPage() {
 
                 <div className="space-y-2">
                   <Label htmlFor="recipient">Recipient Address</Label>
-                  <Input 
-                    id="recipient" 
-                    placeholder="Enter wallet address (e.g. 0x... or bc1...)" 
-                    value={recipient}
-                    onChange={(e) => setRecipient(e.target.value)}
-                    required
-                  />
+                  <div className="space-y-1">
+                    <Input 
+                      id="recipient" 
+                      placeholder={currency === 'ETH' ? "0x..." : "bc1..."} 
+                      value={recipient}
+                      onChange={(e) => { setRecipient(e.target.value); setAddressError(""); }}
+                      className={cn(addressError && "border-destructive")}
+                      required
+                    />
+                    {addressError && (
+                      <div className="flex items-center gap-1 text-xs text-destructive">
+                        <AlertCircle className="h-3 w-3" />
+                        {addressError}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -100,28 +131,24 @@ export default function TransactionsPage() {
                       {currency}
                     </div>
                   </div>
-                  <div className="text-xs text-muted-foreground flex justify-between">
-                    <span>Balance: 0.45 BTC</span>
-                    <span>Approx. $0.00 USD</span>
-                  </div>
                 </div>
 
                 <div className="p-4 bg-muted rounded-lg space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Network Fee</span>
-                    <span className="font-medium">0.00005 BTC</span>
+                    <span className="text-muted-foreground">Estimated Fee</span>
+                    <span className="font-medium">~0.00005 {currency}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Estimated Time</span>
-                    <span className="font-medium">~10 minutes</span>
+                    <span className="text-muted-foreground">Network Speed</span>
+                    <span className="font-medium text-green-600">Standard</span>
                   </div>
                 </div>
 
                 <Button type="submit" className="w-full py-6 text-lg gap-2" disabled={isSending}>
                   {isSending ? (
-                    <>Processing...</>
+                    <>Processing Transaction...</>
                   ) : (
-                    <><Send className="h-5 w-5" /> Confirm Transaction</>
+                    <><Send className="h-5 w-5" /> Confirm and Send</>
                   )}
                 </Button>
               </form>
@@ -129,30 +156,27 @@ export default function TransactionsPage() {
           </Card>
         </TabsContent>
 
+        {/* ... (Receive and History tabs stay largely the same but with polished text) */}
         <TabsContent value="receive">
           <Card>
             <CardHeader>
-              <CardTitle>Receive Assets</CardTitle>
-              <CardDescription>Share your wallet address to receive payments.</CardDescription>
+              <CardTitle>Deposit Assets</CardTitle>
+              <CardDescription>Use your public address to receive assets.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center space-y-8 py-10">
               <div className="p-6 bg-white rounded-xl shadow-inner border">
                 <div className="h-48 w-48 bg-muted flex items-center justify-center relative overflow-hidden group cursor-pointer">
-                  {/* Mock QR Code */}
                   <div className="grid grid-cols-4 gap-1 p-4 opacity-80 group-hover:opacity-100 transition-opacity">
                     {Array.from({ length: 16 }).map((_, i) => (
-                      <div key={i} className={cn("h-8 w-8", Math.random() > 0.5 ? "bg-primary" : "bg-transparent")} />
+                      <div key={i} className={cn("h-8 w-8", (i % 3 === 0 || i % 5 === 0) ? "bg-primary" : "bg-transparent")} />
                     ))}
-                  </div>
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/10 transition-opacity">
-                    <Button variant="secondary" size="sm">Save Image</Button>
                   </div>
                 </div>
               </div>
               
               <div className="w-full space-y-4 max-w-sm">
                 <div className="space-y-2">
-                  <Label>Your BTC Address</Label>
+                  <Label>Public {currency} Address</Label>
                   <div className="flex gap-2">
                     <Input readOnly value="bc1qxy2kg36dn52cc5tx0hhaasdg78489" className="font-mono text-xs bg-muted" />
                     <Button size="icon" variant="outline" onClick={() => {
@@ -163,10 +187,6 @@ export default function TransactionsPage() {
                     </Button>
                   </div>
                 </div>
-                <p className="text-center text-xs text-muted-foreground">
-                  Only send <span className="text-primary font-bold">Bitcoin (BTC)</span> to this address. 
-                  Sending other assets may result in permanent loss.
-                </p>
               </div>
             </CardContent>
           </Card>
@@ -175,8 +195,8 @@ export default function TransactionsPage() {
         <TabsContent value="history">
           <Card>
             <CardHeader>
-              <CardTitle>Transaction History</CardTitle>
-              <CardDescription>Comprehensive log of all ledger activities.</CardDescription>
+              <CardTitle>Activity Ledger</CardTitle>
+              <CardDescription>Historical record of all wallet activity.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y">
@@ -191,11 +211,11 @@ export default function TransactionsPage() {
                       </div>
                       <div>
                         <div className="font-bold flex items-center gap-2">
-                          {tx.type === 'receive' ? 'Received' : 'Sent'} {tx.currency}
+                          {tx.type === 'receive' ? 'Deposit' : 'Withdrawal'} {tx.currency}
                           <CheckCircle2 className="h-4 w-4 text-green-500" />
                         </div>
                         <div className="text-sm text-muted-foreground">{tx.description}</div>
-                        <div className="text-[10px] font-mono text-muted-foreground mt-1 uppercase">ID: {tx.id}</div>
+                        <div className="text-[10px] font-mono text-muted-foreground mt-1 uppercase">TXID: {tx.id}</div>
                       </div>
                     </div>
                     <div className="text-left sm:text-right">

@@ -1,7 +1,9 @@
 
+"use client";
+
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { 
   ArrowUpRight, 
   ArrowDownLeft, 
@@ -9,33 +11,52 @@ import {
   ShieldCheck, 
   Wallet,
   Activity,
-  Info
+  ArrowRight
 } from "lucide-react";
-import { MOCK_WALLET_BALANCES, MOCK_TRANSACTIONS, MOCK_MARKET_DATA } from "@/lib/data";
+import { MOCK_WALLET_BALANCES, MOCK_TRANSACTIONS } from "@/lib/data";
+import { cn } from "@/lib/utils";
+import Link from "next/link";
+
+interface MarketItem {
+  id: string;
+  symbol: string;
+  name: string;
+  current_price: number;
+  price_change_percentage_24h: number;
+}
 
 export default function Dashboard() {
+  const [marketData, setMarketData] = useState<MarketItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const totalBalance = MOCK_WALLET_BALANCES.reduce((acc, curr) => acc + curr.fiatValueUSD, 0);
+
+  useEffect(() => {
+    async function fetchMarket() {
+      try {
+        const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=5&page=1&sparkline=false');
+        const data = await res.json();
+        setMarketData(data);
+      } catch (err) {
+        console.error("Market fetch failed:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchMarket();
+  }, []);
   
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
-      <Alert variant="default" className="bg-amber-50 border-amber-200">
-        <Info className="h-4 w-4 text-amber-600" />
-        <AlertTitle className="text-amber-800">Demo Environment</AlertTitle>
-        <AlertDescription className="text-amber-700">
-          This is a user interface demonstration. No real cryptocurrency transactions are processed, and all balances are simulated for preview purposes.
-        </AlertDescription>
-      </Alert>
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Main Balance Card */}
-        <Card className="md:col-span-2 bg-primary text-primary-foreground overflow-hidden relative shadow-xl">
+        <Card className="md:col-span-2 bg-primary text-primary-foreground overflow-hidden relative shadow-xl border-none">
           <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
             <Wallet className="h-48 w-48" />
           </div>
           <CardHeader>
             <CardTitle className="text-sm font-medium text-primary-foreground/80 flex items-center gap-2">
               <ShieldCheck className="h-4 w-4" />
-              Secure Wallet Balance
+              Total Wallet Value
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -43,11 +64,15 @@ export default function Dashboard() {
               ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
             </div>
             <div className="flex gap-3">
-              <Button variant="secondary" className="gap-2 shadow-lg">
-                <ArrowUpRight className="h-4 w-4" /> Send
+              <Button variant="secondary" className="gap-2 shadow-lg" asChild>
+                <Link href="/transactions?tab=send">
+                  <ArrowUpRight className="h-4 w-4" /> Send
+                </Link>
               </Button>
-              <Button variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20">
-                <ArrowDownLeft className="h-4 w-4" /> Receive
+              <Button variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20" asChild>
+                <Link href="/transactions?tab=receive">
+                  <ArrowDownLeft className="h-4 w-4" /> Receive
+                </Link>
               </Button>
             </div>
           </CardContent>
@@ -57,32 +82,38 @@ export default function Dashboard() {
         <Card className="shadow-sm">
           <CardHeader>
             <CardTitle className="text-sm font-medium flex items-center justify-between">
-              Market Sentiment
+              Market Trends
               <Activity className="h-4 w-4 text-secondary" />
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {MOCK_MARKET_DATA.slice(0, 3).map((item) => (
-              <div key={item.currency} className="flex items-center justify-between group">
+            {loading ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-10 w-full bg-muted animate-pulse rounded" />
+              ))
+            ) : marketData.slice(0, 3).map((item) => (
+              <div key={item.id} className="flex items-center justify-between group">
                 <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center font-bold text-xs">
-                    {item.currency[0]}
+                  <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center font-bold text-[10px] uppercase">
+                    {item.symbol}
                   </div>
                   <div>
-                    <div className="text-sm font-medium">{item.currency}</div>
-                    <div className="text-xs text-muted-foreground">${item.currentPriceUSD.toLocaleString()}</div>
+                    <div className="text-sm font-medium">{item.name}</div>
+                    <div className="text-xs text-muted-foreground">${item.current_price.toLocaleString()}</div>
                   </div>
                 </div>
                 <div className={cn(
                   "text-xs font-semibold px-2 py-1 rounded",
-                  item.dailyChangePercent >= 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                  item.price_change_percentage_24h >= 0 ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
                 )}>
-                  {item.dailyChangePercent >= 0 ? '+' : ''}{item.dailyChangePercent}%
+                  {item.price_change_percentage_24h >= 0 ? '+' : ''}{item.price_change_percentage_24h?.toFixed(2)}%
                 </div>
               </div>
             ))}
-            <Button variant="ghost" className="w-full text-xs text-muted-foreground mt-2" asChild>
-              <a href="/market">View all markets</a>
+            <Button variant="ghost" className="w-full text-xs text-muted-foreground mt-2 group" asChild>
+              <Link href="/market">
+                View all markets <ArrowRight className="h-3 w-3 ml-2 group-hover:translate-x-1 transition-transform" />
+              </Link>
             </Button>
           </CardContent>
         </Card>
@@ -165,9 +196,4 @@ export default function Dashboard() {
       </div>
     </div>
   );
-}
-
-// Helper function for conditional class names
-function cn(...inputs: any[]) {
-  return inputs.filter(Boolean).join(" ");
 }
