@@ -1,26 +1,39 @@
 
-import type { Metadata } from 'next';
+"use client";
+
 import './globals.css';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { Toaster } from '@/components/ui/toaster';
-import { ShieldCheck } from 'lucide-react';
-
-export const metadata: Metadata = {
-  title: 'CoinVault | Professional Digital Asset Management',
-  description: 'Secure and real-time cryptocurrency management platform.',
-};
+import { ShieldCheck, Database } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { getLiveBlockNumber } from '@/lib/blockchain';
 
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const [blockHeight, setBlockHeight] = useState<string>('Syncing...');
+
+  useEffect(() => {
+    async function syncNetwork() {
+      const block = await getLiveBlockNumber();
+      if (block) {
+        setBlockHeight(block.toString());
+      }
+    }
+    syncNetwork();
+    const interval = setInterval(syncNetwork, 12000); // Sync every 12 seconds (typical block time)
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <html lang="en">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+        <title>CoinVault | Live Mainnet Asset Management</title>
       </head>
       <body className="font-body antialiased bg-background text-foreground overflow-hidden">
         <div className="flex h-screen overflow-hidden">
@@ -35,10 +48,13 @@ export default function RootLayout({
             <SidebarNav />
             <div className="mt-auto p-4">
               <div className="bg-primary/5 rounded-lg p-3 text-xs text-muted-foreground border border-primary/10">
-                <p className="font-semibold mb-1 text-primary">Node Status: Secure</p>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="font-semibold text-primary">Mainnet Live</p>
                   <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                  Mainnet Connected
+                </div>
+                <div className="flex items-center gap-2 opacity-80">
+                  <Database className="h-3 w-3" />
+                  Block: {blockHeight}
                 </div>
               </div>
             </div>
@@ -48,7 +64,7 @@ export default function RootLayout({
           <main className="flex-1 flex flex-col h-full overflow-hidden">
             {/* Topbar */}
             <header className="h-16 border-b bg-card flex items-center justify-between px-8 shrink-0">
-              <h1 className="font-semibold text-lg">Asset Portfolio</h1>
+              <h1 className="font-semibold text-lg uppercase tracking-tight opacity-70 text-xs">Internal Security Enclave</h1>
               <div className="flex items-center gap-4">
                 <button className="text-muted-foreground hover:text-foreground relative">
                   <span className="absolute -top-1 -right-1 h-2 w-2 bg-secondary rounded-full border-2 border-card" />
@@ -57,14 +73,14 @@ export default function RootLayout({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                   </svg>
                 </button>
-                <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-xs">
+                <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-xs shadow-inner">
                   JD
                 </div>
               </div>
             </header>
 
             {/* Content Area */}
-            <div className="flex-1 overflow-y-auto p-8">
+            <div className="flex-1 overflow-y-auto p-8 bg-[#fdfdfd]">
               {children}
             </div>
           </main>
