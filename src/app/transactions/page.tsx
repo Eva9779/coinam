@@ -23,6 +23,11 @@ export default function TransactionsPage() {
   const [recipient, setRecipient] = useState("");
   const [currency, setCurrency] = useState("BTC");
   const [addressError, setAddressError] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const validateAddress = (addr: string) => {
     if (!addr) return "";
@@ -156,7 +161,6 @@ export default function TransactionsPage() {
           </Card>
         </TabsContent>
 
-        {/* ... (Receive and History tabs stay largely the same but with polished text) */}
         <TabsContent value="receive">
           <Card>
             <CardHeader>
@@ -229,7 +233,7 @@ export default function TransactionsPage() {
                         ${tx.fiatValueUSD.toLocaleString()}
                       </div>
                       <div className="text-xs text-muted-foreground mt-1">
-                        {new Date(tx.timestamp).toLocaleString()}
+                        {mounted ? new Date(tx.timestamp).toLocaleString() : '...'}
                       </div>
                     </div>
                   </div>

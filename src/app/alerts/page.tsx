@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 export default function AlertsPage() {
   const [data, setData] = useState<SmartAlertsOutput | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   const fetchAlerts = async () => {
     setLoading(true);
@@ -34,6 +35,7 @@ export default function AlertsPage() {
   };
 
   useEffect(() => {
+    setMounted(true);
     fetchAlerts();
   }, []);
 
@@ -86,7 +88,7 @@ export default function AlertsPage() {
                     {alert.type.replace('_', ' ')}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
-                    {new Date(alert.timestamp).toLocaleString()}
+                    {mounted ? new Date(alert.timestamp).toLocaleString() : '...'}
                   </span>
                 </div>
                 <CardTitle className="text-xl">{alert.title}</CardTitle>

@@ -28,9 +28,11 @@ interface MarketItem {
 export default function Dashboard() {
   const [marketData, setMarketData] = useState<MarketItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const totalBalance = MOCK_WALLET_BALANCES.reduce((acc, curr) => acc + curr.fiatValueUSD, 0);
 
   useEffect(() => {
+    setMounted(true);
     async function fetchMarket() {
       try {
         const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=5&page=1&sparkline=false');
@@ -184,7 +186,7 @@ export default function Dashboard() {
                         {tx.type === 'receive' ? '+' : '-'}{tx.amount} {tx.currency}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {new Date(tx.timestamp).toLocaleDateString()}
+                        {mounted ? new Date(tx.timestamp).toLocaleDateString() : '...'}
                       </div>
                     </div>
                   </div>
