@@ -36,15 +36,18 @@ export default function TransactionsPage() {
     setMounted(true);
     async function fetchFees() {
       const gwei = await getLiveGasPrice();
-      if (gwei > 0) setBaseGas(gwei);
+      setBaseGas(gwei);
     }
     fetchFees();
+    const interval = setInterval(fetchFees, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const getGasEstimate = () => {
     const gasLimit = 21000;
+    const currentGas = baseGas || 20; // Fallback to 20 if sync fails
     const multiplier = feeTier === 'slow' ? 0.9 : feeTier === 'fast' ? 1.5 : 1.1;
-    const ethFee = (gasLimit * (baseGas * multiplier)) / 1e9;
+    const ethFee = (gasLimit * (currentGas * multiplier)) / 1e9;
     return ethFee;
   };
 
@@ -74,7 +77,7 @@ export default function TransactionsPage() {
     if (!asset.privateKey) {
       toast({ 
         title: "Legacy Wallet Endpoint", 
-        description: "This endpoint was created without a signing key. Please provision a new Mainnet Key in the Wallet tab.",
+        description: "Please provision a new Mainnet Key in the Wallet tab to enable signing.",
         variant: "destructive"
       });
       return;
@@ -83,7 +86,6 @@ export default function TransactionsPage() {
     setIsSending(true);
     
     try {
-      // BROADCAST DIRECTLY TO LIVE MAINNET
       const txHash = await sendLiveTransaction(asset.privateKey, recipient, amount);
 
       updateBalance(currency, -val, asset.fiatValueUSD / Math.max(asset.amount, 1));
@@ -100,7 +102,7 @@ export default function TransactionsPage() {
       setRecipient("");
       toast({
         title: "Broadcast Successful",
-        description: `Transaction signed and transmitted. Hash: ${txHash.slice(0, 12)}`,
+        description: `Transaction hash: ${txHash.slice(0, 12)}...`,
       });
     } catch (err: any) {
       toast({
@@ -133,7 +135,9 @@ export default function TransactionsPage() {
         </div>
         <div className="hidden sm:flex items-center gap-2 bg-green-500/10 px-3 py-1.5 rounded-full border border-green-500/20">
           <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest">Network Live: {baseGas.toFixed(1)} Gwei</span>
+          <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest">
+            {baseGas > 0 ? `Network Live: ${baseGas.toFixed(1)} Gwei` : 'Synchronizing Fees...'}
+          </span>
         </div>
       </div>
 
@@ -182,7 +186,7 @@ export default function TransactionsPage() {
                         type="number" 
                         step="any"
                         placeholder="0.00" 
-                        className="flex h-12 w-full rounded-md border border-primary/10 bg-background/50 px-3 py-2 pr-16 text-xl font-bold ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex h-12 w-full rounded-md border border-primary/10 bg-background/50 px-3 py-2 pr-16 text-xl font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
                         required
@@ -240,7 +244,7 @@ export default function TransactionsPage() {
                     <span className="text-muted-foreground font-semibold uppercase tracking-widest text-[10px]">Network Fee</span>
                     <div className="flex flex-col items-end">
                       <span className="font-bold text-base">{getGasEstimate().toFixed(6)} {currency}</span>
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold">Market Rate</span>
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold">Estimated</span>
                     </div>
                   </div>
                   <div className="h-px bg-primary/10 w-full" />
@@ -264,7 +268,7 @@ export default function TransactionsPage() {
           <Card className="border-none shadow-xl bg-card/50 backdrop-blur-md">
             <CardHeader>
               <CardTitle className="text-xl">Network Entrypoint</CardTitle>
-              <CardDescription className="text-xs">Incoming transfers are credited to your local ledger after chain confirmation.</CardDescription>
+              <CardDescription className="text-xs">Incoming transfers are credited after confirmation on the global ledger.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center space-y-8 py-10">
               <div className="p-8 bg-white rounded-3xl shadow-2xl border border-primary/5">
