@@ -23,16 +23,17 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  useEffect(() => {
-    if (initialized && !user && pathname !== '/login' && pathname !== '/register') {
-      router.push('/login');
-    }
-  }, [user, initialized, pathname, router]);
+  const isAuthPage = pathname === '/login' || pathname === '/register';
 
-  const handleSignOut = () => {
-    signOut();
-    router.push('/login');
-  };
+  useEffect(() => {
+    if (initialized) {
+      if (!user && !isAuthPage) {
+        router.push('/login');
+      } else if (user && isAuthPage) {
+        router.push('/');
+      }
+    }
+  }, [user, initialized, isAuthPage, router]);
 
   if (!initialized) {
     return (
@@ -42,11 +43,17 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && (pathname === '/login' || pathname === '/register')) {
-    return <>{children}</>;
+  // Render auth pages without the sidebar layout
+  if (!user || isAuthPage) {
+    if (isAuthPage) return <>{children}</>;
+    // While redirecting to login, show nothing to prevent layout flash
+    if (!user && !isAuthPage) return null;
   }
 
-  if (!user) return null;
+  const handleSignOut = () => {
+    signOut();
+    router.push('/login');
+  };
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -62,9 +69,13 @@ function AppContent({ children, onSignOut, userEmail }: { children: React.ReactN
 
   useEffect(() => {
     async function syncNetwork() {
-      const block = await getLiveBlockNumber();
-      if (block) {
-        setBlockHeight(block.toString());
+      try {
+        const block = await getLiveBlockNumber();
+        if (block) {
+          setBlockHeight(block.toString());
+        }
+      } catch (e) {
+        // Silently handle sync errors
       }
     }
     syncNetwork();
@@ -143,7 +154,7 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
         <title>CoinVault | Asset Security</title>
       </head>
-      <body className="font-body antialiased bg-background text-foreground overflow-hidden">
+      <body className="font-body antialiased bg-background overflow-hidden">
         <VaultProvider>
           <AuthGuard>
             {children}
