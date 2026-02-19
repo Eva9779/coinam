@@ -1,7 +1,7 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { INITIAL_WALLET_BALANCES, INITIAL_TRANSACTIONS } from './data';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 
 export interface WalletAsset {
@@ -24,14 +24,6 @@ export interface Transaction {
   description: string;
 }
 
-const DEFAULT_ASSETS: WalletAsset[] = INITIAL_WALLET_BALANCES.map(asset => ({
-  ...asset,
-  address: asset.currency === 'BTC' ? 'bc1q8h...v9f' : 
-           asset.currency === 'ETH' ? '0x71C...65e' :
-           asset.currency === 'SOL' ? 'GvT9...vXw' : '0xUSDC...abc',
-  isLive: asset.currency === 'ETH'
-}));
-
 export function useVaultStore() {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -43,14 +35,10 @@ export function useVaultStore() {
     
     if (savedAssets) {
       setAssets(JSON.parse(savedAssets));
-    } else {
-      setAssets(DEFAULT_ASSETS);
     }
     
     if (savedTxs) {
       setTransactions(JSON.parse(savedTxs));
-    } else {
-      setTransactions(INITIAL_TRANSACTIONS as any);
     }
     
     setInitialized(true);
@@ -90,7 +78,8 @@ export function useVaultStore() {
     let address = '';
     let isLive = false;
 
-    if (currency === 'ETH') {
+    // Real cryptographic account generation
+    if (currency === 'ETH' || currency === 'USDC') {
       const privateKey = generatePrivateKey();
       const account = privateKeyToAccount(privateKey);
       address = account.address;

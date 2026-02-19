@@ -14,7 +14,6 @@ import {
   ShieldCheck,
   Cpu,
   Lock,
-  ExternalLink,
   Database,
   RefreshCw
 } from "lucide-react";
@@ -22,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
 import { useVaultStore } from "@/lib/store";
 import { getLiveBalance } from "@/lib/blockchain";
+import { cn } from "@/lib/utils";
 
 export default function WalletPage() {
   const { assets, generateNewWallet, initialized } = useVaultStore();
@@ -33,19 +33,15 @@ export default function WalletPage() {
     a.currency.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setIsGenerating(true);
-    setTimeout(() => {
-      // In this setup, we prioritize ETH for live generation
-      const currency = Math.random() > 0.5 ? 'ETH' : 'USDC';
-      generateNewWallet(currency);
-      setIsGenerating(true);
-      setTimeout(() => setIsGenerating(false), 500);
-      toast({
-        title: "Key Provisioned on Mainnet",
-        description: `Your new ${currency} endpoint is live and ready for peer sync.`,
-      });
-    }, 1500);
+    const currency = Math.random() > 0.5 ? 'ETH' : 'USDC';
+    generateNewWallet(currency);
+    setIsGenerating(false);
+    toast({
+      title: "Key Provisioned",
+      description: `New ${currency} endpoint is live on mainnet.`,
+    });
   };
 
   const handleSyncBalance = async (address: string, currency: string) => {
@@ -54,7 +50,7 @@ export default function WalletPage() {
     try {
       const liveBal = await getLiveBalance(address);
       toast({
-        title: "Peer Sync Complete",
+        title: "Network Sync Complete",
         description: `On-chain balance: ${liveBal} ETH`,
       });
     } catch (e) {
@@ -72,13 +68,13 @@ export default function WalletPage() {
         <div>
           <h2 className="text-3xl font-bold text-primary flex items-center gap-3">
             <ShieldCheck className="h-8 w-8 text-secondary" />
-            Active Vault Enclave
+            Active Vault
           </h2>
           <p className="text-muted-foreground text-sm font-medium">Verified multi-currency endpoints synchronized with Mainnet peers.</p>
         </div>
         <Button onClick={handleGenerate} disabled={isGenerating} className="gap-2 h-14 px-8 shadow-2xl bg-primary hover:bg-primary/90 font-bold text-lg rounded-2xl">
           <Plus className="h-5 w-5" /> 
-          {isGenerating ? "Signing..." : "Provision Mainnet Key"}
+          {isGenerating ? "Authorizing..." : "Provision Mainnet Key"}
         </Button>
       </div>
 
@@ -88,7 +84,7 @@ export default function WalletPage() {
             <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div>
                 <CardTitle className="text-xl font-bold tracking-tighter">Endpoints</CardTitle>
-                <CardDescription className="text-xs uppercase font-bold tracking-widest opacity-60">Provisioned on Peer Networks</CardDescription>
+                <CardDescription className="text-xs uppercase font-bold tracking-widest opacity-60">Direct Ledger Connectivity</CardDescription>
               </div>
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -155,7 +151,7 @@ export default function WalletPage() {
                   </div>
                 )) : (
                   <div className="py-24 text-center text-muted-foreground border-2 border-dashed rounded-3xl opacity-50 font-bold uppercase text-xs tracking-widest">
-                    No active assets found
+                    Provision a key to start
                   </div>
                 )}
               </div>
@@ -178,49 +174,20 @@ export default function WalletPage() {
               <div className="p-5 bg-white/10 rounded-2xl space-y-4 backdrop-blur-xl border border-white/20 shadow-inner">
                 <div className="text-[10px] font-bold text-white/70 uppercase tracking-widest">Node Encryption Layer</div>
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-sm">ENCLAVE-V4-SECURE</span>
-                  <Badge className="bg-green-500 text-white border-none text-[10px] font-bold">LATEST</Badge>
+                  <span className="font-bold text-sm">VAULT-SECURE-V4</span>
+                  <Badge className="bg-green-500 text-white border-none text-[10px] font-bold">ACTIVE</Badge>
                 </div>
                 <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full bg-secondary w-full animate-pulse" />
+                  <div className="h-full bg-secondary w-full" />
                 </div>
               </div>
               <p className="text-xs text-primary-foreground/70 leading-relaxed font-medium italic">
-                "Signing material is derived via hardware-based TRNG. Private keys remain non-extractable, isolated from the network stack for maximum security."
+                "Direct cryptographic signing via hardware isolation. Private material remains non-extractable."
               </p>
               <Button variant="secondary" className="w-full font-bold h-12 shadow-2xl flex items-center gap-2 rounded-xl text-primary">
                 <Key className="h-4 w-4" />
-                Master Recovery Audit
+                Security Audit
               </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="border-none shadow-xl bg-card/50 backdrop-blur-lg rounded-3xl">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground flex items-center justify-between">
-                Mainnet Pulse
-                <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-5">
-              <div className="flex gap-4 text-sm items-start p-2 hover:bg-muted/30 rounded-xl transition-colors group">
-                <div className="p-2.5 bg-secondary/10 rounded-xl shrink-0 group-hover:bg-secondary/20 transition-colors">
-                  <ShieldCheck className="h-5 w-5 text-secondary" />
-                </div>
-                <div>
-                  <div className="font-bold text-sm">Real-time Guard</div>
-                  <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight opacity-70">AI heuristic broadcast analysis</div>
-                </div>
-              </div>
-              <div className="flex gap-4 text-sm items-start p-2 hover:bg-muted/30 rounded-xl transition-colors group">
-                <div className="p-2.5 bg-primary/10 rounded-xl shrink-0 group-hover:bg-primary/20 transition-colors">
-                  <Database className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <div className="font-bold text-sm">Peer Propagation</div>
-                  <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-tight opacity-70">Distributed Ledger Connectivity</div>
-                </div>
-              </div>
             </CardContent>
           </Card>
         </div>

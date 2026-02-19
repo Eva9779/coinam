@@ -1,74 +1,31 @@
 
-export const INITIAL_WALLET_BALANCES = [
-  { currency: 'BTC', amount: 0.45, fiatValueUSD: 28540.50 },
-  { currency: 'ETH', amount: 5.2, fiatValueUSD: 12480.00 },
-  { currency: 'SOL', amount: 150.0, fiatValueUSD: 14250.00 },
-  { currency: 'USDC', amount: 5000.0, fiatValueUSD: 5000.00 },
-];
+/**
+ * Initial empty states for a fresh production environment.
+ */
+export const INITIAL_WALLET_BALANCES = [];
 
-export const INITIAL_TRANSACTIONS = [
-  {
-    id: 'tx_001',
-    type: 'receive' as const,
-    currency: 'BTC',
-    amount: 0.05,
-    fiatValueUSD: 3100.00,
-    timestamp: new Date(Date.now() - 3600000).toISOString(),
-    fromAddress: 'bc1qxy2kg36dn52cc5tx0hhaasdg78489',
-    description: 'Payment for professional services',
-  },
-  {
-    id: 'tx_002',
-    type: 'send' as const,
-    currency: 'ETH',
-    amount: 1.5,
-    fiatValueUSD: 3600.00,
-    timestamp: new Date(Date.now() - 86400000).toISOString(),
-    toAddress: '0x71C765...',
-    description: 'Internal vault transfer',
-  },
-  {
-    id: 'tx_003',
-    type: 'receive' as const,
-    currency: 'SOL',
-    amount: 25.0,
-    fiatValueUSD: 2375.00,
-    timestamp: new Date(Date.now() - 172800000).toISOString(),
-    fromAddress: 'GvT9...vXw',
-    description: 'Staking rewards',
-  },
-  {
-    id: 'tx_004',
-    type: 'send' as const,
-    currency: 'BTC',
-    amount: 0.1,
-    fiatValueUSD: 6300.00,
-    timestamp: new Date(Date.now() - 259200000).toISOString(),
-    toAddress: 'bc1q9...xyz',
-    description: 'Asset liquidation',
-  }
-];
+export const INITIAL_TRANSACTIONS = [];
 
 export const INITIAL_MARKET_DATA = [
   {
     currency: 'BTC',
-    currentPriceUSD: 63423.50,
-    dailyChangePercent: -2.4,
-    weeklyChangePercent: 5.8,
-    volume24hUSD: 35000000000,
+    currentPriceUSD: 0,
+    dailyChangePercent: 0,
+    weeklyChangePercent: 0,
+    volume24hUSD: 0,
   },
   {
     currency: 'ETH',
-    currentPriceUSD: 2415.20,
-    dailyChangePercent: 1.2,
-    weeklyChangePercent: -3.5,
-    volume24hUSD: 15000000000,
+    currentPriceUSD: 0,
+    dailyChangePercent: 0,
+    weeklyChangePercent: 0,
+    volume24hUSD: 0,
   },
   {
     currency: 'SOL',
-    currentPriceUSD: 142.50,
-    dailyChangePercent: 15.4,
-    weeklyChangePercent: 22.1,
-    volume24hUSD: 4500000000,
+    currentPriceUSD: 0,
+    dailyChangePercent: 0,
+    weeklyChangePercent: 0,
+    volume24hUSD: 0,
   },
 ];

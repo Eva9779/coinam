@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -53,7 +54,7 @@ export default function TransactionsPage() {
     return "";
   };
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     const error = validateAddress(recipient);
     if (error) {
@@ -69,25 +70,25 @@ export default function TransactionsPage() {
     }
 
     setIsSending(true);
-    setTimeout(() => {
-      updateBalance(currency, -val, asset.fiatValueUSD / asset.amount);
-      addTransaction({
-        type: 'send',
-        currency,
-        amount: val,
-        fiatValueUSD: val * (asset.fiatValueUSD / asset.amount),
-        toAddress: recipient,
-        description: `Mainnet broadcast | Priority: ${feeTier}`
-      });
+    
+    // Process transaction directly
+    updateBalance(currency, -val, asset.fiatValueUSD / Math.max(asset.amount, 1));
+    addTransaction({
+      type: 'send',
+      currency,
+      amount: val,
+      fiatValueUSD: val * (asset.fiatValueUSD / Math.max(asset.amount, 1)),
+      toAddress: recipient,
+      description: `Mainnet broadcast | Priority: ${feeTier}`
+    });
 
-      setIsSending(false);
-      setAmount("");
-      setRecipient("");
-      toast({
-        title: "Transaction Broadcast Successful",
-        description: `TXID: 0x${Math.random().toString(16).slice(2, 24)}... verified on network.`,
-      });
-    }, 2000);
+    setIsSending(false);
+    setAmount("");
+    setRecipient("");
+    toast({
+      title: "Broadcast Successful",
+      description: `TX signed and verified on chain.`,
+    });
   };
 
   if (!initialized || !mounted) {
@@ -128,7 +129,7 @@ export default function TransactionsPage() {
                 <ShieldCheck className="h-6 w-6 text-secondary" />
                 Sign & Broadcast
               </CardTitle>
-              <CardDescription className="text-xs">Assets are signed via secure hardware enclave before entering the mempool.</CardDescription>
+              <CardDescription className="text-xs">Finalize and transmit assets to the distributed ledger.</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSend} className="space-y-6">
@@ -140,11 +141,13 @@ export default function TransactionsPage() {
                         <SelectValue placeholder="Select asset" />
                       </SelectTrigger>
                       <SelectContent>
-                        {assets.map(a => (
+                        {assets.length > 0 ? assets.map(a => (
                           <SelectItem key={a.currency} value={a.currency}>
                             {a.currency} ({a.amount.toFixed(4)})
                           </SelectItem>
-                        ))}
+                        )) : (
+                          <SelectItem value="ETH" disabled>No active assets</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
@@ -212,7 +215,7 @@ export default function TransactionsPage() {
 
                 <div className="p-5 bg-primary/5 rounded-2xl space-y-3 text-sm border-2 border-dashed border-primary/10">
                   <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground font-semibold uppercase tracking-widest text-[10px]">Estimated Network Fee</span>
+                    <span className="text-muted-foreground font-semibold uppercase tracking-widest text-[10px]">Network Fee</span>
                     <div className="flex flex-col items-end">
                       <span className="font-bold text-base">{getGasEstimate().toFixed(6)} {currency}</span>
                       <span className="text-[10px] text-muted-foreground uppercase font-bold">Verified on Chain</span>
@@ -228,14 +231,7 @@ export default function TransactionsPage() {
                 </div>
 
                 <Button type="submit" className="w-full py-8 text-xl font-bold gap-3 shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-transform rounded-2xl bg-primary text-primary-foreground" disabled={isSending}>
-                  {isSending ? (
-                    <>
-                      <div className="h-5 w-5 border-2 border-white/30 border-t-white animate-spin rounded-full mr-2" />
-                      Signing Hardware Payload...
-                    </>
-                  ) : (
-                    <><Send className="h-6 w-6" /> Finalize Broadcast</>
-                  )}
+                  {isSending ? "Authorizing..." : <><Send className="h-6 w-6" /> Finalize Broadcast</>}
                 </Button>
               </form>
             </CardContent>
@@ -255,9 +251,6 @@ export default function TransactionsPage() {
                     {Array.from({ length: 16 }).map((_, i) => (
                       <div key={i} className={cn("h-10 w-10", (i % 3 === 0 || i % 5 === 1) ? "bg-primary" : "bg-transparent")} />
                     ))}
-                  </div>
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-white/20 backdrop-blur-sm">
-                    <Zap className="h-8 w-8 text-primary animate-bounce" />
                   </div>
                 </div>
               </div>

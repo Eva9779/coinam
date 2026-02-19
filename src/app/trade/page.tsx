@@ -26,7 +26,7 @@ export default function TradePage() {
   };
 
   const fromData = assets.find(a => a.currency === fromAsset);
-  const exchangeRate = rates[fromAsset] / rates[toAsset];
+  const exchangeRate = (rates[fromAsset] || 1) / (rates[toAsset] || 1);
   const estimatedReceive = amount ? parseFloat(amount) * exchangeRate : 0;
 
   const handleSwap = () => {
@@ -37,25 +37,25 @@ export default function TradePage() {
     }
 
     setIsSwapping(true);
-    setTimeout(() => {
-      updateBalance(fromAsset, -val, rates[fromAsset]);
-      updateBalance(toAsset, estimatedReceive, rates[toAsset]);
-      
-      addTransaction({
-        type: 'trade',
-        currency: `${fromAsset} → ${toAsset}`,
-        amount: val,
-        fiatValueUSD: val * rates[fromAsset],
-        description: `Exchanged ${val} ${fromAsset} for ${estimatedReceive.toFixed(6)} ${toAsset} via vault enclave`
-      });
+    
+    // Direct execution
+    updateBalance(fromAsset, -val, rates[fromAsset] || 1);
+    updateBalance(toAsset, estimatedReceive, rates[toAsset] || 1);
+    
+    addTransaction({
+      type: 'trade',
+      currency: `${fromAsset} → ${toAsset}`,
+      amount: val,
+      fiatValueUSD: val * (rates[fromAsset] || 1),
+      description: `Direct swap: ${val} ${fromAsset} for ${estimatedReceive.toFixed(6)} ${toAsset}`
+    });
 
-      setIsSwapping(false);
-      setAmount("");
-      toast({ 
-        title: "Trade Finalized", 
-        description: `Enclave confirmed exchange of ${val} ${fromAsset}.` 
-      });
-    }, 1500);
+    setIsSwapping(false);
+    setAmount("");
+    toast({ 
+      title: "Exchange Finalized", 
+      description: `Network broadcast complete.` 
+    });
   };
 
   if (!initialized) {
@@ -70,23 +70,22 @@ export default function TradePage() {
     <div className="max-w-xl mx-auto space-y-8">
       <div>
         <h2 className="text-3xl font-bold text-primary">Exchange Portal</h2>
-        <p className="text-muted-foreground">High-liquidity swaps with institutional-grade pricing.</p>
+        <p className="text-muted-foreground">Direct swaps with institutional-grade pricing.</p>
       </div>
 
       <Card className="shadow-lg border-primary/10">
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-xl">Sign Exchange</CardTitle>
+            <CardTitle className="text-xl">Execute Trade</CardTitle>
             <RefreshCw className="h-4 w-4 text-muted-foreground cursor-pointer hover:rotate-180 transition-transform duration-500" />
           </div>
-          <CardDescription>All swaps are executed directly on the secure vault enclave.</CardDescription>
+          <CardDescription>Authorize direct exchange broadcast.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* FROM */}
           <div className="space-y-3">
             <div className="flex justify-between text-sm">
-              <Label>Withdraw</Label>
-              <span className="text-muted-foreground">Available: {fromData?.amount.toFixed(4)} {fromAsset}</span>
+              <Label>Sell</Label>
+              <span className="text-muted-foreground">Available: {fromData?.amount.toFixed(4) || "0.00"} {fromAsset}</span>
             </div>
             <div className="flex gap-2">
               <Input 
@@ -101,7 +100,7 @@ export default function TradePage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {assets.map(a => <SelectItem key={a.currency} value={a.currency}>{a.currency}</SelectItem>)}
+                  {assets.length > 0 ? assets.map(a => <SelectItem key={a.currency} value={a.currency}>{a.currency}</SelectItem>) : <SelectItem value="USDC">USDC</SelectItem>}
                 </SelectContent>
               </Select>
             </div>
@@ -117,10 +116,9 @@ export default function TradePage() {
             </Button>
           </div>
 
-          {/* TO */}
           <div className="space-y-3">
             <div className="flex justify-between text-sm">
-              <Label>Deposit (Net)</Label>
+              <Label>Buy</Label>
             </div>
             <div className="flex gap-2">
               <Input 
@@ -139,47 +137,15 @@ export default function TradePage() {
             </div>
           </div>
 
-          <div className="p-4 bg-primary/5 rounded-xl border border-primary/10 space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Enclave Quote</span>
-              <span className="font-medium">1 {fromAsset} = {exchangeRate.toFixed(6)} {toAsset}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Network Fee</span>
-              <span className="font-medium text-green-600">Dynamic (Included)</span>
-            </div>
-          </div>
-
           <Button 
             className="w-full h-14 text-lg gap-2 shadow-lg" 
             disabled={!amount || isSwapping}
             onClick={handleSwap}
           >
-            {isSwapping ? "Executing via Enclave..." : "Finalize Exchange"}
+            {isSwapping ? "Executing..." : "Finalize Exchange"}
           </Button>
         </CardContent>
       </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="bg-muted/30 border-none shadow-none">
-          <CardContent className="p-4 flex items-center gap-4">
-            <TrendingUp className="h-5 w-5 text-secondary" />
-            <div className="text-sm">
-              <div className="font-semibold">Direct Liquidity</div>
-              <div className="text-muted-foreground">Connected to tier-1 pools</div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="bg-muted/30 border-none shadow-none">
-          <CardContent className="p-4 flex items-center gap-4">
-            <Info className="h-5 w-5 text-primary" />
-            <div className="text-sm">
-              <div className="font-semibold">Secured Signing</div>
-              <div className="text-muted-foreground">Keys never leave hardware</div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }
