@@ -1,4 +1,3 @@
-
 "use client";
 
 import './globals.css';
@@ -23,7 +22,7 @@ export default function RootLayout({
       }
     }
     syncNetwork();
-    const interval = setInterval(syncNetwork, 12000); // Sync every 12 seconds (typical block time)
+    const interval = setInterval(syncNetwork, 12000); 
     return () => clearInterval(interval);
   }, []);
 
@@ -33,7 +32,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-        <title>CoinVault | Live Mainnet Asset Management</title>
+        <title>CoinVault | Institutional Asset Management</title>
       </head>
       <body className="font-body antialiased bg-background text-foreground overflow-hidden">
         <div className="flex h-screen overflow-hidden">
@@ -49,7 +48,7 @@ export default function RootLayout({
             <div className="mt-auto p-4">
               <div className="bg-primary/5 rounded-lg p-3 text-xs text-muted-foreground border border-primary/10">
                 <div className="flex items-center justify-between mb-1">
-                  <p className="font-semibold text-primary">Mainnet Live</p>
+                  <p className="font-semibold text-primary">Mainnet Status</p>
                   <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                 </div>
                 <div className="flex items-center gap-2 opacity-80">
@@ -64,7 +63,7 @@ export default function RootLayout({
           <main className="flex-1 flex flex-col h-full overflow-hidden">
             {/* Topbar */}
             <header className="h-16 border-b bg-card flex items-center justify-between px-8 shrink-0">
-              <h1 className="font-semibold text-lg uppercase tracking-tight opacity-70 text-xs">Internal Security Enclave</h1>
+              <h1 className="font-semibold text-lg uppercase tracking-tight opacity-70 text-xs">Secure Asset Vault</h1>
               <div className="flex items-center gap-4">
                 <button className="text-muted-foreground hover:text-foreground relative">
                   <span className="absolute -top-1 -right-1 h-2 w-2 bg-secondary rounded-full border-2 border-card" />

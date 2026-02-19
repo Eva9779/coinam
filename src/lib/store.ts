@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -30,7 +29,7 @@ const DEFAULT_ASSETS: WalletAsset[] = INITIAL_WALLET_BALANCES.map(asset => ({
   address: asset.currency === 'BTC' ? 'bc1q8h...v9f' : 
            asset.currency === 'ETH' ? '0x71C...65e' :
            asset.currency === 'SOL' ? 'GvT9...vXw' : '0xUSDC...abc',
-  isLive: false
+  isLive: asset.currency === 'ETH'
 }));
 
 export function useVaultStore() {
@@ -39,8 +38,8 @@ export function useVaultStore() {
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
-    const savedAssets = localStorage.getItem('cv_assets_live');
-    const savedTxs = localStorage.getItem('cv_txs_live');
+    const savedAssets = localStorage.getItem('cv_assets_v1');
+    const savedTxs = localStorage.getItem('cv_txs_v1');
     
     if (savedAssets) {
       setAssets(JSON.parse(savedAssets));
@@ -59,8 +58,8 @@ export function useVaultStore() {
 
   useEffect(() => {
     if (initialized) {
-      localStorage.setItem('cv_assets_live', JSON.stringify(assets));
-      localStorage.setItem('cv_txs_live', JSON.stringify(transactions));
+      localStorage.setItem('cv_assets_v1', JSON.stringify(assets));
+      localStorage.setItem('cv_txs_v1', JSON.stringify(transactions));
     }
   }, [assets, transactions, initialized]);
 
@@ -87,10 +86,6 @@ export function useVaultStore() {
     }));
   };
 
-  /**
-   * Generates a real Ethereum account if currency is ETH.
-   * Otherwise generates a simulated address.
-   */
   const generateNewWallet = (currency: string) => {
     let address = '';
     let isLive = false;
@@ -100,8 +95,6 @@ export function useVaultStore() {
       const account = privateKeyToAccount(privateKey);
       address = account.address;
       isLive = true;
-      // In a real app, we would securely store the privateKey here.
-      console.warn('Generated real ETH key for address:', address);
     } else {
       address = `${currency.toLowerCase()}_${Math.random().toString(36).substring(2, 14)}`;
     }

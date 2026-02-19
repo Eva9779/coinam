@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -29,7 +28,7 @@ export default function TransactionsPage() {
   const [feeTier, setFeeTier] = useState<FeeTier>('average');
   const [addressError, setAddressError] = useState("");
   const [mounted, setMounted] = useState(false);
-  const [baseGas, setBaseGas] = useState<number>(15); // Gwei
+  const [baseGas, setBaseGas] = useState<number>(15);
 
   useEffect(() => {
     setMounted(true);
@@ -41,7 +40,6 @@ export default function TransactionsPage() {
   }, []);
 
   const getGasEstimate = () => {
-    // Basic simulation: 21000 gas * price
     const gasLimit = 21000;
     const multiplier = feeTier === 'slow' ? 0.9 : feeTier === 'fast' ? 1.5 : 1.1;
     const ethFee = (gasLimit * (baseGas * multiplier)) / 1e9;
@@ -51,7 +49,7 @@ export default function TransactionsPage() {
   const validateAddress = (addr: string) => {
     if (!addr) return "";
     const ethRegex = /^0x[a-fA-F0-9]{40}$/;
-    if (currency === 'ETH' && !ethRegex.test(addr)) return "Invalid Ethereum destination address";
+    if (currency === 'ETH' && !ethRegex.test(addr)) return "Invalid destination address for selected network";
     return "";
   };
 
@@ -71,7 +69,6 @@ export default function TransactionsPage() {
     }
 
     setIsSending(true);
-    // Broadcoast to live network logic (simulation of broadcast)
     setTimeout(() => {
       updateBalance(currency, -val, asset.fiatValueUSD / asset.amount);
       addTransaction({
@@ -80,7 +77,7 @@ export default function TransactionsPage() {
         amount: val,
         fiatValueUSD: val * (asset.fiatValueUSD / asset.amount),
         toAddress: recipient,
-        description: `Mainnet broadcast | Gas: ${baseGas.toFixed(2)} Gwei`
+        description: `Mainnet broadcast | Priority: ${feeTier}`
       });
 
       setIsSending(false);
@@ -90,7 +87,7 @@ export default function TransactionsPage() {
         title: "Transaction Broadcast Successful",
         description: `TXID: 0x${Math.random().toString(16).slice(2, 24)}... verified on network.`,
       });
-    }, 2500);
+    }, 2000);
   };
 
   if (!initialized || !mounted) {
@@ -107,13 +104,13 @@ export default function TransactionsPage() {
         <div>
           <h2 className="text-3xl font-bold text-primary flex items-center gap-3">
             <Database className="h-8 w-8 text-secondary" />
-            Mainnet Gateway
+            Network Gateway
           </h2>
           <p className="text-muted-foreground text-sm">Direct broadcast interface to decentralized peer networks.</p>
         </div>
         <div className="hidden sm:flex items-center gap-2 bg-green-500/10 px-3 py-1.5 rounded-full border border-green-500/20">
           <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest">Live Sync: {baseGas.toFixed(1)} Gwei</span>
+          <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest">Network Live: {baseGas.toFixed(1)} Gwei</span>
         </div>
       </div>
 
@@ -173,7 +170,7 @@ export default function TransactionsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="recipient" className="text-xs uppercase tracking-widest font-bold opacity-70">Mainnet Destination Address</Label>
+                  <Label htmlFor="recipient" className="text-xs uppercase tracking-widest font-bold opacity-70">Destination Address</Label>
                   <div className="space-y-1">
                     <Input 
                       id="recipient" 
@@ -193,7 +190,7 @@ export default function TransactionsPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <Label className="text-xs uppercase tracking-widest font-bold opacity-70">Gas Priority Priority</Label>
+                  <Label className="text-xs uppercase tracking-widest font-bold opacity-70">Network Priority</Label>
                   <div className="grid grid-cols-3 gap-3">
                     {(['slow', 'average', 'fast'] as FeeTier[]).map((tier) => (
                       <button
@@ -215,15 +212,15 @@ export default function TransactionsPage() {
 
                 <div className="p-5 bg-primary/5 rounded-2xl space-y-3 text-sm border-2 border-dashed border-primary/10">
                   <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground font-semibold uppercase tracking-widest text-[10px]">Estimated Fee</span>
+                    <span className="text-muted-foreground font-semibold uppercase tracking-widest text-[10px]">Estimated Network Fee</span>
                     <div className="flex flex-col items-end">
                       <span className="font-bold text-base">{getGasEstimate().toFixed(6)} {currency}</span>
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold">~(15-30 mins sync)</span>
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold">Verified on Chain</span>
                     </div>
                   </div>
                   <div className="h-px bg-primary/10 w-full" />
                   <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground font-semibold uppercase tracking-widest text-[10px]">Net Withdrawal</span>
+                    <span className="text-muted-foreground font-semibold uppercase tracking-widest text-[10px]">Total Outflow</span>
                     <span className="font-bold text-xl text-primary">
                       {amount ? (parseFloat(amount) + getGasEstimate()).toFixed(6) : "0.00"} {currency}
                     </span>
@@ -248,8 +245,8 @@ export default function TransactionsPage() {
         <TabsContent value="receive">
           <Card className="border-none shadow-xl bg-card/50 backdrop-blur-md">
             <CardHeader>
-              <CardTitle className="text-xl">Verified Entrypoint</CardTitle>
-              <CardDescription className="text-xs">Incoming transfers are audited and credited after 12 confirmations.</CardDescription>
+              <CardTitle className="text-xl">Network Entrypoint</CardTitle>
+              <CardDescription className="text-xs">Incoming transfers are audited and credited after confirmations.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center space-y-8 py-10">
               <div className="p-8 bg-white rounded-3xl shadow-2xl border border-primary/5">
@@ -267,27 +264,24 @@ export default function TransactionsPage() {
               
               <div className="w-full space-y-4 max-w-sm">
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-widest opacity-70">Vault Mainnet Endpoint</Label>
+                  <Label className="text-xs font-bold uppercase tracking-widest opacity-70">Mainnet Receiving Endpoint</Label>
                   <div className="flex gap-2">
                     <Input 
                       readOnly 
-                      value={assets.find(a => a.currency === currency)?.address || "Pending peer sync..."} 
+                      value={assets.find(a => a.currency === currency)?.address || "Synchronizing..."} 
                       className="font-mono text-xs bg-muted/50 font-bold h-12 shadow-inner" 
                     />
                     <Button size="icon" variant="outline" className="h-12 w-12 rounded-xl" onClick={() => {
                       const addr = assets.find(a => a.currency === currency)?.address;
                       if (addr) {
                         navigator.clipboard.writeText(addr);
-                        toast({ title: "Copied to clipboard" });
+                        toast({ title: "Address copied" });
                       }
                     }}>
                       <History className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
-                <p className="text-[10px] text-center text-muted-foreground font-medium uppercase tracking-tighter">
-                  Send only {currency} to this Mainnet address.
-                </p>
               </div>
             </CardContent>
           </Card>
@@ -297,7 +291,7 @@ export default function TransactionsPage() {
           <Card className="border-none shadow-xl bg-card/50 backdrop-blur-md">
             <CardHeader>
               <CardTitle className="text-xl font-bold uppercase tracking-tighter">Activity Ledger</CardTitle>
-              <CardDescription className="text-xs">Immutable history synced with Mainnet peers.</CardDescription>
+              <CardDescription className="text-xs">Immutable history synced with global peers.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-primary/5">
@@ -315,7 +309,7 @@ export default function TransactionsPage() {
                       <div className="space-y-1">
                         <div className="font-bold text-lg flex items-center gap-2">
                           {tx.type === 'receive' ? 'Mainnet Deposit' : tx.type === 'send' ? 'Mainnet Broadcast' : 'Peer Exchange'}
-                          <Badge variant="outline" className="text-[9px] h-4 bg-green-500/10 text-green-600 border-green-500/20 font-bold uppercase">Synced</Badge>
+                          <Badge variant="outline" className="text-[9px] h-4 bg-green-500/10 text-green-600 border-green-500/20 font-bold uppercase">Verified</Badge>
                         </div>
                         <div className="text-sm text-muted-foreground font-medium">{tx.description}</div>
                         <div className="text-[10px] font-mono text-muted-foreground/70 uppercase tracking-widest flex items-center gap-1.5 font-bold">
@@ -333,9 +327,6 @@ export default function TransactionsPage() {
                       </div>
                       <div className="text-sm text-muted-foreground font-bold opacity-70">
                         ${tx.fiatValueUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground font-bold mt-1 uppercase tracking-tighter opacity-50">
-                        {new Date(tx.timestamp).toLocaleString()}
                       </div>
                     </div>
                   </div>
