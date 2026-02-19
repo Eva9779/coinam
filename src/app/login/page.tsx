@@ -30,7 +30,7 @@ export default function LoginPage() {
       toast({
         variant: 'destructive',
         title: 'Authentication Failed',
-        description: 'Invalid email or password.',
+        description: error.message || 'Invalid email or password.',
       });
     } finally {
       setLoading(false);

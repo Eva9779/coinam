@@ -33,6 +33,15 @@ export default function RegisterPage() {
       return;
     }
 
+    if (password.length < 6) {
+      toast({
+        variant: 'destructive',
+        title: 'Security Requirement',
+        description: 'Password must be at least 6 characters.',
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       await createUserWithEmailAndPassword(auth, email, password);
@@ -45,7 +54,7 @@ export default function RegisterPage() {
       toast({
         variant: 'destructive',
         title: 'Registration Failed',
-        description: 'Could not create account. Please check your credentials.',
+        description: error.message || 'Could not create account. Please try again.',
       });
     } finally {
       setLoading(false);
@@ -83,6 +92,7 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                minLength={6}
               />
             </div>
             <div className="space-y-2">
@@ -93,6 +103,7 @@ export default function RegisterPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                minLength={6}
               />
             </div>
           </CardContent>
