@@ -10,13 +10,14 @@ import {
   ArrowLeftRight, 
   Bell, 
   Settings, 
-  ShieldCheck,
-  TrendingUp
+  TrendingUp,
+  Repeat
 } from "lucide-react";
 
 const navItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Wallet", href: "/wallet", icon: Wallet },
+  { name: "Trade", href: "/trade", icon: Repeat },
   { name: "Transactions", href: "/transactions", icon: ArrowLeftRight },
   { name: "Market", href: "/market", icon: TrendingUp },
   { name: "Smart Alerts", href: "/alerts", icon: Bell },
