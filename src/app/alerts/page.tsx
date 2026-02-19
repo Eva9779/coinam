@@ -10,20 +10,21 @@ import { AlertCircle, ShieldAlert, TrendingUp, Zap, Sparkles, RefreshCw } from "
 import { useVaultStore } from "@/lib/store";
 import { INITIAL_MARKET_DATA } from "@/lib/data";
 import { cn } from "@/lib/utils";
+import { useUserHook } from "@/firebase";
 
 export default function AlertsPage() {
   const { assets, transactions, initialized } = useVaultStore();
+  const { user } = useUserHook();
   const [data, setData] = useState<SmartAlertsOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
   const fetchAlerts = async () => {
-    if (!initialized) return;
+    if (!initialized || !user) return;
     setLoading(true);
     try {
-      // Map store data to match the flow input schema
       const response = await generateSmartAlerts({
-        userId: "vault_user_main",
+        userId: user.uid,
         walletBalances: assets.map(a => ({
           currency: a.currency,
           amount: a.amount,
@@ -31,7 +32,7 @@ export default function AlertsPage() {
         })),
         recentTransactions: transactions.map(t => ({
           id: t.id,
-          type: t.type === 'trade' ? 'send' : t.type, // Map 'trade' to 'send' for simple analysis
+          type: t.type === 'trade' ? 'send' : t.type,
           currency: t.currency.split(' ')[0],
           amount: t.amount,
           fiatValueUSD: t.fiatValueUSD,
@@ -54,10 +55,10 @@ export default function AlertsPage() {
 
   useEffect(() => {
     setMounted(true);
-    if (initialized) {
+    if (initialized && user) {
       fetchAlerts();
     }
-  }, [initialized]);
+  }, [initialized, user]);
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">

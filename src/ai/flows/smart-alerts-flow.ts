@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for generating smart alerts for CoinVault users.
@@ -78,19 +79,13 @@ Provide clear reasoning and actionable insights for each alert.
 
 Consider the following criteria for generating alerts:
 1.  **Unusual Transactions**:
-    *   Transactions with amounts significantly different (e.g., 2x or 0.5x) from the user's typical average transaction amount, if provided.
-    *   (Note: Identifying 'frequently interacted addresses' is not possible with current input; AI will infer 'unusual' primarily from amount deviations.)
+    *   Transactions with amounts significantly different (e.g., 2x or 0.5x) from the user's typical average transaction amount.
 2.  **Large Transactions**:
-    *   Any single transaction (send or receive) exceeding a predefined 'userHighValueThresholdUSD' if provided, or a general high value (e.g., >$10,000 USD) otherwise.
+    *   Any single transaction exceeding a predefined threshold.
 3.  **Significant Market Movements**:
-    *   Cryptocurrencies with a daily price change (up or down) greater than 10-15%.
-    *   Cryptocurrencies with significant volume spikes not correlated with small price changes.
+    *   Cryptocurrencies with a daily price change greater than 10%.
 4.  **Low Balance Warning**:
-    *   If a user's balance in a primary cryptocurrency (e.g., BTC, ETH) drops below a certain threshold (e.g., <$100 USD or 0.001 BTC equivalent).
-
-Focus on alerts that provide genuine value and security insights to the user. Avoid generating trivial alerts.
-The 'description' field should provide comprehensive reasoning and potential implications.
-The 'timestamp' for the alert should be the current time when the alert is generated.
+    *   If a user's balance drops below a safe threshold.
 
 User ID: {{{userId}}}
 Current Wallet Balances:
@@ -98,24 +93,17 @@ Current Wallet Balances:
 - Currency: {{{currency}}}, Amount: {{{amount}}}, Fiat Value: \${{{fiatValueUSD}}}
 {{/each}}
 
-Recent Transactions (last 24-48 hours):
+Recent Transactions:
 {{#each recentTransactions}}
-- ID: {{{id}}}, Type: {{{type}}}, Currency: {{{currency}}}, Amount: {{{amount}}}, Fiat Value: \${{{fiatValueUSD}}}, Timestamp: {{{timestamp}}}, From: {{{fromAddress}}}, To: {{{toAddress}}}, Description: {{{description}}}
+- ID: {{{id}}}, Type: {{{type}}}, Currency: {{{currency}}}, Amount: {{{amount}}}, Fiat Value: \${{{fiatValueUSD}}}, Timestamp: {{{timestamp}}}, Description: {{{description}}}
 {{/each}}
 
 Current Market Data:
 {{#each marketData}}
-- Currency: {{{currency}}}, Current Price: \${{{currentPriceUSD}}}, Daily Change: {{{dailyChangePercent}}}%, Weekly Change: {{{weeklyChangePercent}}}%, 24h Volume: \${{{volume24hUSD}}}
+- Currency: {{{currency}}}, Current Price: \${{{currentPriceUSD}}}, Daily Change: {{{dailyChangePercent}}}%, Volume: \${{{volume24hUSD}}}
 {{/each}}
 
-Additional User Behavior Context:
-User Average Transaction Amount (USD): {{{userAverageTransactionAmountUSD}}}
-User High Value Transaction Threshold (USD): {{{userHighValueThresholdUSD}}}
-
-Please generate a JSON object containing an array of alerts, following the 'SmartAlertsOutputSchema'.
-Ensure that all fields in the AlertSchema are correctly populated for each alert.
-The 'timestamp' for each alert should be the current time, so use the timestamp of the flow execution.
-If no significant alerts are found, return an empty array for 'alerts'.
+Please generate a JSON object containing an array of alerts.
 `,
 });
 
@@ -133,7 +121,6 @@ const smartAlertsFlow = ai.defineFlow(
       throw new Error('Failed to generate smart alerts: LLM returned no output.');
     }
 
-    // Ensure each alert has a timestamp, falling back to the current time if the LLM somehow missed it.
     const alertsWithCurrentTimestamp = output.alerts.map(alert => ({
       ...alert,
       timestamp: alert.timestamp || currentTimestamp 

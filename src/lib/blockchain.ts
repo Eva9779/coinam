@@ -5,7 +5,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 
 /**
  * Live Network Gateway
- * Uses a fallback strategy: Primary Coinbase CDP -> Secondary Public RPC.
+ * Uses your Coinbase CDP RPC for direct, high-performance broadcasts.
  */
 const COINBASE_RPC_URL = `https://api.developer.coinbase.com/rpc/v1/mainnet/0TGjjV5EHjnHktxmAkRgECJwFYQa9AIV`;
 const PUBLIC_RPC_URL = `https://eth.llamarpc.com`;
@@ -25,7 +25,6 @@ export async function getLiveBlockNumber() {
   try {
     return await publicClient.getBlockNumber();
   } catch (error) {
-    // Fail silently to prevent UI disruption
     return null;
   }
 }
@@ -51,14 +50,12 @@ export async function getLiveGasPrice() {
     const gasPrice = await publicClient.getGasPrice();
     return Number(gasPrice) / 1e9;
   } catch (error) {
-    // Return a baseline safe value (e.g., 20 Gwei) if RPC fails to avoid division by zero
     return 20;
   }
 }
 
 /**
  * Signs and broadcasts a live transaction to the Ethereum Mainnet.
- * This operation is final and irreversible.
  */
 export async function sendLiveTransaction(privateKey: `0x${string}`, to: string, amount: string) {
   const account = privateKeyToAccount(privateKey);
