@@ -4,7 +4,7 @@
 import './globals.css';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { Toaster } from '@/components/ui/toaster';
-import { ShieldCheck, Database, LogOut, User as UserIcon, Loader2, Info } from 'lucide-react';
+import { ShieldCheck, Database, LogOut, User as UserIcon, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getLiveBlockNumber } from '@/lib/blockchain';
 import { VaultProvider } from '@/lib/store';
@@ -118,7 +118,7 @@ function AppContent({ children, onSignOut, userEmail }: { children: React.ReactN
           <div className="flex items-center gap-4">
             <h1 className="font-semibold text-lg uppercase tracking-tight opacity-70 text-xs">Secure Asset Vault</h1>
             <Badge variant="outline" className="text-[10px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden sm:flex">
-              v1.0.5 - DEPLOYED
+              v1.0.6 - DEPLOYED
             </Badge>
           </div>
           <div className="flex items-center gap-4">
