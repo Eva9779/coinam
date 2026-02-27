@@ -1,3 +1,4 @@
+
 'use server';
 
 import Stripe from 'stripe';
@@ -11,8 +12,8 @@ let stripeInstance: Stripe | null = null;
 function getStripe() {
   if (!stripeInstance) {
     const apiKey = process.env.STRIPE_SECRET_KEY;
-    if (!apiKey) {
-      throw new Error('STRIPE_SECRET_KEY is not configured on the server. Please add it to your environment variables.');
+    if (!apiKey || apiKey === '' || apiKey.includes('replace_with_your_key')) {
+      throw new Error('STRIPE_SECRET_KEY is missing or invalid in your .env file. Please add your secret key from the Stripe Dashboard.');
     }
     stripeInstance = new Stripe(apiKey, {
       apiVersion: '2025-02-24.acacia' as any,
@@ -28,6 +29,8 @@ export async function createOnrampSession(walletAddress: string) {
   try {
     const stripe = getStripe();
     
+    // We create a session for the Ethereum network. 
+    // You can customize destination currencies and networks here.
     const session = await stripe.crypto.onrampSessions.create({
       wallet_addresses: {
         ethereum: walletAddress,
