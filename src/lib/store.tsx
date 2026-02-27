@@ -57,20 +57,21 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   // Sync Assets from Firestore
   useEffect(() => {
-    if (!db || !user) return;
+    if (!db || !user) {
+      setInitialized(false);
+      return;
+    }
 
     const assetsRef = collection(db, 'users', user.uid, 'assets');
     const unsubscribe = onSnapshot(assetsRef, (snapshot) => {
       const assetsData = snapshot.docs.map(doc => doc.data() as WalletAsset);
       setAssets(assetsData);
-      // Mark as initialized once we have the first snapshot
       setInitialized(true);
     }, (error) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: assetsRef.path,
         operation: 'list'
       }));
-      // Even on error, we mark initialized so the UI can show a state
       setInitialized(true);
     });
 
@@ -96,6 +97,19 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
     return () => unsubscribe();
   }, [db, user]);
+
+  // Auto-provision initial ETH wallet if user is initialized but has no assets
+  useEffect(() => {
+    if (initialized && user && assets.length === 0) {
+      // Small delay to ensure we aren't racing with a slow first snapshot
+      const timer = setTimeout(() => {
+        if (assets.length === 0) {
+          generateNewWallet('ETH');
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [initialized, user, assets.length]);
 
   const addTransaction = (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
     if (!db || !user) return;
@@ -141,6 +155,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const generateNewWallet = (currency: string) => {
     if (!db || !user) return '';
+
+    // Check if we already have this currency to prevent duplicates during auto-provision
+    const existing = assets.find(a => a.currency === currency);
+    if (existing) return existing.address;
 
     const pKey = generatePrivateKey();
     const account = privateKeyToAccount(pKey);

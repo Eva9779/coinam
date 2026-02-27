@@ -79,7 +79,7 @@ export default function Dashboard() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Initializing Secure Vault...</p>
+        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Synchronizing Secure Vault...</p>
       </div>
     );
   }
@@ -94,7 +94,7 @@ export default function Dashboard() {
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-semibold">
             <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-            v1.0.8 - VERIFIED
+            v1.0.9 - SYNCED
           </Badge>
         </div>
       </div>
@@ -111,7 +111,7 @@ export default function Dashboard() {
               Direct Fiat Gateway
             </h3>
             <p className="text-lg text-primary-foreground/80 font-medium leading-relaxed mb-8">
-              Convert your local currency into digital assets instantly via Stripe. Secure, encrypted, and deposited directly into your vault.
+              Convert your local currency into digital assets instantly via Stripe. Your vault is synchronized across all devices.
             </p>
             <div className="flex flex-wrap gap-4">
               <Button size="lg" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 font-black h-16 px-10 text-xl shadow-xl hover:scale-105 transition-all group" asChild>
@@ -148,7 +148,7 @@ export default function Dashboard() {
             <div className="text-3xl font-black tracking-tight text-primary">
               ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <p className="text-xs text-muted-foreground mt-2 font-medium">Synced across all active endpoints</p>
+            <p className="text-xs text-muted-foreground mt-2 font-medium">Synced across all active browsers</p>
           </CardContent>
         </Card>
 
@@ -196,7 +196,7 @@ export default function Dashboard() {
             Asset Breakdown
           </h3>
           <div className="grid gap-3">
-            {assets.filter(a => a.amount >= 0).length > 0 ? (
+            {assets.length > 0 ? (
               assets.map((asset) => (
                 <Card key={asset.currency} className="hover:border-secondary transition-all cursor-pointer shadow-sm border-primary/5">
                   <CardContent className="p-5 flex items-center justify-between">
@@ -218,7 +218,7 @@ export default function Dashboard() {
               ))
             ) : (
               <div className="py-20 text-center border-2 border-dashed rounded-3xl opacity-30 uppercase text-[10px] font-black tracking-widest">
-                No active assets in vault
+                Initial Assets Provisioning...
               </div>
             )}
           </div>

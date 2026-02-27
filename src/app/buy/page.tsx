@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShieldCheck, CreditCard, Loader2, AlertCircle, ArrowLeft, Plus, ExternalLink, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { ShieldCheck, CreditCard, Loader2, AlertCircle, ArrowLeft, Plus, ExternalLink, CheckCircle2, ShieldAlert, RefreshCw } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { createOnrampSession } from '@/app/lib/stripe-actions';
 import { toast } from '@/hooks/use-toast';
@@ -31,7 +31,6 @@ export default function BuyCryptoPage() {
   const [scriptError, setScriptError] = useState(false);
   const onrampRef = useRef<HTMLDivElement>(null);
 
-  // Check if keys are placeholders or empty
   const isConfigMissing = !STRIPE_ONRAMP_PUBLISHABLE_KEY || 
                           STRIPE_ONRAMP_PUBLISHABLE_KEY === '' || 
                           STRIPE_ONRAMP_PUBLISHABLE_KEY.includes('replace_with_your_key');
@@ -101,19 +100,11 @@ export default function BuyCryptoPage() {
     }
   };
 
-  const handleQuickProvision = () => {
-    const addr = generateNewWallet('ETH');
-    setSelectedAsset('ETH');
-    toast({
-      title: "Wallet Provisioned",
-      description: `New ETH address: ${addr.slice(0, 10)}...`,
-    });
-  };
-
   if (!initialized) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Syncing Vault State...</p>
       </div>
     );
   }
@@ -148,14 +139,14 @@ export default function BuyCryptoPage() {
       </div>
 
       {scriptError && (
-        <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-destructive shadow-lg">
+        <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-destructive shadow-lg animate-in fade-in slide-in-from-top-4">
           <ShieldAlert className="h-5 w-5" />
           <div className="ml-2">
             <AlertTitle className="font-bold">Browser Blocked Stripe SDK</AlertTitle>
             <AlertDescription className="pt-2">
               <p className="text-sm">
-                The Stripe Crypto Onramp script was blocked by your browser. This usually happens due to <strong>Ad-Blockers</strong>, <strong>Brave Shields</strong>, or privacy extensions. 
-                Please disable them for this site and refresh the page to continue.
+                The Stripe Crypto Onramp script was blocked. This is usually caused by <strong>Ad-Blockers</strong> or <strong>Brave Shields</strong>. 
+                Please disable them for this site to enable the payment gateway.
               </p>
             </AlertDescription>
           </div>
@@ -169,31 +160,21 @@ export default function BuyCryptoPage() {
             <AlertTitle className="font-bold">Stripe Configuration Required</AlertTitle>
             <AlertDescription className="space-y-4 pt-2">
               <p className="text-sm">
-                Your Stripe keys are missing. Please add <code>STRIPE_SECRET_KEY</code> and <code>NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code> to your <code>.env</code> file.
+                Your Stripe keys are missing. Please add <code>STRIPE_SECRET_KEY</code> and <code>NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</code> to your environment variables.
               </p>
-              <Button variant="outline" size="sm" asChild>
-                <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer">
-                  <ExternalLink className="h-3 w-3 mr-2" /> Get API Keys
-                </a>
-              </Button>
             </AlertDescription>
           </div>
         </Alert>
       )}
 
       {assets.length === 0 ? (
-        <Card className="border-dashed border-2 py-12 bg-muted/20">
-          <CardContent className="flex flex-col items-center text-center space-y-6">
-            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
-              <Plus className="h-8 w-8 text-primary" />
-            </div>
-            <div className="space-y-2 max-w-sm">
-              <h3 className="text-xl font-bold">No Destination Address</h3>
-              <p className="text-muted-foreground text-sm">You need a provisioned wallet endpoint to receive assets.</p>
-            </div>
-            <Button size="lg" onClick={handleQuickProvision} className="font-bold gap-2 rounded-xl">
-              <Plus className="h-4 w-4" /> Provision ETH Wallet
-            </Button>
+        <Card className="border-dashed border-2 py-20 bg-muted/10 text-center">
+          <CardContent className="space-y-4">
+            <RefreshCw className="h-10 w-10 animate-spin text-primary mx-auto" />
+            <h3 className="text-xl font-bold uppercase tracking-tight">Provisioning Initial Endpoint...</h3>
+            <p className="text-muted-foreground text-sm max-w-sm mx-auto">
+              We are automatically creating your first secure wallet address. This will take only a moment.
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -227,8 +208,8 @@ export default function BuyCryptoPage() {
                 <div className="p-4 bg-secondary/5 rounded-xl border border-secondary/20 flex gap-3 items-start">
                   <ShieldCheck className="h-5 w-5 text-secondary shrink-0 mt-0.5" />
                   <div className="text-xs leading-relaxed">
-                    <span className="font-bold text-secondary block mb-1">Stripe Security</span>
-                    Transactions are handled by Stripe's encrypted payment network. Ensure your domain is authorized in the Stripe Dashboard.
+                    <span className="font-bold text-secondary block mb-1">Vault Sync Enabled</span>
+                    Purchased assets will be visible instantly across all your devices.
                   </div>
                 </div>
 
@@ -254,18 +235,6 @@ export default function BuyCryptoPage() {
                 )}
               </CardContent>
             </Card>
-
-            <div className="space-y-4">
-              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest ml-1">Requirements</h4>
-              <div className="space-y-2">
-                {["Live Key Configuration", "Stripe Onramp Enabled", "Domain Authorization"].map((item, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs font-medium bg-muted/30 p-2 rounded-lg border border-border/50">
-                    <CheckCircle2 className="h-3 w-3 text-green-500" />
-                    {item}
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
 
           <div className="lg:col-span-8 min-h-[600px]">

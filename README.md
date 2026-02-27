@@ -15,7 +15,7 @@ Look at the **bottom-left corner** of this Studio window.
 ### 2. Update Vercel Settings
 1. Go to your **Vercel Dashboard** and select your project `vault-access`.
 2. Go to **Settings > Git**.
-3. In the "Production Branch" field, change it from `main` to the branch name you see in the Studio.
+3. In the "Production Branch" fieldbranch name, change it from `main` to the  you see in the Studio.
 4. Click **Save**.
 
 ### 3. Trigger a Fresh Build
