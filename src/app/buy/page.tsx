@@ -75,6 +75,10 @@ export default function BuyCryptoPage() {
         const session = onramp.createSession({ clientSecret });
         session.mount(onrampRef.current);
         setOnrampLoaded(true);
+        toast({
+          title: "Session Initialized",
+          description: "Secure gateway is ready for purchase.",
+        });
       }
     } catch (error: any) {
       toast({
@@ -181,7 +185,7 @@ export default function BuyCryptoPage() {
                     disabled={loading || !selectedAsset || !sdkReady}
                   >
                     {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <CreditCard className="h-5 w-5 mr-2" />}
-                    {loading ? "Initializing..." : "Proceed to Buy"}
+                    {loading ? "Establishing Link..." : "Proceed to Buy"}
                   </Button>
                 )}
 
