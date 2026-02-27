@@ -1,12 +1,12 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShieldCheck, CreditCard, Loader2, AlertCircle, ArrowLeft, RefreshCw, ShieldAlert, Zap } from 'lucide-react';
+import { ShieldCheck, CreditCard, Loader2, AlertCircle, ArrowLeft, RefreshCw, ShieldAlert, Zap, ExternalLink } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { createOnrampSession } from '@/app/lib/stripe-actions';
 import { toast } from '@/hooks/use-toast';
@@ -26,9 +26,7 @@ export default function BuyCryptoPage() {
   const { assets, initialized } = useVaultStore();
   const [selectedAsset, setSelectedAsset] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [onrampLoaded, setOnrampLoaded] = useState(false);
   const [scriptError, setScriptError] = useState(false);
-  const onrampRef = useRef<HTMLDivElement>(null);
 
   const isConfigMissing = !STRIPE_ONRAMP_PUBLISHABLE_KEY || 
                           STRIPE_ONRAMP_PUBLISHABLE_KEY === '' || 
@@ -40,7 +38,7 @@ export default function BuyCryptoPage() {
     }
   }, [initialized, assets, selectedAsset]);
 
-  const handleBuy = async () => {
+  const handleBuyRedirect = async () => {
     if (isConfigMissing) {
       toast({
         title: "Configuration Required",
@@ -54,7 +52,7 @@ export default function BuyCryptoPage() {
       setScriptError(true);
       toast({
         title: "Gateway Connection Error",
-        description: "The Stripe security module failed to initialize. Please check your browser's security settings or try a different browser.",
+        description: "The Stripe security module failed to initialize. Please check your browser's security settings.",
         variant: "destructive"
       });
       return;
@@ -74,27 +72,23 @@ export default function BuyCryptoPage() {
     try {
       const { clientSecret } = await createOnrampSession(asset.address);
       
-      const onrampInstance = window.StripeOnramp(STRIPE_ONRAMP_PUBLISHABLE_KEY);
+      const onramp = window.StripeOnramp(STRIPE_ONRAMP_PUBLISHABLE_KEY);
+      const session = onramp.createSession({ clientSecret });
+      const redirectUrl = session.getUrl();
       
-      if (onrampRef.current && onrampInstance) {
-        onrampRef.current.innerHTML = ''; 
-        
-        const session = onrampInstance.createSession({ clientSecret });
-        session.mount('#stripe-onramp-element');
-        
-        setOnrampLoaded(true);
-        toast({
-          title: "Secure Session Started",
-          description: "Stripe payment gateway is now active.",
-        });
-      }
+      toast({
+        title: "Redirecting to Stripe",
+        description: "Opening the secure payment portal...",
+      });
+
+      // Redirect user to Stripe hosted onramp
+      window.location.href = redirectUrl;
     } catch (error: any) {
       toast({
         title: "Session Failed",
         description: error.message || "Could not establish a secure purchase tunnel.",
         variant: "destructive"
       });
-    } finally {
       setLoading(false);
     }
   };
@@ -113,17 +107,15 @@ export default function BuyCryptoPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
+    <div className="max-w-4xl mx-auto space-y-8">
       <Script 
         src="https://js.stripe.com/v3/crypto-onramp.js" 
         strategy="afterInteractive"
         onLoad={() => {
           setScriptError(false);
-          console.log("Stripe Onramp SDK Loaded");
         }}
         onError={() => {
           setScriptError(true);
-          console.error("Stripe Onramp SDK Error");
         }}
       />
       
@@ -138,21 +130,20 @@ export default function BuyCryptoPage() {
             <CreditCard className="h-8 w-8 text-secondary" />
             Fiat Gateway
           </h2>
-          <p className="text-muted-foreground text-sm font-medium">Provision assets via Stripe secure on-chain protocol.</p>
+          <p className="text-muted-foreground text-sm font-medium">Provision assets via Stripe secure Standalone protocol.</p>
         </div>
       </div>
 
       {scriptError && (
-        <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-destructive shadow-lg animate-in fade-in slide-in-from-top-4">
+        <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-destructive shadow-lg">
           <ShieldAlert className="h-5 w-5" />
           <div className="ml-2 flex-1">
             <AlertTitle className="font-bold flex items-center gap-2">
               Gateway Connection Blocked
             </AlertTitle>
             <AlertDescription className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <p className="text-sm max-w-xl">
-                The Stripe security module was blocked. This is typically caused by <strong>Ad-Blockers</strong>, <strong>Brave Shields</strong>, or <strong>Enhanced Tracking Protection</strong>. 
-                Please disable these for this site to enable payments.
+              <p className="text-sm">
+                The Stripe security module was blocked by your browser. Please disable ad-blockers or Brave shields for this domain.
               </p>
               <Button size="sm" variant="destructive" onClick={forceReloadScript} className="font-bold gap-2 shrink-0">
                 <RefreshCw className="h-4 w-4" /> Force Reconnect
@@ -162,88 +153,65 @@ export default function BuyCryptoPage() {
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        <div className="lg:col-span-4 space-y-6">
-          <Card className="shadow-lg border-primary/10">
-            <CardHeader>
-              <CardTitle className="text-lg">Purchase Configuration</CardTitle>
-              <CardDescription className="text-xs uppercase font-bold opacity-60">Authorize Broadcast</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-widest opacity-70">Target Endpoint</Label>
-                <Select value={selectedAsset} onValueChange={setSelectedAsset}>
-                  <SelectTrigger className="h-12 font-semibold bg-background/50 border-2">
-                    <SelectValue placeholder="Select asset" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {assets.map(a => (
-                      <SelectItem key={a.id} value={a.currency}>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold">{a.currency}</span>
-                          <span className="text-[10px] opacity-50 font-mono">{a.address.slice(0, 14)}...</span>
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+      <Card className="shadow-2xl border-primary/10 bg-card/50 backdrop-blur-xl overflow-hidden rounded-3xl">
+        <CardHeader className="border-b bg-muted/20 pb-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-2xl font-bold tracking-tight">Direct Purchase</CardTitle>
+              <CardDescription className="text-xs uppercase font-bold opacity-60 tracking-widest mt-1">Stripe Standalone Integration</CardDescription>
+            </div>
+            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+              <ShieldCheck className="h-6 w-6 text-primary" />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-8 pt-8">
+          <div className="space-y-4">
+            <Label className="text-xs font-bold uppercase tracking-widest opacity-70">Target Endpoint</Label>
+            <Select value={selectedAsset} onValueChange={setSelectedAsset}>
+              <SelectTrigger className="h-16 text-lg font-bold bg-background/50 border-2 rounded-2xl">
+                <SelectValue placeholder="Select asset" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                {assets.map(a => (
+                  <SelectItem key={a.id} value={a.currency}>
+                    <div className="flex items-center gap-3 py-1">
+                      <div className="h-8 w-8 rounded-lg bg-primary/5 flex items-center justify-center text-xs font-black">{a.currency}</div>
+                      <div className="flex flex-col">
+                        <span className="font-bold">{a.currency} Wallet</span>
+                        <span className="text-[10px] opacity-50 font-mono tracking-tighter">{a.address}</span>
+                      </div>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-              <div className="p-4 bg-secondary/5 rounded-xl border border-secondary/20 flex gap-3 items-start">
-                <ShieldCheck className="h-5 w-5 text-secondary shrink-0 mt-0.5" />
-                <div className="text-xs leading-relaxed font-medium">
-                  <span className="font-bold text-secondary block mb-1">Vault Sync Active</span>
-                  Assets will be visible across all your authenticated devices once confirmed.
-                </div>
-              </div>
+          <div className="p-6 bg-secondary/5 rounded-2xl border-2 border-dashed border-secondary/20 flex gap-4 items-start">
+            <div className="h-10 w-10 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
+              <Zap className="h-5 w-5 text-secondary" />
+            </div>
+            <div className="text-sm leading-relaxed">
+              <span className="font-bold text-secondary block mb-1 text-base">Direct On-Chain Settlement</span>
+              You are initiating a direct purchase session. Stripe will verify your identity and broadcast the assets directly to your vault address on the Ethereum network.
+            </div>
+          </div>
 
-              {!onrampLoaded && (
-                <Button 
-                  className="w-full h-14 text-lg font-bold shadow-lg rounded-xl transition-all" 
-                  onClick={handleBuy}
-                  disabled={loading || !selectedAsset}
-                >
-                  {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <Zap className="h-5 w-5 mr-2" />}
-                  {loading ? "Authorizing..." : "Initiate Gateway"}
-                </Button>
-              )}
+          <Button 
+            className="w-full h-20 text-2xl font-black shadow-2xl rounded-2xl transition-all hover:scale-[1.01] active:scale-[0.99] gap-3" 
+            onClick={handleBuyRedirect}
+            disabled={loading || !selectedAsset}
+          >
+            {loading ? <Loader2 className="h-8 w-8 animate-spin" /> : <ExternalLink className="h-8 w-8" />}
+            {loading ? "Authorizing..." : "Launch Stripe Gateway"}
+          </Button>
 
-              {onrampLoaded && (
-                <Button 
-                  variant="outline"
-                  className="w-full h-10 text-xs font-bold rounded-lg border-dashed" 
-                  onClick={() => setOnrampLoaded(false)}
-                >
-                  Reset Connection
-                </Button>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="lg:col-span-8 min-h-[600px]">
-          <Card className="h-full min-h-[650px] shadow-2xl border-none bg-card relative overflow-hidden rounded-3xl">
-            {!onrampLoaded && !loading && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-12 select-none opacity-40 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-primary/5 to-transparent">
-                <div className="h-32 w-32 rounded-full border-4 border-dashed border-primary/20 mb-6 flex items-center justify-center">
-                  <CreditCard className="h-12 w-12 text-primary" />
-                </div>
-                <h3 className="text-2xl font-bold uppercase tracking-widest">Secure Checkout</h3>
-                <p className="max-w-xs mt-4 text-sm font-medium">Authorize the "Initiate Gateway" action to open the Stripe portal.</p>
-              </div>
-            )}
-            
-            {loading && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 backdrop-blur-md z-20">
-                <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                <span className="font-bold uppercase tracking-widest text-xs text-primary">Establishing Multi-Chain Connection...</span>
-              </div>
-            )}
-
-            <div id="stripe-onramp-element" ref={onrampRef} className="w-full h-full min-h-[650px]" />
-          </Card>
-        </div>
-      </div>
+          <p className="text-center text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
+            Secured by Stripe Identity and Anti-Fraud Network
+          </p>
+        </CardContent>
+      </Card>
     </div>
   );
 }
