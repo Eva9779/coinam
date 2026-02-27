@@ -13,12 +13,14 @@ import {
   Zap,
   CreditCard,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  RefreshCw
 } from "lucide-react";
 import { useVaultStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { INITIAL_MARKET_DATA } from "@/lib/data";
 
 export const dynamic = 'force-dynamic';
 
@@ -41,17 +43,33 @@ export default function Dashboard() {
   useEffect(() => {
     setMounted(true);
     async function fetchMarket() {
+      setLoading(true);
       try {
-        const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=5&page=1&sparkline=false');
-        if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
-        }
+        // Use a timeout to prevent the app from hanging on slow network responses
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=5&page=1&sparkline=false', {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         const data = await res.json();
         if (Array.isArray(data)) {
           setMarketData(data);
         }
       } catch (err) {
-        console.warn("Market connectivity interrupted.");
+        console.warn("Market connectivity interrupted. Using local registry.");
+        // Fallback to static data if API is down
+        setMarketData(INITIAL_MARKET_DATA.map(m => ({
+          id: m.currency.toLowerCase(),
+          symbol: m.currency,
+          name: m.currency,
+          current_price: m.currentPriceUSD,
+          price_change_percentage_24h: m.dailyChangePercent
+        })));
       } finally {
         setLoading(false);
       }
@@ -61,8 +79,9 @@ export default function Dashboard() {
 
   if (!initialized || !mounted) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
+        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Initializing Secure Vault...</p>
       </div>
     );
   }
@@ -77,7 +96,7 @@ export default function Dashboard() {
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-semibold">
             <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-            V1.0.7 SYNCED
+            v1.0.7 - ONLINE
           </Badge>
         </div>
       </div>
@@ -145,9 +164,9 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="flex items-center gap-8 overflow-x-auto pb-2">
             {loading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="h-10 w-32 bg-muted animate-pulse rounded" />
-              ))
+              <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase animate-pulse">
+                <RefreshCw className="h-3 w-3 animate-spin" /> Synchronizing Market Data...
+              </div>
             ) : marketData.length > 0 ? (
               marketData.slice(0, 3).map((item) => (
                 <div key={item.id} className="flex items-center gap-3 shrink-0">
@@ -179,8 +198,8 @@ export default function Dashboard() {
             Asset Breakdown
           </h3>
           <div className="grid gap-3">
-            {assets.filter(a => a.amount > 0).length > 0 ? (
-              assets.filter(a => a.amount > 0).map((asset) => (
+            {assets.filter(a => a.amount >= 0).length > 0 ? (
+              assets.map((asset) => (
                 <Card key={asset.currency} className="hover:border-secondary transition-all cursor-pointer shadow-sm border-primary/5">
                   <CardContent className="p-5 flex items-center justify-between">
                     <div className="flex items-center gap-4">

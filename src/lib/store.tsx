@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { useUserHook, useFirestore } from '@/firebase';
 import { 
@@ -12,8 +12,6 @@ import {
   query, 
   orderBy, 
   updateDoc,
-  writeBatch,
-  Firestore
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -65,12 +63,15 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onSnapshot(assetsRef, (snapshot) => {
       const assetsData = snapshot.docs.map(doc => doc.data() as WalletAsset);
       setAssets(assetsData);
+      // Mark as initialized once we have the first snapshot
       setInitialized(true);
     }, (error) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: assetsRef.path,
         operation: 'list'
       }));
+      // Even on error, we mark initialized so the UI can show a state
+      setInitialized(true);
     });
 
     return () => unsubscribe();
