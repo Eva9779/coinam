@@ -6,27 +6,18 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShieldCheck, CreditCard, Loader2, AlertCircle, ArrowLeft, RefreshCw, ShieldAlert, Zap, ExternalLink } from 'lucide-react';
+import { ShieldCheck, CreditCard, Loader2, ArrowLeft, Zap, ExternalLink } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { createOnrampSession } from '@/app/lib/stripe-actions';
 import { toast } from '@/hooks/use-toast';
-import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
-import Script from 'next/script';
 
 const STRIPE_ONRAMP_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
-
-declare global {
-  interface Window {
-    StripeOnramp?: any;
-  }
-}
 
 export default function BuyCryptoPage() {
   const { assets, initialized } = useVaultStore();
   const [selectedAsset, setSelectedAsset] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [scriptError, setScriptError] = useState(false);
 
   const isConfigMissing = !STRIPE_ONRAMP_PUBLISHABLE_KEY || 
                           STRIPE_ONRAMP_PUBLISHABLE_KEY === '' || 
@@ -48,16 +39,6 @@ export default function BuyCryptoPage() {
       return;
     }
 
-    if (!window.StripeOnramp) {
-      setScriptError(true);
-      toast({
-        title: "Gateway Connection Error",
-        description: "The Stripe security module failed to initialize. Please check your browser's security settings.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     const asset = assets.find(a => a.currency === selectedAsset);
     if (!asset) {
       toast({
@@ -72,29 +53,25 @@ export default function BuyCryptoPage() {
     try {
       const { clientSecret } = await createOnrampSession(asset.address);
       
-      const onramp = window.StripeOnramp(STRIPE_ONRAMP_PUBLISHABLE_KEY);
-      const session = onramp.createSession({ clientSecret });
-      const redirectUrl = session.getUrl();
+      // Construct the Direct Standalone Redirect URL
+      // This bypasses the need for the client-side JS SDK entirely
+      const redirectUrl = `https://onramp.stripe.com/onramp?client_secret=${clientSecret}&publishable_key=${STRIPE_ONRAMP_PUBLISHABLE_KEY}`;
       
       toast({
         title: "Redirecting to Stripe",
-        description: "Opening the secure payment portal...",
+        description: "Launching the secure standalone gateway...",
       });
 
-      // Redirect user to Stripe hosted onramp
+      // Redirect user to Stripe hosted standalone page
       window.location.href = redirectUrl;
     } catch (error: any) {
       toast({
-        title: "Session Failed",
+        title: "Gateway Error",
         description: error.message || "Could not establish a secure purchase tunnel.",
         variant: "destructive"
       });
       setLoading(false);
     }
-  };
-
-  const forceReloadScript = () => {
-    window.location.reload();
   };
 
   if (!initialized) {
@@ -108,17 +85,6 @@ export default function BuyCryptoPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
-      <Script 
-        src="https://js.stripe.com/v3/crypto-onramp.js" 
-        strategy="afterInteractive"
-        onLoad={() => {
-          setScriptError(false);
-        }}
-        onError={() => {
-          setScriptError(true);
-        }}
-      />
-      
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
           <Link href="/wallet">
@@ -133,25 +99,6 @@ export default function BuyCryptoPage() {
           <p className="text-muted-foreground text-sm font-medium">Provision assets via Stripe secure Standalone protocol.</p>
         </div>
       </div>
-
-      {scriptError && (
-        <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-destructive shadow-lg">
-          <ShieldAlert className="h-5 w-5" />
-          <div className="ml-2 flex-1">
-            <AlertTitle className="font-bold flex items-center gap-2">
-              Gateway Connection Blocked
-            </AlertTitle>
-            <AlertDescription className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <p className="text-sm">
-                The Stripe security module was blocked by your browser. Please disable ad-blockers or Brave shields for this domain.
-              </p>
-              <Button size="sm" variant="destructive" onClick={forceReloadScript} className="font-bold gap-2 shrink-0">
-                <RefreshCw className="h-4 w-4" /> Force Reconnect
-              </Button>
-            </AlertDescription>
-          </div>
-        </Alert>
-      )}
 
       <Card className="shadow-2xl border-primary/10 bg-card/50 backdrop-blur-xl overflow-hidden rounded-3xl">
         <CardHeader className="border-b bg-muted/20 pb-8">
@@ -204,7 +151,7 @@ export default function BuyCryptoPage() {
             disabled={loading || !selectedAsset}
           >
             {loading ? <Loader2 className="h-8 w-8 animate-spin" /> : <ExternalLink className="h-8 w-8" />}
-            {loading ? "Authorizing..." : "Launch Stripe Gateway"}
+            {loading ? "Establishing Link..." : "Launch Stripe Gateway"}
           </Button>
 
           <p className="text-center text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
