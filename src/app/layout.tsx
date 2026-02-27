@@ -4,7 +4,7 @@
 import './globals.css';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { Toaster } from '@/components/ui/toaster';
-import { ShieldCheck, Database, LogOut, User as UserIcon, Loader2 } from 'lucide-react';
+import { ShieldCheck, Database, LogOut, User as UserIcon, Loader2, Info } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getLiveBlockNumber } from '@/lib/blockchain';
 import { VaultProvider } from '@/lib/store';
@@ -19,6 +19,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useUserHook();
@@ -114,7 +115,12 @@ function AppContent({ children, onSignOut, userEmail }: { children: React.ReactN
 
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         <header className="h-16 border-b bg-card flex items-center justify-between px-8 shrink-0">
-          <h1 className="font-semibold text-lg uppercase tracking-tight opacity-70 text-xs">Secure Asset Vault</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="font-semibold text-lg uppercase tracking-tight opacity-70 text-xs">Secure Asset Vault</h1>
+            <Badge variant="outline" className="text-[10px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden sm:flex">
+              v1.0.5 - DEPLOYED
+            </Badge>
+          </div>
           <div className="flex items-center gap-4">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -129,6 +135,7 @@ function AppContent({ children, onSignOut, userEmail }: { children: React.ReactN
                   <UserIcon className="mr-2 h-4 w-4" />
                   <span className="truncate">{userEmail}</span>
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10" onClick={onSignOut}>
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Sign Out</span>
