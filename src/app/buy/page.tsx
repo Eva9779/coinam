@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShieldCheck, CreditCard, Loader2, AlertCircle, ArrowLeft, Plus, ExternalLink, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, CreditCard, Loader2, AlertCircle, ArrowLeft, Plus, ExternalLink, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { createOnrampSession } from '@/app/lib/stripe-actions';
 import { toast } from '@/hooks/use-toast';
@@ -28,6 +28,7 @@ export default function BuyCryptoPage() {
   const [loading, setLoading] = useState(false);
   const [onrampLoaded, setOnrampLoaded] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
+  const [scriptError, setScriptError] = useState(false);
   const onrampRef = useRef<HTMLDivElement>(null);
 
   // Check if keys are placeholders or empty
@@ -57,6 +58,7 @@ export default function BuyCryptoPage() {
         description: "Stripe Onramp SDK failed to initialize. Please ensure ad-blockers are disabled and refresh the page.",
         variant: "destructive"
       });
+      setScriptError(true);
       return;
     }
 
@@ -89,7 +91,6 @@ export default function BuyCryptoPage() {
         });
       }
     } catch (error: any) {
-      console.error('Stripe initialization failed:', error);
       toast({
         title: "Initialization Failed",
         description: error.message || "Failed to establish a secure onramp session.",
@@ -124,15 +125,10 @@ export default function BuyCryptoPage() {
         strategy="afterInteractive"
         onLoad={() => {
           setSdkReady(true);
-          console.log("Stripe Onramp SDK Loaded Successfully");
+          setScriptError(false);
         }}
-        onError={(e) => {
-          console.error("Stripe Script Error:", e);
-          toast({ 
-            title: "SDK Load Failure", 
-            description: "Browser blocked the Stripe script. Please disable Ad-Blockers or Shields and refresh.", 
-            variant: "destructive" 
-          });
+        onError={() => {
+          setScriptError(true);
         }}
       />
       
@@ -150,6 +146,21 @@ export default function BuyCryptoPage() {
           <p className="text-muted-foreground text-sm">Convert local currency into secure on-chain assets via Stripe.</p>
         </div>
       </div>
+
+      {scriptError && (
+        <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-destructive shadow-lg">
+          <ShieldAlert className="h-5 w-5" />
+          <div className="ml-2">
+            <AlertTitle className="font-bold">Browser Blocked Stripe SDK</AlertTitle>
+            <AlertDescription className="pt-2">
+              <p className="text-sm">
+                The Stripe Crypto Onramp script was blocked by your browser. This usually happens due to <strong>Ad-Blockers</strong>, <strong>Brave Shields</strong>, or privacy extensions. 
+                Please disable them for this site and refresh the page to continue.
+              </p>
+            </AlertDescription>
+          </div>
+        </Alert>
+      )}
 
       {isConfigMissing && (
         <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-destructive shadow-lg">
