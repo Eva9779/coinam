@@ -45,7 +45,6 @@ export default function Dashboard() {
     async function fetchMarket() {
       setLoading(true);
       try {
-        // Use a timeout to prevent the app from hanging on slow network responses
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000);
 
@@ -62,13 +61,12 @@ export default function Dashboard() {
         }
       } catch (err) {
         console.warn("Market connectivity interrupted. Using local registry.");
-        // Fallback to static data if API is down
         setMarketData(INITIAL_MARKET_DATA.map(m => ({
           id: m.currency.toLowerCase(),
           symbol: m.currency,
           name: m.currency,
-          current_price: m.currentPriceUSD,
-          price_change_percentage_24h: m.dailyChangePercent
+          current_price: m.currentPriceUSD || 0,
+          price_change_percentage_24h: m.dailyChangePercent || 0
         })));
       } finally {
         setLoading(false);
@@ -96,7 +94,7 @@ export default function Dashboard() {
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-semibold">
             <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-            v1.0.7 - ONLINE
+            v1.0.8 - VERIFIED
           </Badge>
         </div>
       </div>

@@ -3,30 +3,30 @@
 
 This is a high-performance cryptocurrency vault prototype built with Next.js, React, and Genkit.
 
-## Critical Deployment Troubleshooting (Vercel)
+## 🚀 CRITICAL: Vercel Deployment Troubleshooting
 
-If your changes (like "Buy Crypto") are not appearing on your Vercel URL (`vault-access.vercel.app`), follow these steps:
+If your changes (like "Buy Crypto" or the v1.0.8 version badge) are not appearing on your Vercel URL (`vault-access.vercel.app`), follow these exact steps:
 
-### 1. Verify Your Branch
-In the **bottom-left corner** of this Studio, note the branch name. 
-- If it says `firebase-studio-xyz` (and not `main`), your changes are being pushed to that branch.
+### 1. Identify Your Branch
+Look at the **bottom-left corner** of this Studio window.
+- If it says anything other than `main` (e.g., `firebase-studio-xyz`), your changes are on that branch.
 - Vercel, by default, only deploys the `main` branch to production.
 
-**Fix**: Go to your **Vercel Dashboard > vault-access > Settings > Git** and update the "Production Branch" to match the branch name you see in the Studio.
+### 2. Update Vercel Settings
+1. Go to your **Vercel Dashboard** and select your project `vault-access`.
+2. Go to **Settings > Git**.
+3. In the "Production Branch" field, change it from `main` to the branch name you see in the Studio.
+4. Click **Save**.
 
-### 2. Force a Redeploy
-If you have pushed your changes but the site hasn't updated:
-1. Go to your **Vercel Dashboard**.
-2. Click on the **Deployments** tab.
-3. Find the latest deployment, click the **three dots (...)**, and select **Redeploy**.
+### 3. Trigger a Fresh Build
+1. Go to the **Deployments** tab in Vercel.
+2. Find the most recent deployment, click the **three dots (...)**, and select **Redeploy**.
+3. Ensure "Use existing build cache" is **unchecked**.
 
-### 3. Check for Build Errors
-If Vercel fails to build, your old version stays live. Look for errors in the "Build Logs" tab. Common causes:
-- Missing environment variables (`STRIPE_SECRET_KEY`).
-- Incompatible dependencies (though React 19 warnings are usually just warnings).
+### 4. Verify Version
+Once successfully deployed, you will see **"v1.0.8 - VAULT-ACCESS-VERIFIED"** in the top-right header of your application.
 
-## Deployment Confirmation
-Once successfully synced, you will see **"v1.0.7 - VAULT-ACCESS-LIVE"** in the top-right header of your application.
+---
 
 ## Tech Stack
 - **Framework**: Next.js 15 (App Router)
