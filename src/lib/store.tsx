@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { useUserHook, useFirestore } from '@/firebase';
 import { 
@@ -17,6 +17,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
 export interface WalletAsset {
+  id: string;
   currency: string;
   amount: number;
   fiatValueUSD: number;
@@ -53,6 +54,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [initialized, setInitialized] = useState(false);
+  const isProvisioning = useRef(false);
   const { user } = useUserHook();
   const db = useFirestore();
 
@@ -66,7 +68,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
     const assetsRef = collection(db, 'users', user.uid, 'assets');
     const unsubscribe = onSnapshot(assetsRef, (snapshot) => {
-      const assetsData = snapshot.docs.map(doc => doc.data() as WalletAsset);
+      const assetsData = snapshot.docs.map(doc => ({
+        ...doc.data(),
+        id: doc.id
+      } as WalletAsset));
       setAssets(assetsData);
       setInitialized(true);
     }, (error) => {
@@ -74,7 +79,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         path: assetsRef.path,
         operation: 'list'
       }));
-      setInitialized(true); // Still mark as initialized to allow local UI to show errors
+      setInitialized(true);
     });
 
     return () => unsubscribe();
@@ -109,8 +114,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const pKey = generatePrivateKey();
     const account = privateKeyToAccount(pKey);
     
-    const assetDocRef = doc(db, 'users', user.uid, 'assets', currency);
+    // Using a unique ID instead of the currency name prevents overwriting existing wallets
+    const assetId = `wallet_${Math.random().toString(36).substring(2, 11)}`;
+    const assetDocRef = doc(db, 'users', user.uid, 'assets', assetId);
+    
     const newAsset: WalletAsset = {
+      id: assetId,
       currency,
       amount: 0,
       fiatValueUSD: 0,
@@ -119,7 +128,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       privateKey: pKey
     };
     
-    // We initiate the write but don't await to maintain optimistic responsive UI
     setDoc(assetDocRef, newAsset).catch(async () => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: assetDocRef.path,
@@ -131,16 +139,17 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return account.address;
   }, [db, user]);
 
-  // Persistent Auto-provisioning across browsers
+  // Persistent Auto-provisioning logic
   useEffect(() => {
-    if (initialized && user && assets.length === 0) {
-      // Small timeout to confirm the database really is empty
+    if (initialized && user && assets.length === 0 && !isProvisioning.current) {
+      isProvisioning.current = true;
       const timer = setTimeout(() => {
+        // Double check assets didn't sync in the last 2 seconds
         if (assets.length === 0) {
-          console.log("Auto-provisioning initial ETH endpoint for user:", user.uid);
           generateNewWallet('ETH');
         }
-      }, 1500);
+        isProvisioning.current = false;
+      }, 2000);
       return () => clearTimeout(timer);
     }
   }, [initialized, user, assets.length, generateNewWallet]);
@@ -171,7 +180,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const asset = assets.find(a => a.currency === currency);
     if (!asset) return;
 
-    const assetDocRef = doc(db, 'users', user.uid, 'assets', currency);
+    const assetDocRef = doc(db, 'users', user.uid, 'assets', asset.id);
     const newAmount = Math.max(0, asset.amount + amountChange);
     const updateData = {
       amount: newAmount,
