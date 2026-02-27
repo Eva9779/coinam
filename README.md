@@ -3,24 +3,33 @@
 
 This is a high-performance cryptocurrency vault prototype built with Next.js, React, and Genkit.
 
-## Deployment to Vercel (Project: vault-access)
+## Critical Deployment Troubleshooting (Vercel)
 
-To see your changes live on Vercel, you must sync the code from this environment to your connected Git repository.
+If your changes (like "Buy Crypto") are not appearing on your Vercel URL (`vault-access.vercel.app`), follow these steps:
 
-### How to Sync Changes:
-1. **Commit Changes**: Open the Git tab (Source Control) in the left sidebar. Enter a commit message and click **Commit**.
-2. **Push Changes**: After committing, you **MUST** click the **Push** option (found in the `...` menu or by clicking the branch status) to send the code to GitHub. **Vercel only deploys on a Push.**
-3. **Check Vercel Dashboard**: Go to [vercel.com](https://vercel.com) and open your `vault-access` project. Look at the "Deployments" tab.
-4. **Confirm Version**: Once the build finishes, look for the **v1.0.6** badge in the app header to confirm you are on the latest version.
+### 1. Verify Your Branch
+In the **bottom-left corner** of this Studio, note the branch name. 
+- If it says `firebase-studio-xyz` (and not `main`), your changes are being pushed to that branch.
+- Vercel, by default, only deploys the `main` branch to production.
 
-### Troubleshooting (If changes don't appear):
-* **Branch Mismatch**: Check the bottom-left corner of this Studio. If it says something like `firebase-studio-xyz` and NOT `main`, go to your **Vercel Settings > Git** and update the "Production Branch" to match that name.
-* **Manual Redeploy**: If you pushed but nothing happened, go to the `vault-access` project in Vercel, click "Deployments", click the three dots on the top entry, and select **Redeploy**. This forces Vercel to pull the newest code from your repository.
-* **Env Vars**: Ensure `STRIPE_SECRET_KEY` and `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` are added in **Vercel Project Settings > Environment Variables**.
+**Fix**: Go to your **Vercel Dashboard > vault-access > Settings > Git** and update the "Production Branch" to match the branch name you see in the Studio.
+
+### 2. Force a Redeploy
+If you have pushed your changes but the site hasn't updated:
+1. Go to your **Vercel Dashboard**.
+2. Click on the **Deployments** tab.
+3. Find the latest deployment, click the **three dots (...)**, and select **Redeploy**.
+
+### 3. Check for Build Errors
+If Vercel fails to build, your old version stays live. Look for errors in the "Build Logs" tab. Common causes:
+- Missing environment variables (`STRIPE_SECRET_KEY`).
+- Incompatible dependencies (though React 19 warnings are usually just warnings).
+
+## Deployment Confirmation
+Once successfully synced, you will see **"v1.0.7 - VAULT-ACCESS-LIVE"** in the top-right header of your application.
 
 ## Tech Stack
 - **Framework**: Next.js 15 (App Router)
-- **Styling**: Tailwind CSS + ShadCN UI
 - **AI**: Genkit (Google Gemini)
 - **Database/Auth**: Firebase Firestore & Authentication
 - **Payments**: Stripe Crypto Onramp

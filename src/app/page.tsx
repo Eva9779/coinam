@@ -9,9 +9,7 @@ import {
   ArrowDownLeft, 
   TrendingUp, 
   ShieldCheck, 
-  Wallet,
   Activity,
-  ArrowRight,
   Zap,
   CreditCard,
   Sparkles,
@@ -21,6 +19,8 @@ import { useVaultStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+
+export const dynamic = 'force-dynamic';
 
 interface MarketItem {
   id: string;
@@ -51,7 +51,7 @@ export default function Dashboard() {
           setMarketData(data);
         }
       } catch (err) {
-        console.warn("Market connectivity interrupted. Using local ledger values.");
+        console.warn("Market connectivity interrupted.");
       } finally {
         setLoading(false);
       }
@@ -77,7 +77,7 @@ export default function Dashboard() {
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-semibold">
             <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-            Network Live
+            V1.0.7 SYNCED
           </Badge>
         </div>
       </div>
@@ -120,7 +120,6 @@ export default function Dashboard() {
       </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Balance Card */}
         <Card className="shadow-sm border-primary/10">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
@@ -136,7 +135,6 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        {/* Market Trends */}
         <Card className="md:col-span-2 shadow-sm border-primary/10">
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
@@ -175,7 +173,6 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Asset Breakdown */}
         <div className="space-y-4">
           <h3 className="text-lg font-black flex items-center gap-2 text-primary">
             <TrendingUp className="h-5 w-5 text-secondary" />
@@ -210,7 +207,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Recent Ledger */}
         <div className="space-y-4">
           <h3 className="text-lg font-black flex items-center gap-2 text-primary">
             <Activity className="h-5 w-5 text-secondary" />
