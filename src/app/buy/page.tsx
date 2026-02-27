@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
@@ -5,10 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShieldCheck, CreditCard, Loader2, AlertCircle, ArrowLeft, Plus } from 'lucide-react';
+import { ShieldCheck, CreditCard, Loader2, AlertCircle, ArrowLeft, Plus, ExternalLink } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { createOnrampSession } from '@/app/lib/stripe-actions';
 import { toast } from '@/hooks/use-toast';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
 import Script from 'next/script';
 
@@ -28,6 +30,8 @@ export default function BuyCryptoPage() {
   const [sdkReady, setSdkReady] = useState(false);
   const onrampRef = useRef<HTMLDivElement>(null);
 
+  const isConfigMissing = !STRIPE_ONRAMP_PUBLISHABLE_KEY || STRIPE_ONRAMP_PUBLISHABLE_KEY.startsWith('pk_test_...');
+
   useEffect(() => {
     if (initialized && assets.length > 0 && !selectedAsset) {
       setSelectedAsset(assets[0].currency);
@@ -35,10 +39,10 @@ export default function BuyCryptoPage() {
   }, [initialized, assets, selectedAsset]);
 
   const handleBuy = async () => {
-    if (!STRIPE_ONRAMP_PUBLISHABLE_KEY) {
+    if (!STRIPE_ONRAMP_PUBLISHABLE_KEY || STRIPE_ONRAMP_PUBLISHABLE_KEY.includes('...')) {
       toast({
         title: "Configuration Missing",
-        description: "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY is not set in environment.",
+        description: "Please set your NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY in the .env file.",
         variant: "destructive"
       });
       return;
@@ -129,6 +133,25 @@ export default function BuyCryptoPage() {
         </div>
       </div>
 
+      {isConfigMissing && (
+        <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle className="font-bold">Stripe Configuration Required</AlertTitle>
+          <AlertDescription className="space-y-4 pt-2">
+            <p className="text-sm">
+              The Fiat Gateway requires Stripe API keys to function. Please add your 
+              <strong> NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</strong> and 
+              <strong> STRIPE_SECRET_KEY</strong> to your environment variables or <code>.env</code> file.
+            </p>
+            <Button variant="outline" size="sm" className="bg-white hover:bg-white/90 text-destructive border-destructive/20 font-bold" asChild>
+              <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-3 w-3 mr-2" /> Get API Keys from Stripe
+              </a>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {assets.length === 0 ? (
         <Card className="border-dashed border-2 py-12">
           <CardContent className="flex flex-col items-center text-center space-y-6">
@@ -181,7 +204,7 @@ export default function BuyCryptoPage() {
                   <Button 
                     className="w-full h-14 text-lg font-bold shadow-lg" 
                     onClick={handleBuy}
-                    disabled={loading || !selectedAsset || !sdkReady}
+                    disabled={loading || !selectedAsset || !sdkReady || isConfigMissing}
                   >
                     {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <CreditCard className="h-5 w-5 mr-2" />}
                     {loading ? "Establishing Link..." : "Proceed to Buy"}
