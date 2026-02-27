@@ -72,16 +72,15 @@ export default function BuyCryptoPage() {
 
     setLoading(true);
     try {
-      // 1. Create the session on the server
       const { clientSecret } = await createOnrampSession(asset.address);
       
-      // 2. Initialize the client-side onramp controller
+      if (!window.StripeOnramp) throw new Error("StripeOnramp SDK not found on window object.");
+      
       const onrampInstance = window.StripeOnramp(STRIPE_ONRAMP_PUBLISHABLE_KEY);
       
       if (onrampRef.current && onrampInstance) {
-        onrampRef.current.innerHTML = ''; // Clear previous content
+        onrampRef.current.innerHTML = ''; 
         
-        // 3. Create and mount the session
         const session = onrampInstance.createSession({ clientSecret });
         session.mount('#stripe-onramp-element');
         
@@ -124,8 +123,18 @@ export default function BuyCryptoPage() {
     <div className="max-w-7xl mx-auto space-y-8">
       <Script 
         src="https://js.stripe.com/v3/crypto-onramp.js" 
-        onLoad={() => setSdkReady(true)}
-        onError={() => toast({ title: "SDK Load Error", description: "Could not load Stripe SDK. Check your network.", variant: "destructive" })}
+        strategy="afterInteractive"
+        onLoad={() => {
+          setSdkReady(true);
+          console.log("Stripe Onramp SDK Loaded");
+        }}
+        onError={() => {
+          toast({ 
+            title: "SDK Load Error", 
+            description: "Could not load Stripe SDK. Please disable ad-blockers or check your connection.", 
+            variant: "destructive" 
+          });
+        }}
       />
       
       <div className="flex items-center gap-4">
