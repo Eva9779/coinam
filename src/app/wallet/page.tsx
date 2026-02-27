@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -14,13 +13,15 @@ import {
   ShieldCheck,
   Cpu,
   Lock,
-  RefreshCw
+  RefreshCw,
+  CreditCard
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
 import { useVaultStore } from "@/lib/store";
 import { getLiveBalance } from "@/lib/blockchain";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 export default function WalletPage() {
   const { assets, generateNewWallet, initialized } = useVaultStore();
@@ -70,10 +71,18 @@ export default function WalletPage() {
           </h2>
           <p className="text-muted-foreground text-sm font-medium">Verified multi-currency endpoints synchronized with Mainnet peers.</p>
         </div>
-        <Button onClick={handleGenerate} disabled={isGenerating} className="gap-2 h-14 px-8 shadow-2xl bg-primary hover:bg-primary/90 font-bold text-lg rounded-2xl">
-          <Plus className="h-5 w-5" /> 
-          {isGenerating ? "Authorizing..." : "Provision Mainnet Key"}
-        </Button>
+        <div className="flex gap-3">
+          <Button variant="outline" asChild className="gap-2 h-14 px-6 font-bold rounded-2xl border-secondary/20 text-secondary hover:bg-secondary/5">
+            <Link href="/buy">
+              <CreditCard className="h-5 w-5" />
+              Buy Crypto
+            </Link>
+          </Button>
+          <Button onClick={handleGenerate} disabled={isGenerating} className="gap-2 h-14 px-8 shadow-2xl bg-primary hover:bg-primary/90 font-bold rounded-2xl">
+            <Plus className="h-5 w-5" /> 
+            {isGenerating ? "Authorizing..." : "Provision Key"}
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -177,9 +186,11 @@ export default function WalletPage() {
               <p className="text-xs text-primary-foreground/70 leading-relaxed font-medium italic">
                 "Direct cryptographic signing via hardware isolation. Private material remains non-extractable from the vault enclave."
               </p>
-              <Button variant="secondary" className="w-full font-bold h-12 shadow-2xl flex items-center gap-2 rounded-xl text-primary">
-                <Key className="h-4 w-4" />
-                System Audit
+              <Button variant="secondary" className="w-full font-bold h-12 shadow-2xl flex items-center gap-2 rounded-xl text-primary" asChild>
+                <Link href="/buy">
+                   <CreditCard className="h-4 w-4" />
+                   Fund Wallet
+                </Link>
               </Button>
             </CardContent>
           </Card>
