@@ -144,12 +144,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     if (initialized && user && assets.length === 0 && !isProvisioning.current) {
       isProvisioning.current = true;
       const timer = setTimeout(() => {
-        // Double check assets didn't sync in the last 2 seconds
+        // Double check assets didn't sync in the last 3 seconds
         if (assets.length === 0) {
           generateNewWallet('ETH');
         }
         isProvisioning.current = false;
-      }, 2000);
+      }, 3000);
       return () => clearTimeout(timer);
     }
   }, [initialized, user, assets.length, generateNewWallet]);
