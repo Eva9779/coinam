@@ -6,11 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShieldCheck, CreditCard, Loader2, ArrowLeft, Zap, ExternalLink } from 'lucide-react';
+import { ShieldCheck, CreditCard, Loader2, ArrowLeft, Zap, ExternalLink, AlertCircle } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { createOnrampSession } from '@/app/lib/stripe-actions';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 const STRIPE_ONRAMP_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '';
 
@@ -18,6 +19,7 @@ export default function BuyCryptoPage() {
   const { assets, initialized } = useVaultStore();
   const [selectedAsset, setSelectedAsset] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const isConfigMissing = !STRIPE_ONRAMP_PUBLISHABLE_KEY || 
                           STRIPE_ONRAMP_PUBLISHABLE_KEY === '' || 
@@ -30,6 +32,7 @@ export default function BuyCryptoPage() {
   }, [initialized, assets, selectedAsset]);
 
   const handleBuyRedirect = async () => {
+    setErrorMessage(null);
     if (isConfigMissing) {
       toast({
         title: "Configuration Required",
@@ -40,7 +43,7 @@ export default function BuyCryptoPage() {
     }
 
     const asset = assets.find(a => a.currency === selectedAsset);
-    if (!asset) {
+    if (!asset || !asset.address) {
       toast({
         title: "Target Wallet Required",
         description: "Please select a destination wallet for your purchase.",
@@ -53,8 +56,6 @@ export default function BuyCryptoPage() {
     try {
       const { clientSecret } = await createOnrampSession(asset.address);
       
-      // Construct the Direct Standalone Redirect URL
-      // This bypasses the need for the client-side JS SDK entirely
       const redirectUrl = `https://onramp.stripe.com/onramp?client_secret=${clientSecret}&publishable_key=${STRIPE_ONRAMP_PUBLISHABLE_KEY}`;
       
       toast({
@@ -62,12 +63,13 @@ export default function BuyCryptoPage() {
         description: "Launching the secure standalone gateway...",
       });
 
-      // Redirect user to Stripe hosted standalone page
       window.location.href = redirectUrl;
     } catch (error: any) {
+      const msg = error.message || "Could not establish a secure purchase tunnel.";
+      setErrorMessage(msg);
       toast({
         title: "Gateway Error",
-        description: error.message || "Could not establish a secure purchase tunnel.",
+        description: msg,
         variant: "destructive"
       });
       setLoading(false);
@@ -99,6 +101,19 @@ export default function BuyCryptoPage() {
           <p className="text-muted-foreground text-sm font-medium">Provision assets via Stripe secure Standalone protocol.</p>
         </div>
       </div>
+
+      {errorMessage && (
+        <Alert variant="destructive" className="bg-destructive/10 border-destructive/20 text-destructive rounded-2xl">
+          <AlertCircle className="h-5 w-5" />
+          <AlertTitle className="font-bold">Gateway Connection Failed</AlertTitle>
+          <AlertDescription className="text-sm">
+            {errorMessage}
+            <div className="mt-2 text-xs opacity-70">
+              Ensure your Stripe account has **Crypto Onramp** enabled in the Stripe Dashboard and that you are using restricted keys if necessary.
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
 
       <Card className="shadow-2xl border-primary/10 bg-card/50 backdrop-blur-xl overflow-hidden rounded-3xl">
         <CardHeader className="border-b bg-muted/20 pb-8">

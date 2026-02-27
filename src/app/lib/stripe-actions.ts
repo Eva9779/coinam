@@ -27,6 +27,10 @@ function getStripe() {
  */
 export async function createOnrampSession(walletAddress: string) {
   try {
+    if (!walletAddress || !walletAddress.startsWith('0x')) {
+      throw new Error('Invalid wallet address provided. Please ensure a valid ETH wallet is provisioned.');
+    }
+
     const stripe = getStripe();
     
     // We create a session for the Ethereum network. 
@@ -45,7 +49,10 @@ export async function createOnrampSession(walletAddress: string) {
       clientSecret: session.client_secret,
     };
   } catch (error: any) {
-    console.error('Stripe Onramp Error:', error);
-    throw new Error(error.message || 'Failed to establish a secure onramp session.');
+    console.error('Stripe Onramp Error Detail:', error);
+    
+    // Extract the raw error message from Stripe if available
+    const stripeMessage = error.raw?.message || error.message || 'Failed to establish a secure onramp session.';
+    throw new Error(`Stripe Error: ${stripeMessage}`);
   }
 }
