@@ -1,9 +1,10 @@
+
 'use server';
 
 import Stripe from 'stripe';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2023-10-16' as any,
+  apiVersion: '2025-02-24.acacia' as any,
 });
 
 /**
@@ -11,7 +12,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
  */
 export async function createOnrampSession(walletAddress: string) {
   if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error('STRIPE_SECRET_KEY is not configured on the server.');
+    throw new Error('STRIPE_SECRET_KEY is not configured on the server. Please add it to your environment variables.');
   }
 
   try {
@@ -19,7 +20,10 @@ export async function createOnrampSession(walletAddress: string) {
       wallet_addresses: {
         ethereum: walletAddress,
       },
-      // You can specify more constraints here if needed, like transaction_details
+      transaction_details: {
+        supported_destination_currencies: ['usdc', 'eth'],
+        supported_destination_networks: ['ethereum'],
+      },
     });
 
     return {
@@ -27,6 +31,6 @@ export async function createOnrampSession(walletAddress: string) {
     };
   } catch (error: any) {
     console.error('Stripe Onramp Error:', error);
-    throw new Error(error.message || 'Failed to create Stripe onramp session.');
+    throw new Error(error.message || 'Failed to establish a secure onramp session.');
   }
 }
