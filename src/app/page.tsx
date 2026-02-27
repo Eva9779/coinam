@@ -12,7 +12,8 @@ import {
   Wallet,
   Activity,
   ArrowRight,
-  Zap
+  Zap,
+  CreditCard
 } from "lucide-react";
 import { useVaultStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -48,7 +49,6 @@ export default function Dashboard() {
           setMarketData(data);
         }
       } catch (err) {
-        // Log locally for debugging but do not crash the UI
         console.warn("Market connectivity interrupted. Using local ledger values.");
       } finally {
         setLoading(false);
@@ -88,16 +88,21 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-4xl font-bold mb-4">
+            <div className="text-4xl font-bold mb-6">
               ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <div className="flex gap-3">
-              <Button variant="secondary" className="gap-2 shadow-lg" asChild>
+            <div className="flex flex-wrap gap-3">
+              <Button variant="secondary" className="gap-2 shadow-lg h-11 px-6 font-bold" asChild>
+                <Link href="/buy">
+                  <CreditCard className="h-4 w-4" /> Buy Crypto
+                </Link>
+              </Button>
+              <Button variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20 h-11 px-6" asChild>
                 <Link href="/transactions?tab=send">
                   <ArrowUpRight className="h-4 w-4" /> Send
                 </Link>
               </Button>
-              <Button variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20" asChild>
+              <Button variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20 h-11 px-6" asChild>
                 <Link href="/transactions?tab=receive">
                   <ArrowDownLeft className="h-4 w-4" /> Receive
                 </Link>
