@@ -1,21 +1,33 @@
-
 'use server';
 
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2025-02-24.acacia' as any,
-});
+/**
+ * Lazy initialization of the Stripe client to prevent crashes if the API key is missing
+ * during module evaluation (e.g., during build or before env vars are set).
+ */
+let stripeInstance: Stripe | null = null;
+
+function getStripe() {
+  if (!stripeInstance) {
+    const apiKey = process.env.STRIPE_SECRET_KEY;
+    if (!apiKey) {
+      throw new Error('STRIPE_SECRET_KEY is not configured on the server. Please add it to your environment variables.');
+    }
+    stripeInstance = new Stripe(apiKey, {
+      apiVersion: '2025-02-24.acacia' as any,
+    });
+  }
+  return stripeInstance;
+}
 
 /**
  * Creates a Stripe Onramp Session for the specified wallet address.
  */
 export async function createOnrampSession(walletAddress: string) {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error('STRIPE_SECRET_KEY is not configured on the server. Please add it to your environment variables.');
-  }
-
   try {
+    const stripe = getStripe();
+    
     const session = await stripe.crypto.onrampSessions.create({
       wallet_addresses: {
         ethereum: walletAddress,
