@@ -63,14 +63,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <AppContent onSignOut={handleSignOut} userEmail={user.email || 'User'}>
+      <AppContent onSignOut={handleSignOut} userEmail={user.email || 'User'} userId={user.uid}>
         {children}
       </AppContent>
     </div>
   );
 }
 
-function AppContent({ children, onSignOut, userEmail }: { children: React.ReactNode, onSignOut: () => void, userEmail: string }) {
+function AppContent({ children, onSignOut, userEmail, userId }: { children: React.ReactNode, onSignOut: () => void, userEmail: string, userId: string }) {
   const [blockHeight, setBlockHeight] = useState<string>('Syncing...');
 
   useEffect(() => {
@@ -116,10 +116,14 @@ function AppContent({ children, onSignOut, userEmail }: { children: React.ReactN
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         <header className="h-16 border-b bg-card flex items-center justify-between px-8 shrink-0">
           <div className="flex items-center gap-4">
-            <h1 className="font-semibold text-lg uppercase tracking-tight opacity-70 text-xs">Secure Asset Vault</h1>
-            <Badge variant="outline" className="text-[10px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden sm:flex">
-              v1.1.5 - LINK-SYNC
+            <h1 className="font-semibold text-lg uppercase tracking-tight opacity-70 text-xs text-nowrap">Secure Asset Vault</h1>
+            <Badge variant="outline" className="text-[10px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden lg:flex">
+              v1.1.6 - REDIRECT-SYNC
             </Badge>
+            <div className="hidden xl:flex items-center gap-2 px-2 py-0.5 rounded border bg-muted/30">
+              <span className="text-[9px] font-bold text-muted-foreground uppercase">Vault ID:</span>
+              <span className="text-[9px] font-mono font-bold text-primary">{userId.slice(0, 8)}...</span>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <DropdownMenu>
@@ -131,9 +135,12 @@ function AppContent({ children, onSignOut, userEmail }: { children: React.ReactN
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>Account Session</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-default">
-                  <UserIcon className="mr-2 h-4 w-4" />
-                  <span className="truncate">{userEmail}</span>
+                <DropdownMenuItem className="cursor-default flex flex-col items-start gap-1">
+                  <div className="flex items-center gap-2">
+                    <UserIcon className="h-4 w-4" />
+                    <span className="truncate max-w-[150px]">{userEmail}</span>
+                  </div>
+                  <span className="text-[10px] text-muted-foreground font-mono truncate w-full pl-6">ID: {userId}</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10" onClick={onSignOut}>

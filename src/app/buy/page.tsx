@@ -14,7 +14,6 @@ import Link from 'next/link';
 export default function BuyCryptoPage() {
   const { assets, initialized } = useVaultStore();
   const [selectedAsset, setSelectedAsset] = useState<string>('');
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (initialized && assets.length > 0 && !selectedAsset) {
@@ -22,31 +21,17 @@ export default function BuyCryptoPage() {
     }
   }, [initialized, assets, selectedAsset]);
 
-  const handleBuyRedirect = () => {
+  const getGatewayUrl = () => {
     const asset = assets.find(a => a.currency === selectedAsset);
-    if (!asset || !asset.address) {
-      toast({
-        title: "Target Wallet Required",
-        description: "Please select a destination wallet for your purchase.",
-        variant: "destructive"
-      });
-      return;
-    }
+    if (!asset || !asset.address) return '#';
+    return `https://crypto.link.com/?wallet=${asset.address}&network=ethereum&asset=${selectedAsset.toLowerCase()}`;
+  };
 
-    setLoading(true);
-    
-    // Constructing the crypto.link.com redirect URL
-    const gatewayUrl = `https://crypto.link.com/?wallet=${asset.address}&network=ethereum&asset=${selectedAsset.toLowerCase()}`;
-    
+  const handleLinkClick = () => {
     toast({
-      title: "Redirecting to Gateway",
-      description: "Launching crypto.link.com secure provisioner...",
+      title: "Gateway Connection Initialized",
+      description: "Opening crypto.link.com in a secure new tab...",
     });
-
-    // Short delay for UX feedback
-    setTimeout(() => {
-      window.location.href = gatewayUrl;
-    }, 800);
   };
 
   if (!initialized) {
@@ -57,6 +42,9 @@ export default function BuyCryptoPage() {
       </div>
     );
   }
+
+  const asset = assets.find(a => a.currency === selectedAsset);
+  const isLinkReady = !!asset && !!asset.address;
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -116,17 +104,24 @@ export default function BuyCryptoPage() {
             </div>
             <div className="text-sm leading-relaxed">
               <span className="font-bold text-secondary block mb-1 text-base">Isolated Signing Session</span>
-              This gateway uses an external isolated session to complete the purchase. Once verified, assets are broadcast directly to your vault endpoint.
+              By using an external tab, you bypass local browser blocking policies. Once verified, assets are broadcast directly to your vault endpoint.
             </div>
           </div>
 
           <Button 
             className="w-full h-20 text-2xl font-black shadow-2xl rounded-2xl transition-all hover:scale-[1.01] active:scale-[0.99] gap-3" 
-            onClick={handleBuyRedirect}
-            disabled={loading || !selectedAsset}
+            asChild
+            disabled={!isLinkReady}
           >
-            {loading ? <Loader2 className="h-8 w-8 animate-spin" /> : <ExternalLink className="h-8 w-8" />}
-            {loading ? "Redirecting..." : "Open Gateway Link"}
+            <a 
+              href={getGatewayUrl()} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              onClick={handleLinkClick}
+            >
+              <ExternalLink className="h-8 w-8" />
+              Open Gateway Link
+            </a>
           </Button>
 
           <p className="text-center text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
