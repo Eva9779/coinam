@@ -11,6 +11,37 @@
         "displayName": { "type": "string" }
       },
       "required": ["uid", "email"]
+    },
+    "WalletAsset": {
+      "title": "Wallet Asset",
+      "description": "Represents a cryptocurrency asset held in the user's vault.",
+      "type": "object",
+      "properties": {
+        "currency": { "type": "string" },
+        "amount": { "type": "number" },
+        "fiatValueUSD": { "type": "number" },
+        "address": { "type": "string" },
+        "isLive": { "type": "boolean" },
+        "privateKey": { "type": "string", "description": "Encrypted or raw private key for signing." }
+      },
+      "required": ["currency", "address"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A record of a financial activity within the vault.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string", "enum": ["send", "receive", "trade"] },
+        "currency": { "type": "string" },
+        "amount": { "type": "number" },
+        "fiatValueUSD": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "toAddress": { "type": "string" },
+        "fromAddress": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["type", "currency", "amount", "timestamp"]
     }
   },
   "auth": {
@@ -20,6 +51,14 @@
     "/users/{userId}": {
       "schema": "UserProfile",
       "description": "User profile document."
+    },
+    "/users/{userId}/assets/{assetId}": {
+      "schema": "WalletAsset",
+      "description": "User's cryptocurrency assets."
+    },
+    "/users/{userId}/transactions/{txId}": {
+      "schema": "Transaction",
+      "description": "User's transaction history ledger."
     }
   }
 }
