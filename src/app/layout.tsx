@@ -118,7 +118,7 @@ function AppContent({ children, onSignOut, userEmail }: { children: React.ReactN
           <div className="flex items-center gap-4">
             <h1 className="font-semibold text-lg uppercase tracking-tight opacity-70 text-xs">Secure Asset Vault</h1>
             <Badge variant="outline" className="text-[10px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden sm:flex">
-              v1.1.4 - STRIPE-DEBUG
+              v1.1.5 - LINK-SYNC
             </Badge>
           </div>
           <div className="flex items-center gap-4">
