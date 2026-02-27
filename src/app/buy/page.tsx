@@ -53,8 +53,8 @@ export default function BuyCryptoPage() {
 
     if (!window.StripeOnramp) {
       toast({
-        title: "SDK Loading",
-        description: "Stripe Onramp SDK is still initializing. Please wait a moment.",
+        title: "SDK Loading Error",
+        description: "Stripe Onramp SDK failed to initialize. Please ensure ad-blockers are disabled and refresh the page.",
         variant: "destructive"
       });
       return;
@@ -73,8 +73,6 @@ export default function BuyCryptoPage() {
     setLoading(true);
     try {
       const { clientSecret } = await createOnrampSession(asset.address);
-      
-      if (!window.StripeOnramp) throw new Error("StripeOnramp SDK not found on window object.");
       
       const onrampInstance = window.StripeOnramp(STRIPE_ONRAMP_PUBLISHABLE_KEY);
       
@@ -126,12 +124,13 @@ export default function BuyCryptoPage() {
         strategy="afterInteractive"
         onLoad={() => {
           setSdkReady(true);
-          console.log("Stripe Onramp SDK Loaded");
+          console.log("Stripe Onramp SDK Loaded Successfully");
         }}
-        onError={() => {
+        onError={(e) => {
+          console.error("Stripe Script Error:", e);
           toast({ 
-            title: "SDK Load Error", 
-            description: "Could not load Stripe SDK. Please disable ad-blockers or check your connection.", 
+            title: "SDK Load Failure", 
+            description: "Browser blocked the Stripe script. Please disable Ad-Blockers or Shields and refresh.", 
             variant: "destructive" 
           });
         }}
@@ -226,7 +225,7 @@ export default function BuyCryptoPage() {
                   <Button 
                     className="w-full h-14 text-lg font-bold shadow-lg rounded-xl transition-all" 
                     onClick={handleBuy}
-                    disabled={loading || !selectedAsset || !sdkReady}
+                    disabled={loading || !selectedAsset}
                   >
                     {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <CreditCard className="h-5 w-5 mr-2" />}
                     {loading ? "Initializing..." : "Proceed to Buy"}
