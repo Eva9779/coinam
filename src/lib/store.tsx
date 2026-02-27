@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { useUserHook, useFirestore } from '@/firebase';
 import { 
@@ -41,6 +41,7 @@ interface VaultContextType {
   assets: WalletAsset[];
   transactions: Transaction[];
   initialized: boolean;
+  user: any;
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
   updateBalance: (currency: string, amountChange: number, fiatPrice: number) => void;
   generateNewWallet: (currency: string) => string;
@@ -59,6 +60,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!db || !user) {
       setInitialized(false);
+      setAssets([]);
       return;
     }
 
@@ -72,7 +74,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         path: assetsRef.path,
         operation: 'list'
       }));
-      setInitialized(true);
+      setInitialized(true); // Still mark as initialized to allow local UI to show errors
     });
 
     return () => unsubscribe();
@@ -80,7 +82,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   // Sync Transactions from Firestore
   useEffect(() => {
-    if (!db || !user) return;
+    if (!db || !user) {
+      setTransactions([]);
+      return;
+    }
 
     const txRef = collection(db, 'users', user.uid, 'transactions');
     const q = query(txRef, orderBy('timestamp', 'desc'));
@@ -98,18 +103,47 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [db, user]);
 
-  // Auto-provision initial ETH wallet if user is initialized but has no assets
+  const generateNewWallet = useCallback((currency: string) => {
+    if (!db || !user) return '';
+
+    const pKey = generatePrivateKey();
+    const account = privateKeyToAccount(pKey);
+    
+    const assetDocRef = doc(db, 'users', user.uid, 'assets', currency);
+    const newAsset: WalletAsset = {
+      currency,
+      amount: 0,
+      fiatValueUSD: 0,
+      address: account.address,
+      isLive: true,
+      privateKey: pKey
+    };
+    
+    // We initiate the write but don't await to maintain optimistic responsive UI
+    setDoc(assetDocRef, newAsset).catch(async () => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: assetDocRef.path,
+        operation: 'create',
+        requestResourceData: newAsset
+      }));
+    });
+
+    return account.address;
+  }, [db, user]);
+
+  // Persistent Auto-provisioning across browsers
   useEffect(() => {
     if (initialized && user && assets.length === 0) {
-      // Small delay to ensure we aren't racing with a slow first snapshot
+      // Small timeout to confirm the database really is empty
       const timer = setTimeout(() => {
         if (assets.length === 0) {
+          console.log("Auto-provisioning initial ETH endpoint for user:", user.uid);
           generateNewWallet('ETH');
         }
-      }, 1000);
+      }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [initialized, user, assets.length]);
+  }, [initialized, user, assets.length, generateNewWallet]);
 
   const addTransaction = (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
     if (!db || !user) return;
@@ -153,42 +187,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
-  const generateNewWallet = (currency: string) => {
-    if (!db || !user) return '';
-
-    // Check if we already have this currency to prevent duplicates during auto-provision
-    const existing = assets.find(a => a.currency === currency);
-    if (existing) return existing.address;
-
-    const pKey = generatePrivateKey();
-    const account = privateKeyToAccount(pKey);
-    
-    const assetDocRef = doc(db, 'users', user.uid, 'assets', currency);
-    const newAsset: WalletAsset = {
-      currency,
-      amount: 0,
-      fiatValueUSD: 0,
-      address: account.address,
-      isLive: true,
-      privateKey: pKey
-    };
-    
-    setDoc(assetDocRef, newAsset).catch(async () => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: assetDocRef.path,
-        operation: 'create',
-        requestResourceData: newAsset
-      }));
-    });
-
-    return account.address;
-  };
-
   return (
     <VaultContext.Provider value={{ 
       assets, 
       transactions, 
       initialized, 
+      user,
       addTransaction, 
       updateBalance, 
       generateNewWallet 
