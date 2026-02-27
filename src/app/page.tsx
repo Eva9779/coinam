@@ -13,7 +13,8 @@ import {
   Activity,
   ArrowRight,
   Zap,
-  CreditCard
+  CreditCard,
+  Sparkles
 } from "lucide-react";
 import { useVaultStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -68,7 +69,10 @@ export default function Dashboard() {
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight text-primary">Portfolio Overview</h2>
+        <h2 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
+          <Sparkles className="h-6 w-6 text-secondary" />
+          Vault Dashboard
+        </h2>
         <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-semibold">
           <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
           Live Network
@@ -92,17 +96,17 @@ export default function Dashboard() {
               ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="flex flex-wrap gap-3">
-              <Button variant="secondary" className="gap-2 shadow-lg h-11 px-6 font-bold" asChild>
+              <Button variant="secondary" className="gap-2 shadow-lg h-12 px-8 font-bold text-primary hover:scale-[1.02] transition-transform" asChild>
                 <Link href="/buy">
-                  <CreditCard className="h-4 w-4" /> Buy Crypto
+                  <CreditCard className="h-5 w-5" /> Buy Crypto
                 </Link>
               </Button>
-              <Button variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20 h-11 px-6" asChild>
+              <Button variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20 h-12 px-6" asChild>
                 <Link href="/transactions?tab=send">
                   <ArrowUpRight className="h-4 w-4" /> Send
                 </Link>
               </Button>
-              <Button variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20 h-11 px-6" asChild>
+              <Button variant="outline" className="gap-2 bg-white/10 border-white/20 text-white hover:bg-white/20 h-12 px-6" asChild>
                 <Link href="/transactions?tab=receive">
                   <ArrowDownLeft className="h-4 w-4" /> Receive
                 </Link>
