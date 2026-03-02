@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -11,13 +12,15 @@ import {
   Settings, 
   TrendingUp,
   Repeat,
-  CreditCard
+  CreditCard,
+  Banknote
 } from "lucide-react";
 
 const navItems = [
   { name: "Dashboard", href: "/", icon: LayoutDashboard },
   { name: "Wallet", href: "/wallet", icon: Wallet },
   { name: "Buy Crypto", href: "/buy", icon: CreditCard },
+  { name: "Withdraw", href: "/withdraw", icon: Banknote },
   { name: "Trade", href: "/trade", icon: Repeat },
   { name: "Transactions", href: "/transactions", icon: ArrowLeftRight },
   { name: "Market", href: "/market", icon: TrendingUp },
