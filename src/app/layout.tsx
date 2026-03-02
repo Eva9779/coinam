@@ -3,7 +3,7 @@
 import './globals.css';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
 import { Toaster } from '@/components/ui/toaster';
-import { ShieldCheck, Database, LogOut, User as UserIcon, Loader2 } from 'lucide-react';
+import { ShieldCheck, Database, LogOut, User as UserIcon, Loader2, Menu } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getLiveBlockNumber } from '@/lib/blockchain';
 import { VaultProvider } from '@/lib/store';
@@ -19,6 +19,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useUserHook();
@@ -71,6 +78,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 function AppContent({ children, onSignOut, userEmail, userId }: { children: React.ReactNode, onSignOut: () => void, userEmail: string, userId: string }) {
   const [blockHeight, setBlockHeight] = useState<string>('Syncing...');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     async function syncNetwork() {
@@ -95,7 +108,7 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
 
   return (
     <>
-      <aside className="w-64 border-r bg-card flex flex-col hidden md:flex">
+      <aside className="w-64 border-r bg-card flex flex-col hidden lg:flex">
         <div className="h-16 flex items-center px-6 border-b">
           <div className="flex items-center gap-2 text-primary font-bold text-xl">
             <ShieldCheck className="h-8 w-8 text-secondary" />
@@ -118,25 +131,54 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
       </aside>
 
       <main className="flex-1 flex flex-col h-full overflow-hidden">
-        <header className="h-16 border-b bg-card flex items-center justify-between px-8 shrink-0">
-          <div className="flex items-center gap-4">
-            <h1 className="font-semibold text-lg uppercase tracking-tight opacity-70 text-xs text-nowrap">Secure Asset Vault</h1>
-            <Badge variant="outline" className="text-[10px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden lg:flex">
-              v1.2.3 - STABLE-OFFRAMP
-            </Badge>
-            <div className="hidden xl:flex items-center gap-2 px-3 py-1 rounded-full border bg-primary/5 border-primary/10">
-              <span className="text-[9px] font-bold text-muted-foreground uppercase">VAULT ID:</span>
-              <span className="text-[9px] font-mono font-bold text-primary">{userId}</span>
+        <header className="h-16 border-b bg-card flex items-center justify-between px-4 sm:px-8 shrink-0 gap-4">
+          <div className="flex items-center gap-2 lg:hidden">
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <button className="p-2 hover:bg-muted rounded-lg">
+                  <Menu className="h-6 w-6 text-primary" />
+                </button>
+              </SheetTrigger>
+              <SheetContent side="left" className="p-0 w-72">
+                <SheetHeader className="p-6 border-b flex flex-row items-center gap-2">
+                  <ShieldCheck className="h-8 w-8 text-secondary" />
+                  <SheetTitle className="text-xl font-bold text-primary">CoinVault</SheetTitle>
+                </SheetHeader>
+                <div className="flex flex-col h-full">
+                   <SidebarNav />
+                   <div className="mt-auto p-6 border-t bg-muted/20">
+                      <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                        <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
+                        Network Live: {blockHeight}
+                      </div>
+                   </div>
+                </div>
+              </SheetContent>
+            </Sheet>
+            <div className="flex items-center gap-2 text-primary font-bold text-lg sm:text-xl lg:hidden">
+              <ShieldCheck className="h-6 w-6 sm:h-8 sm:w-8 text-secondary" />
+              <span className="hidden sm:inline">CoinVault</span>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+
+          <div className="flex items-center gap-4 flex-1 overflow-hidden">
+            <Badge variant="outline" className="text-[9px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden sm:flex whitespace-nowrap">
+              v1.2.4 - MOBILE-OPTIMIZED
+            </Badge>
+            <div className="hidden xl:flex items-center gap-2 px-3 py-1 rounded-full border bg-primary/5 border-primary/10 truncate">
+              <span className="text-[9px] font-bold text-muted-foreground uppercase">VAULT ID:</span>
+              <span className="text-[9px] font-mono font-bold text-primary truncate">{userId}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="h-10 px-3 rounded-xl border flex items-center gap-3 hover:bg-muted/50 transition-all outline-none">
-                  <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-xs shadow-inner">
+                <button className="h-10 px-2 sm:px-3 rounded-xl border flex items-center gap-2 sm:gap-3 hover:bg-muted/50 transition-all outline-none">
+                  <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-xs shadow-inner shrink-0">
                     {userEmail[0].toUpperCase()}
                   </div>
-                  <span className="text-xs font-bold text-muted-foreground hidden sm:inline-block">{userEmail}</span>
+                  <span className="text-xs font-bold text-muted-foreground hidden md:inline-block truncate max-w-[120px]">{userEmail}</span>
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
@@ -162,7 +204,7 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-8 bg-[#fdfdfd]">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-[#fdfdfd]">
           {children}
         </div>
       </main>
