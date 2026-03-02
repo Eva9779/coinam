@@ -17,7 +17,6 @@ const TradingViewWidget = memo(({ symbol }: { symbol: string }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Ensure we only append the script once per symbol change
     if (!containerRef.current) return;
     
     containerRef.current.innerHTML = ''; // Clear previous widget
@@ -26,7 +25,6 @@ const TradingViewWidget = memo(({ symbol }: { symbol: string }) => {
     script.type = "text/javascript";
     script.async = true;
     
-    // Config for the global trading chart
     const config = {
       autosize: true,
       symbol: `BINANCE:${symbol}USDT`,
@@ -126,7 +124,6 @@ export default function TradePage() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-start">
-        {/* Live Trading Chart Area */}
         <div className="xl:col-span-2 h-[600px] flex flex-col space-y-4">
           <div className="flex items-center justify-between px-2">
             <h3 className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
@@ -140,7 +137,6 @@ export default function TradePage() {
           <TradingViewWidget symbol={toAsset} />
         </div>
 
-        {/* Trade Execution Card */}
         <div className="space-y-6">
           <Card className="shadow-2xl border-primary/10 bg-card/50 backdrop-blur-md">
             <CardHeader>

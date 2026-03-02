@@ -76,7 +76,6 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
   useEffect(() => {
     async function syncNetwork() {
       try {
-        // Add a timeout to block number fetch to prevent hanging UI
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 3000);
         
@@ -124,7 +123,7 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
           <div className="flex items-center gap-4">
             <h1 className="font-semibold text-lg uppercase tracking-tight opacity-70 text-xs text-nowrap">Secure Asset Vault</h1>
             <Badge variant="outline" className="text-[10px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden lg:flex">
-              v1.2.0 - STABLE-TRADING
+              v1.2.1 - PRODUCTION-READY
             </Badge>
             <div className="hidden xl:flex items-center gap-2 px-3 py-1 rounded-full border bg-primary/5 border-primary/10">
               <span className="text-[9px] font-bold text-muted-foreground uppercase">VAULT ID:</span>
