@@ -76,7 +76,13 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
   useEffect(() => {
     async function syncNetwork() {
       try {
+        // Add a timeout to block number fetch to prevent hanging UI
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        
         const block = await getLiveBlockNumber();
+        clearTimeout(timeoutId);
+        
         if (block) {
           setBlockHeight(block.toString());
         }
@@ -118,29 +124,35 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
           <div className="flex items-center gap-4">
             <h1 className="font-semibold text-lg uppercase tracking-tight opacity-70 text-xs text-nowrap">Secure Asset Vault</h1>
             <Badge variant="outline" className="text-[10px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden lg:flex">
-              v1.1.7 - STABLE-SYNC
+              v1.1.8 - STABLE-ACCESS
             </Badge>
-            <div className="hidden xl:flex items-center gap-2 px-2 py-0.5 rounded border bg-muted/30">
-              <span className="text-[9px] font-bold text-muted-foreground uppercase">Vault ID:</span>
-              <span className="text-[9px] font-mono font-bold text-primary">{userId.slice(0, 8)}...</span>
+            <div className="hidden xl:flex items-center gap-2 px-3 py-1 rounded-full border bg-primary/5 border-primary/10">
+              <span className="text-[9px] font-bold text-muted-foreground uppercase">VAULT ID:</span>
+              <span className="text-[9px] font-mono font-bold text-primary">{userId}</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="h-8 w-8 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-xs shadow-inner hover:ring-2 hover:ring-secondary/50 transition-all outline-none">
-                  {userEmail[0].toUpperCase()}
+                <button className="h-10 px-3 rounded-xl border flex items-center gap-3 hover:bg-muted/50 transition-all outline-none">
+                  <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-semibold text-xs shadow-inner">
+                    {userEmail[0].toUpperCase()}
+                  </div>
+                  <span className="text-xs font-bold text-muted-foreground hidden sm:inline-block">{userEmail}</span>
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-64">
                 <DropdownMenuLabel>Account Session</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="cursor-default flex flex-col items-start gap-1">
-                  <div className="flex items-center gap-2 font-bold text-xs">
+                <DropdownMenuItem className="cursor-default flex flex-col items-start gap-1 p-3">
+                  <div className="flex items-center gap-2 font-bold text-sm">
                     <UserIcon className="h-4 w-4" />
-                    <span className="truncate max-w-[150px]">{userEmail}</span>
+                    <span className="truncate max-w-[180px]">{userEmail}</span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground font-mono truncate w-full pl-6">ID: {userId}</span>
+                  <div className="mt-2 w-full p-2 rounded bg-muted/50 text-[10px] font-mono break-all leading-tight">
+                    <p className="text-muted-foreground mb-1 uppercase font-bold tracking-tighter">Verified UID</p>
+                    {userId}
+                  </div>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10" onClick={onSignOut}>

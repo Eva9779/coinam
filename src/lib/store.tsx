@@ -114,8 +114,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const pKey = generatePrivateKey();
     const account = privateKeyToAccount(pKey);
     
-    // Using a unique ID instead of the currency name prevents overwriting existing wallets
-    const assetId = `wallet_${Math.random().toString(36).substring(2, 11)}`;
+    // Using the currency as part of the ID but with a random suffix to ensure unique doc creation
+    const assetId = `wallet_${currency.toLowerCase()}_${Math.random().toString(36).substring(2, 7)}`;
     const assetDocRef = doc(db, 'users', user.uid, 'assets', assetId);
     
     const newAsset: WalletAsset = {
@@ -141,15 +141,20 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   // Persistent Auto-provisioning logic
   useEffect(() => {
+    // Only provision if:
+    // 1. Initialized is true (first snapshot attempt completed)
+    // 2. User exists
+    // 3. Assets array is confirmed empty
+    // 4. We aren't already provisioning
     if (initialized && user && assets.length === 0 && !isProvisioning.current) {
       isProvisioning.current = true;
       const timer = setTimeout(() => {
-        // Double check assets didn't sync in the last 3 seconds
+        // Final sanity check before write
         if (assets.length === 0) {
           generateNewWallet('ETH');
         }
         isProvisioning.current = false;
-      }, 3000);
+      }, 2000);
       return () => clearTimeout(timer);
     }
   }, [initialized, user, assets.length, generateNewWallet]);
