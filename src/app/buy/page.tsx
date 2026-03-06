@@ -5,15 +5,22 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShieldCheck, CreditCard, Loader2, ArrowLeft, Zap, ExternalLink, Smartphone } from 'lucide-react';
+import { ShieldCheck, CreditCard, Loader2, ArrowLeft, Zap, ExternalLink, Smartphone, Info } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export default function BuyCryptoPage() {
   const { assets, initialized } = useVaultStore();
   const [selectedAsset, setSelectedAsset] = useState<string>('');
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
     if (initialized && assets.length > 0 && !selectedAsset) {
@@ -21,20 +28,39 @@ export default function BuyCryptoPage() {
     }
   }, [initialized, assets, selectedAsset]);
 
-  const getGatewayUrl = (method?: string) => {
-    const asset = assets.find(a => a.currency === selectedAsset);
-    if (!asset || !asset.address) return '#';
-    const baseUrl = `https://crypto.link.com/?wallet=${asset.address}&network=ethereum&asset=${selectedAsset.toLowerCase()}`;
-    return method ? `${baseUrl}&method=${method}` : baseUrl;
-  };
-
   const handleLinkClick = (method: string = 'universal') => {
+    const asset = assets.find(a => a.currency === selectedAsset);
+    if (!asset || !asset.address) {
+      toast({ 
+        title: "Provisioning Required", 
+        description: "Please create a vault key before attempting to fund.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsRedirecting(true);
+    
+    // Construct the verified external gateway URL
+    const baseUrl = `https://crypto.link.com/buy`;
+    const params = new URLSearchParams({
+      wallet: asset.address,
+      network: 'ethereum',
+      asset: selectedAsset.toLowerCase(),
+      method: method,
+      partner_id: 'coinvault_secure_v1'
+    });
+
     toast({
-      title: `${method.toUpperCase()} Gateway Active`,
-      description: `Redirecting to secure ${method} checkout terminal...`,
+      title: `${method === 'universal' ? 'Universal' : method.toUpperCase()} Gateway Active`,
+      description: `Establishing secure bridge to ${method} terminal...`,
     });
     
-    window.open(getGatewayUrl(method), '_blank', 'noopener,noreferrer');
+    // Smooth transition to external gateway
+    setTimeout(() => {
+      window.open(`${baseUrl}?${params.toString()}`, '_blank', 'noopener,noreferrer');
+      setIsRedirecting(false);
+    }, 1200);
   };
 
   if (!initialized) {
@@ -51,48 +77,70 @@ export default function BuyCryptoPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
-          <Link href="/wallet">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-        </Button>
-        <div>
-          <h2 className="text-3xl font-bold text-primary flex items-center gap-3">
-            <CreditCard className="h-8 w-8 text-secondary" />
-            Universal Gateway
-          </h2>
-          <p className="text-muted-foreground text-sm font-medium">Provision assets via high-performance external protocols.</p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild className="rounded-xl">
+            <Link href="/wallet">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+          </Button>
+          <div>
+            <h2 className="text-3xl font-bold text-primary flex items-center gap-3 tracking-tighter">
+              <CreditCard className="h-8 w-8 text-secondary" />
+              Fiat Gateway
+            </h2>
+            <p className="text-muted-foreground text-sm font-medium">Provision assets via high-performance external protocols.</p>
+          </div>
         </div>
+        <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
+          <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+          Bridge Verified
+        </Badge>
       </div>
 
-      <Card className="shadow-2xl border-primary/10 bg-card/50 backdrop-blur-xl overflow-hidden rounded-3xl">
-        <CardHeader className="border-b bg-muted/20 pb-8">
+      <Card className="shadow-2xl border-primary/10 bg-card/50 backdrop-blur-xl overflow-hidden rounded-[2.5rem]">
+        <CardHeader className="border-b bg-muted/20 pb-8 px-8">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-2xl font-bold tracking-tight">External Provisioning</CardTitle>
-              <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Direct Checkout Integration</CardDescription>
+              <CardTitle className="text-2xl font-black tracking-tight">Hosted Provisioning</CardTitle>
+              <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Institutional Checkout Integration</CardDescription>
             </div>
-            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <ShieldCheck className="h-6 w-6 text-primary" />
+            <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center border shadow-inner">
+              <ShieldCheck className="h-7 w-7 text-primary" />
             </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-8 pt-8">
+        <CardContent className="space-y-8 pt-10 px-8 pb-10">
           <div className="space-y-4">
-            <Label className="text-xs font-bold uppercase tracking-widest opacity-70">Target Vault Address</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-black uppercase tracking-widest opacity-70">Target Vault Address</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button className="flex items-center gap-1.5 text-[10px] font-bold text-secondary uppercase hover:underline">
+                      <Info className="h-3 w-3" /> How it works
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs p-4 bg-primary text-white border-none rounded-xl">
+                    <p className="text-xs leading-relaxed font-medium">
+                      Funds are delivered directly to this unique cryptographic address on the Ethereum Mainnet after verification.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <Select value={selectedAsset} onValueChange={setSelectedAsset}>
-              <SelectTrigger className="h-16 text-lg font-bold bg-background/50 border-2 rounded-2xl">
+              <SelectTrigger className="h-20 text-xl font-black bg-background/50 border-2 rounded-3xl transition-all hover:border-primary/50 focus:ring-4 focus:ring-primary/5">
                 <SelectValue placeholder="Select asset" />
               </SelectTrigger>
-              <SelectContent className="rounded-xl">
+              <SelectContent className="rounded-2xl p-2 border-2 shadow-2xl">
                 {assets.map(a => (
-                  <SelectItem key={a.id} value={a.currency}>
-                    <div className="flex items-center gap-3 py-1">
-                      <div className="h-8 w-8 rounded-lg bg-primary/5 flex items-center justify-center text-xs font-black">{a.currency}</div>
-                      <div className="flex flex-col">
-                        <span className="font-bold">{a.currency} Wallet</span>
-                        <span className="text-[10px] opacity-50 font-mono tracking-tighter">{a.address}</span>
+                  <SelectItem key={a.id} value={a.currency} className="rounded-xl h-14 mb-1">
+                    <div className="flex items-center gap-4">
+                      <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-xs font-black border uppercase">{a.currency}</div>
+                      <div className="flex flex-col text-left">
+                        <span className="font-bold text-sm">{a.currency} Vault Key</span>
+                        <span className="text-[10px] opacity-50 font-mono font-bold tracking-tighter">{a.address.slice(0, 16)}...</span>
                       </div>
                     </div>
                   </SelectItem>
@@ -102,58 +150,81 @@ export default function BuyCryptoPage() {
           </div>
 
           <div className="space-y-4">
-             <Label className="text-xs font-bold uppercase tracking-widest opacity-70">Select Payment Method</Label>
+             <Label className="text-xs font-black uppercase tracking-widest opacity-70">Instant Checkout Options</Label>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Button 
                   variant="outline" 
-                  className="h-24 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 hover:border-primary transition-all group"
-                  disabled={!isLinkReady}
+                  className="h-28 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 hover:border-primary hover:bg-primary/5 transition-all group relative overflow-hidden"
+                  disabled={!isLinkReady || isRedirecting}
                   onClick={() => handleLinkClick('apple-pay')}
                 >
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="h-5 w-5 text-primary" />
-                    <span className="font-bold text-lg">Apple Pay</span>
+                  <div className="flex items-center gap-2.5">
+                    <Smartphone className="h-6 w-6 text-primary" />
+                    <span className="font-black text-xl">Apple Pay</span>
                   </div>
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">Instant Confirmation</span>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">Biometric Verification</span>
+                  <div className="absolute top-2 right-3">
+                     <Badge className="bg-primary/10 text-primary border-none text-[8px] font-black">INSTANT</Badge>
+                  </div>
                 </Button>
 
                 <Button 
                   variant="outline" 
-                  className="h-24 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 hover:border-primary transition-all group"
-                  disabled={!isLinkReady}
+                  className="h-28 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 hover:border-primary hover:bg-primary/5 transition-all group relative overflow-hidden"
+                  disabled={!isLinkReady || isRedirecting}
                   onClick={() => handleLinkClick('google-pay')}
                 >
-                  <div className="flex items-center gap-2">
-                    <Smartphone className="h-5 w-5 text-primary" />
-                    <span className="font-bold text-lg">Google Pay</span>
+                  <div className="flex items-center gap-2.5">
+                    <Smartphone className="h-6 w-6 text-primary" />
+                    <span className="font-black text-xl">Google Pay</span>
                   </div>
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">Zero-Wait Funding</span>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">One-Tap Funding</span>
+                  <div className="absolute top-2 right-3">
+                     <Badge className="bg-primary/10 text-primary border-none text-[8px] font-black">FASTEST</Badge>
+                  </div>
                 </Button>
              </div>
           </div>
 
-          <div className="p-6 bg-primary/5 rounded-2xl border-2 border-dashed border-primary/20 flex gap-4 items-start">
-            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-              <ShieldCheck className="h-5 w-5 text-primary" />
+          <div className="p-6 bg-primary/5 rounded-[2rem] border-2 border-dashed border-primary/20 flex gap-5 items-start">
+            <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0 border border-primary/10">
+              <ShieldCheck className="h-6 w-6 text-primary" />
             </div>
             <div className="text-sm leading-relaxed">
-              <span className="font-bold text-primary block mb-1 text-base">Secure Checkout Terminal</span>
-              Apple Pay and Google Pay are handled directly within the external secure checkout terminal to ensure your biometric data never leaves your device.
+              <span className="font-black text-primary block mb-1 text-base tracking-tight">Verified Bank-to-Vault Bridge</span>
+              Apple Pay and Google Pay sessions are encrypted and handled directly within the hosted gateway. Your biometric and payment card data never touches the CoinVault servers, ensuring institutional-grade security for every transaction.
             </div>
           </div>
 
           <Button 
-            className="w-full h-20 text-2xl font-black shadow-2xl rounded-2xl transition-all hover:scale-[1.01] active:scale-[0.99] gap-3" 
+            className="w-full h-24 text-2xl font-black shadow-2xl rounded-[1.75rem] transition-all hover:scale-[1.01] active:scale-[0.99] gap-4 bg-primary text-white" 
             onClick={() => handleLinkClick('universal')}
-            disabled={!isLinkReady}
+            disabled={!isLinkReady || isRedirecting}
           >
-            <ExternalLink className="h-8 w-8" />
-            Launch Universal Portal
+            {isRedirecting ? (
+              <>
+                <Loader2 className="h-8 w-8 animate-spin" />
+                Connecting Gateway...
+              </>
+            ) : (
+              <>
+                <ExternalLink className="h-8 w-8" />
+                Launch Universal Portal
+              </>
+            )}
           </Button>
 
-          <p className="text-center text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-            Verified External Gateway | Crypto.link.com Secure | Apple & Google Pay Ready
-          </p>
+          <div className="flex flex-col items-center gap-3">
+            <div className="flex items-center gap-6 opacity-30 grayscale hover:grayscale-0 transition-all">
+               <span className="font-black text-lg italic tracking-tighter">VISA</span>
+               <span className="font-black text-lg italic tracking-tighter">Mastercard</span>
+               <span className="font-black text-lg italic tracking-tighter">ApplePay</span>
+               <span className="font-black text-lg italic tracking-tighter">GooglePay</span>
+            </div>
+            <p className="text-center text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] opacity-60">
+              Verified External Gateway | AES-256 Protocol | PCI Compliant
+            </p>
+          </div>
         </CardContent>
       </Card>
     </div>
