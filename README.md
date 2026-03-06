@@ -1,11 +1,10 @@
-
 # CoinVault | Asset Security
 
 This is a high-performance cryptocurrency vault prototype built with Next.js, React, and Genkit.
 
 ## 🚀 CRITICAL: Vercel Deployment Troubleshooting
 
-If your changes (like "v1.1.8" version badge) are not appearing on your Vercel URL, follow these exact steps:
+If your changes (like "v1.2.5" version badge) are not appearing on your Vercel URL, follow these exact steps:
 
 ### 1. Identify Your Branch
 Look at the **bottom-left corner** of this Studio window.
@@ -13,7 +12,7 @@ Look at the **bottom-left corner** of this Studio window.
 - Vercel, by default, only deploys the `main` branch to production.
 
 ### 2. Update Vercel Settings
-1. Go to your **Vercel Dashboard** and select your project `vault-access`.
+1. Go to your **Vercel Dashboard** and select your project.
 2. Go to **Settings > Git**.
 3. In the "Production Branch" field, change it from `main` to the **exact branch name** you see in the Studio.
 4. Click **Save**.
@@ -24,7 +23,7 @@ Look at the **bottom-left corner** of this Studio window.
 3. Ensure "Use existing build cache" is **unchecked**.
 
 ### 4. Verify Version
-Once successfully deployed, you will see **"v1.1.8 - STABLE-ACCESS"** in the top-right header of your application.
+Once successfully deployed, you will see **"v1.2.5 - PERFORMANCE-STABLE"** in the top-right header of your application.
 
 ---
 
@@ -32,5 +31,5 @@ Once successfully deployed, you will see **"v1.1.8 - STABLE-ACCESS"** in the top
 - **Framework**: Next.js 15 (App Router)
 - **AI**: Genkit (Google Gemini)
 - **Database/Auth**: Firebase Firestore & Authentication
-- **Payments**: Stripe Crypto Onramp / external gateways
+- **Payments**: Stripe Crypto Onramp / External Gateway
 - **Blockchain**: Viem (Mainnet RPC)
