@@ -10,6 +10,7 @@ import { useVaultStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 import {
   Tooltip,
   TooltipContent,
