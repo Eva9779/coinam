@@ -13,7 +13,8 @@ import {
   CreditCard,
   Sparkles,
   ChevronRight,
-  RefreshCw
+  RefreshCw,
+  Smartphone
 } from "lucide-react";
 import { useVaultStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -109,9 +110,20 @@ export default function Dashboard() {
               <Zap className="h-6 w-6 sm:h-8 sm:w-8 text-secondary fill-secondary" />
               Fiat Gateway
             </h3>
-            <p className="text-base sm:text-lg text-primary-foreground/80 font-medium leading-relaxed mb-6 sm:mb-8">
-              Convert local currency into digital assets instantly. Your vault is synchronized across all devices.
+            <p className="text-base sm:text-lg text-primary-foreground/80 font-medium leading-relaxed mb-4">
+              Fund your wallet instantly with Apple Pay, Google Pay, or Debit Card.
             </p>
+            <div className="flex flex-wrap gap-2 mb-6 sm:mb-8">
+               <Badge className="bg-white/20 hover:bg-white/30 text-white border-none flex gap-1.5 py-1 px-3">
+                  <Smartphone className="h-3 w-3" /> Apple Pay
+               </Badge>
+               <Badge className="bg-white/20 hover:bg-white/30 text-white border-none flex gap-1.5 py-1 px-3">
+                  <Smartphone className="h-3 w-3" /> Google Pay
+               </Badge>
+               <Badge className="bg-white/20 hover:bg-white/30 text-white border-none flex gap-1.5 py-1 px-3">
+                  <CreditCard className="h-3 w-3" /> Debit Card
+               </Badge>
+            </div>
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
               <Button size="lg" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 font-black h-14 sm:h-16 px-6 sm:px-10 text-lg sm:text-xl shadow-xl transition-all group w-full sm:w-auto" asChild>
                 <Link href="/buy">

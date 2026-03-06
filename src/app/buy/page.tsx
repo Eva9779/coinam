@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -6,10 +5,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShieldCheck, CreditCard, Loader2, ArrowLeft, Zap, ExternalLink } from 'lucide-react';
+import { ShieldCheck, CreditCard, Loader2, ArrowLeft, Zap, ExternalLink, Smartphone } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { Badge } from '@/components/ui/badge';
 
 export default function BuyCryptoPage() {
   const { assets, initialized } = useVaultStore();
@@ -98,14 +98,32 @@ export default function BuyCryptoPage() {
             </Select>
           </div>
 
-          <div className="p-6 bg-secondary/5 rounded-2xl border-2 border-dashed border-secondary/20 flex gap-4 items-start">
-            <div className="h-10 w-10 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
-              <Zap className="h-5 w-5 text-secondary" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-6 bg-secondary/5 rounded-2xl border-2 border-dashed border-secondary/20 flex gap-4 items-start">
+              <div className="h-10 w-10 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
+                <Zap className="h-5 w-5 text-secondary" />
+              </div>
+              <div className="text-sm leading-relaxed">
+                <span className="font-bold text-secondary block mb-1 text-base">Isolated Signing Session</span>
+                By using an external tab, you bypass local browser blocking policies.
+              </div>
             </div>
-            <div className="text-sm leading-relaxed">
-              <span className="font-bold text-secondary block mb-1 text-base">Isolated Signing Session</span>
-              By using an external tab, you bypass local browser blocking policies. Once verified, assets are broadcast directly to your vault endpoint.
+
+            <div className="p-6 bg-primary/5 rounded-2xl border-2 border-dashed border-primary/20 flex gap-4 items-start">
+              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <Smartphone className="h-5 w-5 text-primary" />
+              </div>
+              <div className="text-sm leading-relaxed">
+                <span className="font-bold text-primary block mb-1 text-base">Mobile Payment Support</span>
+                Apple Pay and Google Pay are fully supported via our external checkout gateway.
+              </div>
             </div>
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-3 py-2">
+            <Badge variant="outline" className="px-4 py-1.5 rounded-full border-primary/20 text-xs font-bold bg-white">Apple Pay Supported</Badge>
+            <Badge variant="outline" className="px-4 py-1.5 rounded-full border-primary/20 text-xs font-bold bg-white">Google Pay Supported</Badge>
+            <Badge variant="outline" className="px-4 py-1.5 rounded-full border-primary/20 text-xs font-bold bg-white">Debit/Credit Card</Badge>
           </div>
 
           <Button 
@@ -125,7 +143,7 @@ export default function BuyCryptoPage() {
           </Button>
 
           <p className="text-center text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-            External Gateway | Crypto.link.com Verified
+            External Gateway | Crypto.link.com Verified | Secure Checkout
           </p>
         </CardContent>
       </Card>
