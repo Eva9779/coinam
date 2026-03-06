@@ -1,3 +1,4 @@
+
 'use client';
 
 import './globals.css';
@@ -163,7 +164,7 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
 
           <div className="flex items-center gap-4 flex-1 overflow-hidden">
             <Badge variant="outline" className="text-[9px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden sm:flex whitespace-nowrap">
-              v1.3.2 - STABLE-PAY-DETECT
+              v1.3.4 - NATIVE-STABLE-LINK
             </Badge>
             <div className="hidden xl:flex items-center gap-2 px-3 py-1 rounded-full border bg-primary/5 border-primary/10 truncate">
               <span className="text-[9px] font-bold text-muted-foreground uppercase">VAULT ID:</span>

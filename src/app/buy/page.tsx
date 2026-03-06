@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShieldCheck, CreditCard, Loader2, ArrowLeft, Zap, ExternalLink, Smartphone, Info, AlertCircle, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, CreditCard, Loader2, ArrowLeft, Zap, ExternalLink, Smartphone, Info, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -18,7 +18,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { createOnrampSession } from '@/app/lib/stripe-actions';
 
 export default function BuyCryptoPage() {
   const { assets, initialized } = useVaultStore();
@@ -36,7 +35,7 @@ export default function BuyCryptoPage() {
       async function checkWallets() {
         if ('PaymentRequest' in window) {
           try {
-            // Apple Pay Detection
+            // Apple Pay Detection (Only works in Safari on iOS/macOS)
             const applePayRequest = new (window as any).PaymentRequest(
               [{ supportedMethods: 'https://apple.com/apple-pay', data: { version: 3 } }],
               { total: { label: 'Total', amount: { currency: 'USD', value: '1.00' } } }
@@ -44,7 +43,7 @@ export default function BuyCryptoPage() {
             const appleAvailable = await applePayRequest.canMakePayment();
             setIsApplePayAvailable(appleAvailable);
 
-            // Google Pay Detection
+            // Google Pay Detection (Only works in Chrome on Android/Desktop)
             const googlePayRequest = new (window as any).PaymentRequest(
               [{ supportedMethods: 'https://google.com/pay' }],
               { total: { label: 'Total', amount: { currency: 'USD', value: '1.00' } } }
@@ -79,16 +78,17 @@ export default function BuyCryptoPage() {
 
     setIsRedirecting(true);
     
-    // We use Onramper as the primary provider because it supports Apple/Google Pay 
-    // WITHOUT requiring server-side API keys, which makes it 100% reliable for this setup.
+    // v1.3.4 - Using public Onramper aggregator. 
+    // IMPORTANT: Removed placeholder apiKey to resolve "Invalid Link" error.
     const methodParam = method === 'apple-pay' ? 'applepay' : method === 'google-pay' ? 'googlepay' : 'creditcard';
-    const onramperUrl = `https://buy.onramper.com/?defaultCrypto=${selectedAsset.toLowerCase()}&destinationWallet=${asset.address}&isAddressEditable=false&themeName=light&defaultPaymentMethod=${methodParam}&apiKey=pk_prod_01J6H6H6H6H6H6H6H6H6H6H6H6`;
+    const onramperUrl = `https://buy.onramper.com/?defaultCrypto=${selectedAsset.toLowerCase()}&destinationWallet=${asset.address}&isAddressEditable=false&themeName=light&defaultPaymentMethod=${methodParam}&allPayments=true`;
 
     toast({
       title: `${method.toUpperCase()} Redirecting`,
       description: `Connecting to secure native payment bridge...`,
     });
 
+    // Short delay for UI feedback
     setTimeout(() => {
       window.open(onramperUrl, '_blank', 'noopener,noreferrer');
       setIsRedirecting(false);
@@ -126,16 +126,19 @@ export default function BuyCryptoPage() {
         </div>
         <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
           <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-          Native Bridge v1.3.3
+          Native Bridge v1.3.4
         </Badge>
       </div>
 
       {!isHttps && (
-        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-4">
-          <ShieldAlert className="h-6 w-6 text-amber-600 shrink-0" />
+        <div className="p-5 bg-amber-500/10 border-2 border-amber-500/20 rounded-[2rem] flex items-start gap-5 shadow-sm">
+          <ShieldAlert className="h-8 w-8 text-amber-600 shrink-0" />
           <div className="text-sm">
-            <span className="font-bold text-amber-700 block mb-1 uppercase tracking-tight text-xs">Security Environment Warning</span>
-            Apple Pay and Google Pay require a **Production HTTPS** connection. Because you are currently on an insecure `http` connection (likely local preview), browsers hide these native options for your protection. Deploy to Vercel to activate full native support.
+            <span className="font-black text-amber-700 block mb-1 uppercase tracking-tight text-xs">Security Environment Requirement</span>
+            <p className="leading-relaxed font-medium">
+              Apple Pay and Google Pay require a **Production HTTPS** connection. Because you are currently on an insecure `http` connection (likely Studio preview), browsers hide these native options. 
+              <strong> You must deploy to Vercel and visit the production URL on an iPhone/Android to use native wallets.</strong>
+            </p>
           </div>
         </div>
       )}
@@ -165,7 +168,7 @@ export default function BuyCryptoPage() {
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs p-4 bg-primary text-white border-none rounded-xl">
                     <p className="text-xs leading-relaxed font-medium">
-                      On-ramp providers like Onramper or Stripe detect your device's native wallet. If you are on an iPhone (Safari), Apple Pay appears automatically. On Android (Chrome), Google Pay appears.
+                      On-ramp providers detect your device's native wallet. On iPhone (Safari), Apple Pay appears automatically. On Android (Chrome), Google Pay appears. These are only visible on secure PRODUCTION domains.
                     </p>
                   </TooltipContent>
                 </Tooltip>
@@ -196,7 +199,7 @@ export default function BuyCryptoPage() {
                <Label className="text-xs font-black uppercase tracking-widest opacity-70">Native Digital Wallets</Label>
                {isHttps && (
                  <Badge variant="outline" className="text-[8px] border-green-500/30 text-green-600 bg-green-500/5 gap-1">
-                   <CheckCircle2 className="h-2 w-2" /> Environment Verified
+                   <CheckCircle2 className="h-2 w-2" /> Live Detection Active
                  </Badge>
                )}
              </div>
@@ -251,7 +254,7 @@ export default function BuyCryptoPage() {
             </div>
             <div className="text-sm leading-relaxed">
               <span className="font-black text-primary block mb-1 text-base tracking-tight">Institutional Compatibility Layer</span>
-              We use aggregated gateways (Onramper/Stripe) to ensure you don't need dedicated API keys for Apple/Google Pay. These providers automatically surface your device's native payment sheet when they detect a secure, verified production domain.
+              We use aggregated gateways to ensure Apple and Google Pay work without dedicated API keys. These providers automatically surface your native payment sheet when they detect a secure, verified production domain on your mobile device.
             </div>
           </div>
 
@@ -281,7 +284,7 @@ export default function BuyCryptoPage() {
                <span className="font-black text-lg italic tracking-tighter">GooglePay</span>
             </div>
             <p className="text-center text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] opacity-60">
-              Secure Native Vault Provisioning | v1.3.3
+              Secure Native Vault Provisioning | v1.3.4
             </p>
           </div>
         </CardContent>
