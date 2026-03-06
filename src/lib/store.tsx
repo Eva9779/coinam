@@ -114,9 +114,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const pKey = generatePrivateKey();
     const account = privateKeyToAccount(pKey);
     
-    // Using the currency as part of the ID but with a random suffix to ensure unique doc creation
-    const assetId = `wallet_${currency.toLowerCase()}_${Math.random().toString(36).substring(2, 7)}`;
-    const assetDocRef = doc(db, 'users', user.uid, 'assets', assetId);
+    // CRITICAL: Use Firestore's native ID generation to ensure absolute uniqueness for multi-vault support
+    const assetsRef = collection(db, 'users', user.uid, 'assets');
+    const assetDocRef = doc(assetsRef);
+    const assetId = assetDocRef.id;
     
     const newAsset: WalletAsset = {
       id: assetId,
@@ -139,17 +140,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return account.address;
   }, [db, user]);
 
-  // Persistent Auto-provisioning logic
+  // Persistent Auto-provisioning logic for first-time users
   useEffect(() => {
-    // Only provision if:
-    // 1. Initialized is true (first snapshot attempt completed)
-    // 2. User exists
-    // 3. Assets array is confirmed empty
-    // 4. We aren't already provisioning
     if (initialized && user && assets.length === 0 && !isProvisioning.current) {
       isProvisioning.current = true;
       const timer = setTimeout(() => {
-        // Final sanity check before write
         if (assets.length === 0) {
           generateNewWallet('ETH');
         }
