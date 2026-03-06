@@ -103,26 +103,43 @@ export default function WithdrawPage() {
               </div>
             </div>
 
-            <Button 
-              className="w-full h-20 text-2xl font-black shadow-2xl rounded-2xl transition-all hover:scale-[1.01] active:scale-[0.99] gap-3" 
-              asChild
-              disabled={!canWithdraw}
-            >
-              <a 
-                href={getOfframpUrl()} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                onClick={handleWithdrawClick}
+            {canWithdraw ? (
+              <Button 
+                className="w-full h-20 text-2xl font-black shadow-2xl rounded-2xl transition-all hover:scale-[1.01] active:scale-[0.99] gap-3" 
+                asChild
+              >
+                <a 
+                  href={getOfframpUrl()} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  onClick={handleWithdrawClick}
+                >
+                  <ExternalLink className="h-8 w-8" />
+                  Initialize Bank Withdrawal
+                </a>
+              </Button>
+            ) : (
+              <Button 
+                className="w-full h-20 text-2xl font-black rounded-2xl opacity-50 cursor-not-allowed gap-3" 
+                disabled
               >
                 <ExternalLink className="h-8 w-8" />
-                Initialize Bank Withdrawal
-              </a>
-            </Button>
+                Insufficient Balance
+              </Button>
+            )}
 
             {!canWithdraw && (
-              <p className="text-center text-[10px] text-destructive font-bold uppercase tracking-widest">
-                Insufficient balance in selected vault for liquidation.
-              </p>
+              <div className="flex flex-col items-center gap-4">
+                <p className="text-center text-[10px] text-destructive font-bold uppercase tracking-widest">
+                  Insufficient balance in selected vault for liquidation.
+                </p>
+                <Button variant="outline" asChild className="rounded-xl font-bold">
+                  <Link href="/buy">
+                    <CreditCard className="h-4 w-4 mr-2" />
+                    Fund Wallet First
+                  </Link>
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>
