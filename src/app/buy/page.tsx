@@ -21,17 +21,20 @@ export default function BuyCryptoPage() {
     }
   }, [initialized, assets, selectedAsset]);
 
-  const getGatewayUrl = () => {
+  const getGatewayUrl = (method?: string) => {
     const asset = assets.find(a => a.currency === selectedAsset);
     if (!asset || !asset.address) return '#';
-    return `https://crypto.link.com/?wallet=${asset.address}&network=ethereum&asset=${selectedAsset.toLowerCase()}`;
+    const baseUrl = `https://crypto.link.com/?wallet=${asset.address}&network=ethereum&asset=${selectedAsset.toLowerCase()}`;
+    return method ? `${baseUrl}&method=${method}` : baseUrl;
   };
 
-  const handleLinkClick = () => {
+  const handleLinkClick = (method: string = 'universal') => {
     toast({
-      title: "Gateway Connection Initialized",
-      description: "Opening crypto.link.com in a secure new tab...",
+      title: `${method.toUpperCase()} Gateway Active`,
+      description: `Redirecting to secure ${method} checkout terminal...`,
     });
+    
+    window.open(getGatewayUrl(method), '_blank', 'noopener,noreferrer');
   };
 
   if (!initialized) {
@@ -59,7 +62,7 @@ export default function BuyCryptoPage() {
             <CreditCard className="h-8 w-8 text-secondary" />
             Universal Gateway
           </h2>
-          <p className="text-muted-foreground text-sm font-medium">Provision assets via the crypto.link.com external protocol.</p>
+          <p className="text-muted-foreground text-sm font-medium">Provision assets via high-performance external protocols.</p>
         </div>
       </div>
 
@@ -68,7 +71,7 @@ export default function BuyCryptoPage() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-2xl font-bold tracking-tight">External Provisioning</CardTitle>
-              <CardDescription className="text-xs uppercase font-bold opacity-60 tracking-widest mt-1">Direct Link Integration</CardDescription>
+              <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Direct Checkout Integration</CardDescription>
             </div>
             <div className="h-12 w-12 rounded-2xl bg-primary/10 flex items-center justify-center">
               <ShieldCheck className="h-6 w-6 text-primary" />
@@ -98,52 +101,58 @@ export default function BuyCryptoPage() {
             </Select>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-6 bg-secondary/5 rounded-2xl border-2 border-dashed border-secondary/20 flex gap-4 items-start">
-              <div className="h-10 w-10 rounded-full bg-secondary/10 flex items-center justify-center shrink-0">
-                <Zap className="h-5 w-5 text-secondary" />
-              </div>
-              <div className="text-sm leading-relaxed">
-                <span className="font-bold text-secondary block mb-1 text-base">Isolated Signing Session</span>
-                By using an external tab, you bypass local browser blocking policies.
-              </div>
-            </div>
+          <div className="space-y-4">
+             <Label className="text-xs font-bold uppercase tracking-widest opacity-70">Select Payment Method</Label>
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Button 
+                  variant="outline" 
+                  className="h-24 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 hover:border-primary transition-all group"
+                  disabled={!isLinkReady}
+                  onClick={() => handleLinkClick('apple-pay')}
+                >
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="h-5 w-5 text-primary" />
+                    <span className="font-bold text-lg">Apple Pay</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">Instant Confirmation</span>
+                </Button>
 
-            <div className="p-6 bg-primary/5 rounded-2xl border-2 border-dashed border-primary/20 flex gap-4 items-start">
-              <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <Smartphone className="h-5 w-5 text-primary" />
-              </div>
-              <div className="text-sm leading-relaxed">
-                <span className="font-bold text-primary block mb-1 text-base">Mobile Payment Support</span>
-                Apple Pay and Google Pay are fully supported via our external checkout gateway.
-              </div>
-            </div>
+                <Button 
+                  variant="outline" 
+                  className="h-24 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 hover:border-primary transition-all group"
+                  disabled={!isLinkReady}
+                  onClick={() => handleLinkClick('google-pay')}
+                >
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="h-5 w-5 text-primary" />
+                    <span className="font-bold text-lg">Google Pay</span>
+                  </div>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">Zero-Wait Funding</span>
+                </Button>
+             </div>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-3 py-2">
-            <Badge variant="outline" className="px-4 py-1.5 rounded-full border-primary/20 text-xs font-bold bg-white">Apple Pay Supported</Badge>
-            <Badge variant="outline" className="px-4 py-1.5 rounded-full border-primary/20 text-xs font-bold bg-white">Google Pay Supported</Badge>
-            <Badge variant="outline" className="px-4 py-1.5 rounded-full border-primary/20 text-xs font-bold bg-white">Debit/Credit Card</Badge>
+          <div className="p-6 bg-primary/5 rounded-2xl border-2 border-dashed border-primary/20 flex gap-4 items-start">
+            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+            </div>
+            <div className="text-sm leading-relaxed">
+              <span className="font-bold text-primary block mb-1 text-base">Secure Checkout Terminal</span>
+              Apple Pay and Google Pay are handled directly within the external secure checkout terminal to ensure your biometric data never leaves your device.
+            </div>
           </div>
 
           <Button 
             className="w-full h-20 text-2xl font-black shadow-2xl rounded-2xl transition-all hover:scale-[1.01] active:scale-[0.99] gap-3" 
-            asChild
+            onClick={() => handleLinkClick('universal')}
             disabled={!isLinkReady}
           >
-            <a 
-              href={getGatewayUrl()} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              onClick={handleLinkClick}
-            >
-              <ExternalLink className="h-8 w-8" />
-              Open Gateway Link
-            </a>
+            <ExternalLink className="h-8 w-8" />
+            Launch Universal Portal
           </Button>
 
           <p className="text-center text-[10px] text-muted-foreground font-bold uppercase tracking-widest">
-            External Gateway | Crypto.link.com Verified | Secure Checkout
+            Verified External Gateway | Crypto.link.com Secure | Apple & Google Pay Ready
           </p>
         </CardContent>
       </Card>
