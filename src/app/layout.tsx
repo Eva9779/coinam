@@ -49,7 +49,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-12 w-12 animate-spin text-primary" />
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground animate-pulse">Initializing Secure Session</p>
+        </div>
       </div>
     );
   }
@@ -89,12 +92,7 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
   useEffect(() => {
     async function syncNetwork() {
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 3000);
-        
         const block = await getLiveBlockNumber();
-        clearTimeout(timeoutId);
-        
         if (block) {
           setBlockHeight(block.toString());
         }
@@ -164,7 +162,7 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
 
           <div className="flex items-center gap-4 flex-1 overflow-hidden">
             <Badge variant="outline" className="text-[9px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden sm:flex whitespace-nowrap">
-              v1.3.4 - NATIVE-STABLE-LINK
+              v1.3.5 - STABILITY-ENHANCED
             </Badge>
             <div className="hidden xl:flex items-center gap-2 px-3 py-1 rounded-full border bg-primary/5 border-primary/10 truncate">
               <span className="text-[9px] font-bold text-muted-foreground uppercase">VAULT ID:</span>

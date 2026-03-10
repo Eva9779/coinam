@@ -1,35 +1,24 @@
+
 # CoinVault | Asset Security
 
 This is a high-performance cryptocurrency vault prototype built with Next.js, React, and Genkit.
 
-## 🚀 CRITICAL: Vercel Deployment Troubleshooting
+## 🚀 CRITICAL: Troubleshooting "Compiling" Hangs
 
-If your changes (like "v1.2.5" version badge) are not appearing on your Vercel URL, follow these exact steps:
+If your preview screen stays white or shows "Compiling /" for more than 20 seconds, follow these steps:
 
-### 1. Identify Your Branch
-Look at the **bottom-left corner** of this Studio window.
-- If it says anything other than `main` (e.g., `firebase-studio-xyz`), your changes are on that branch.
-- Vercel, by default, only deploys the `main` branch to production.
+1.  **Refresh the Browser Tab**: Sometimes the dev server (Turbopack) needs a fresh request to finish the compilation cycle.
+2.  **Verify Production Environment**: Features like Apple Pay and Google Pay **only appear on Production HTTPS URLs**.
+3.  **Check Your Branch**: Ensure your changes are on the branch that Vercel is set to deploy (usually `main`).
 
-### 2. Update Vercel Settings
-1. Go to your **Vercel Dashboard** and select your project.
-2. Go to **Settings > Git**.
-3. In the "Production Branch" field, change it from `main` to the **exact branch name** you see in the Studio.
-4. Click **Save**.
-
-### 3. Trigger a Fresh Build
-1. Go to the **Deployments** tab in Vercel.
-2. Find the most recent deployment, click the **three dots (...)**, and select **Redeploy**.
-3. Ensure "Use existing build cache" is **unchecked**.
-
-### 4. Verify Version
-Once successfully deployed, you will see **"v1.2.5 - PERFORMANCE-STABLE"** in the top-right header of your application.
-
----
+## Native Wallet Requirements
+- **Apple Pay**: Requires Safari on iOS or macOS.
+- **Google Pay**: Requires Chrome on Android or Desktop.
+- **Security**: Mandatory HTTPS connection. In Studio Preview (http), native wallets are hidden for your security.
 
 ## Tech Stack
-- **Framework**: Next.js 15 (App Router)
+- **Framework**: Next.js 15 (App Router / Turbopack)
 - **AI**: Genkit (Google Gemini)
 - **Database/Auth**: Firebase Firestore & Authentication
-- **Payments**: Stripe Crypto Onramp / External Gateway
+- **Payments**: Onramper Aggregator / Stripe (Ready)
 - **Blockchain**: Viem (Mainnet RPC)
