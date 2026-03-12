@@ -57,12 +57,12 @@ Analyze the following market conditions and user assets to determine a profitabl
 
 Market Data:
 {{#each marketData}}
-- {{{currency}}}: Price ${{{price}}}, 24h Change: {{{change24h}}}%
+- {{{currency}}}: Price $ {{{price}}}, 24h Change: {{{change24h}}}%
 {{/each}}
 
 User Assets:
 {{#each assets}}
-- {{{currency}}}: Amount {{{amount}}}, Fiat Value ${{{fiatValue}}}
+- {{{currency}}}: Amount {{{amount}}}, Fiat Value $ {{{fiatValue}}}
 {{/each}}
 
 Risk Tolerance: {{{riskTolerance}}}
