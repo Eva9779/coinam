@@ -42,6 +42,7 @@ interface VaultContextType {
   assets: WalletAsset[];
   transactions: Transaction[];
   initialized: boolean;
+  isSyncing: boolean;
   user: any;
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
   updateBalance: (currency: string, amountChange: number, fiatPrice: number) => void;
@@ -54,36 +55,46 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [initialized, setInitialized] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(true);
   const isProvisioning = useRef(false);
   const { user } = useUserHook();
   const db = useFirestore();
 
+  // Primary Assets Listener
   useEffect(() => {
     if (!db || !user) {
       setInitialized(false);
+      setIsSyncing(false);
       setAssets([]);
       return;
     }
 
+    setIsSyncing(true);
     const assetsRef = collection(db, 'users', user.uid, 'assets');
+    
     const unsubscribe = onSnapshot(assetsRef, (snapshot) => {
       const assetsData = snapshot.docs.map(doc => ({
         ...doc.data(),
         id: doc.id
       } as WalletAsset));
+      
       setAssets(assetsData);
       setInitialized(true);
+      setIsSyncing(false);
     }, (error) => {
+      console.error("Firestore Asset Sync Error:", error);
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: assetsRef.path,
         operation: 'list'
       }));
       setInitialized(true);
+      setIsSyncing(false);
     });
 
     return () => unsubscribe();
   }, [db, user]);
 
+  // Transactions Ledger Listener
   useEffect(() => {
     if (!db || !user) {
       setTransactions([]);
@@ -126,29 +137,40 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       privateKey: pKey
     };
     
-    setDoc(assetDocRef, newAsset).catch(async () => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: assetDocRef.path,
-        operation: 'create',
-        requestResourceData: newAsset
-      }));
-    });
+    // PERSISTENCE CHECK: We initiate the write and handle failures
+    setDoc(assetDocRef, newAsset)
+      .then(() => {
+        toast({
+          title: "Vault Key Secured",
+          description: "Cryptographic material successfully persisted to your cloud enclave.",
+        });
+      })
+      .catch(async (err) => {
+        console.error("Failed to persist wallet key:", err);
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: assetDocRef.path,
+          operation: 'create',
+          requestResourceData: newAsset
+        }));
+      });
 
     return account.address;
   }, [db, user]);
 
+  // Auto-Provisioner: Only triggers if initialized AND syncing is finished AND still no assets
   useEffect(() => {
-    if (initialized && user && assets.length === 0 && !isProvisioning.current) {
+    if (initialized && !isSyncing && user && assets.length === 0 && !isProvisioning.current) {
       isProvisioning.current = true;
+      // Slight delay to ensure we aren't catching a mid-sync empty state
       const timer = setTimeout(() => {
         if (assets.length === 0) {
           generateNewWallet('ETH');
         }
         isProvisioning.current = false;
-      }, 500);
+      }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [initialized, user, assets.length, generateNewWallet]);
+  }, [initialized, isSyncing, user, assets.length, generateNewWallet]);
 
   const addTransaction = (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
     if (!db || !user) return;
@@ -173,7 +195,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const updateBalance = (currency: string, amountChange: number, fiatPrice: number) => {
     if (!db || !user) return;
 
-    // Use current assets to find the target asset for updates
     const asset = assets.find(a => a.currency === currency);
     if (!asset) return;
 
@@ -198,6 +219,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       assets, 
       transactions, 
       initialized, 
+      isSyncing,
       user,
       addTransaction, 
       updateBalance, 
