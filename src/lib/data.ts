@@ -1,7 +1,6 @@
-
 /**
- * Live Network Configuration
- * Initial market data provided as baseline for the Dashboard.
+ * Global Market Registry
+ * baseline for initial sync before live API data takes over.
  */
 export const INITIAL_WALLET_BALANCES = [];
 
@@ -29,4 +28,11 @@ export const INITIAL_MARKET_DATA = [
     weeklyChangePercent: 12.4,
     volume24hUSD: 4000000000,
   },
+  {
+    currency: 'USDC',
+    currentPriceUSD: 1.00,
+    dailyChangePercent: 0,
+    weeklyChangePercent: 0,
+    volume24hUSD: 500000000,
+  }
 ];
