@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -14,7 +15,10 @@ import {
   Cpu,
   Lock,
   RefreshCw,
-  CreditCard
+  CreditCard,
+  ShieldAlert,
+  Zap,
+  Fingerprint
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
@@ -40,7 +44,7 @@ export default function WalletPage() {
     setIsGenerating(false);
     toast({
       title: "Key Provisioned",
-      description: `${currency} endpoint is now live on mainnet.`,
+      description: `${currency} cryptographic endpoint is now live on mainnet.`,
     });
   };
 
@@ -50,7 +54,7 @@ export default function WalletPage() {
       const liveBal = await getLiveBalance(address);
       toast({
         title: "Network Sync Complete",
-        description: `On-chain balance: ${liveBal} ${currency}`,
+        description: `Verified on-chain balance: ${liveBal} ${currency}`,
       });
     } catch (e) {
       toast({ title: "Sync failed", variant: "destructive" });
@@ -62,63 +66,63 @@ export default function WalletPage() {
   if (!initialized) return null;
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-8 max-w-7xl mx-auto pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold text-primary flex items-center gap-3">
             <ShieldCheck className="h-8 w-8 text-secondary" />
-            Active Vault
+            Non-Custodial Vault
           </h2>
-          <p className="text-muted-foreground text-sm font-medium">Verified multi-currency endpoints synchronized with Mainnet peers.</p>
+          <p className="text-muted-foreground text-sm font-medium">Cryptographic endpoints synchronized with decentralized peers.</p>
         </div>
         <div className="flex gap-3">
           <Button variant="outline" asChild className="gap-2 h-14 px-6 font-bold rounded-2xl border-secondary/20 text-secondary hover:bg-secondary/5">
             <Link href="/buy">
               <CreditCard className="h-5 w-5" />
-              Buy Crypto
+              Fund Wallet
             </Link>
           </Button>
           <Button onClick={handleGenerate} disabled={isGenerating} className="gap-2 h-14 px-8 shadow-2xl bg-primary hover:bg-primary/90 font-bold rounded-2xl">
             <Plus className="h-5 w-5" /> 
-            {isGenerating ? "Authorizing..." : "Provision Key"}
+            {isGenerating ? "Authorizing..." : "Generate Key"}
           </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <Card className="shadow-2xl border-none bg-card/50 backdrop-blur-lg">
-            <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <Card className="shadow-2xl border-none bg-card/50 backdrop-blur-lg rounded-[2rem]">
+            <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b bg-muted/20 px-8 py-6">
               <div>
-                <CardTitle className="text-xl font-bold tracking-tighter">Endpoints</CardTitle>
-                <CardDescription className="text-xs uppercase font-bold tracking-widest opacity-60">Direct Ledger Connectivity</CardDescription>
+                <CardTitle className="text-xl font-bold tracking-tighter">Vault Endpoints</CardTitle>
+                <CardDescription className="text-xs uppercase font-bold tracking-widest opacity-60">Direct Cryptographic Isolation</CardDescription>
               </div>
               <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="Search assets..." 
-                  className="pl-10 h-11 bg-background/50 border-none shadow-inner rounded-xl text-sm" 
+                  placeholder="Filter assets..." 
+                  className="pl-10 h-12 bg-background/50 border-none shadow-inner rounded-xl text-sm font-bold" 
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-6">
               <div className="space-y-4">
                 {filteredAssets.length > 0 ? filteredAssets.map((asset, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-5 border-2 rounded-3xl hover:bg-muted/20 transition-all group border-primary/5 hover:border-secondary/30 bg-background/30">
+                  <div key={idx} className="flex items-center justify-between p-6 border-2 rounded-3xl hover:bg-muted/10 transition-all group border-primary/5 hover:border-secondary/30 bg-background/30">
                     <div className="flex items-center gap-5">
                       <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center font-bold text-lg text-primary shadow-lg border border-primary/10">
                         {asset.currency}
                       </div>
-                      <div>
+                      <div className="space-y-1">
                         <div className="font-bold text-xl flex items-center gap-2">
                           {asset.currency}
-                          <Badge variant="outline" className="text-[9px] h-4 font-bold uppercase tracking-widest bg-green-500/10 text-green-600 border-green-500/20">
-                            MAINNET
+                          <Badge variant="outline" className="text-[9px] h-4 font-black uppercase tracking-widest bg-green-500/10 text-green-600 border-green-500/20">
+                            MAINNET LIVE
                           </Badge>
                         </div>
-                        <div className="text-[10px] text-muted-foreground font-mono font-bold flex items-center gap-2 mt-1 opacity-80">
+                        <div className="text-[10px] text-muted-foreground font-mono font-bold flex items-center gap-2 opacity-80">
                           {asset.address.slice(0, 10)}...{asset.address.slice(-6)}
                           <button 
                             className="p-1 hover:bg-secondary/20 rounded transition-colors"
@@ -134,26 +138,27 @@ export default function WalletPage() {
                     </div>
                     <div className="flex items-center gap-4 sm:gap-10">
                       <div className="text-right hidden sm:block">
-                        <div className="font-bold text-2xl tracking-tighter">{asset.amount.toFixed(4)} <span className="text-xs font-bold text-muted-foreground opacity-50">{asset.currency}</span></div>
+                        <div className="font-black text-2xl tracking-tighter">{asset.amount.toFixed(4)} <span className="text-xs font-bold text-muted-foreground opacity-50">{asset.currency}</span></div>
                         <div className="text-xs text-green-500 font-bold opacity-80">${asset.fiatValueUSD.toLocaleString()}</div>
                       </div>
                       <div className="flex gap-2">
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-10 w-10 rounded-xl hover:bg-secondary/10"
+                          className="h-12 w-12 rounded-xl hover:bg-secondary/10"
                           onClick={() => handleSyncBalance(asset.address, asset.currency)}
                           disabled={syncingBalances[asset.address]}
                         >
-                          <RefreshCw className={cn("h-4 w-4 text-secondary", syncingBalances[asset.address] && "animate-spin")} />
+                          <RefreshCw className={cn("h-5 w-5 text-secondary", syncingBalances[asset.address] && "animate-spin")} />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-10 w-10 rounded-xl hover:bg-muted"><MoreVertical className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-12 w-12 rounded-xl hover:bg-muted"><MoreVertical className="h-4 w-4" /></Button>
                       </div>
                     </div>
                   </div>
                 )) : (
-                  <div className="py-24 text-center text-muted-foreground border-2 border-dashed rounded-3xl opacity-50 font-bold uppercase text-xs tracking-widest">
-                    Provision a mainnet key to start
+                  <div className="py-24 text-center text-muted-foreground border-2 border-dashed rounded-3xl opacity-50 font-bold uppercase text-xs tracking-widest flex flex-col items-center gap-4">
+                    <ShieldAlert className="h-10 w-10 text-muted" />
+                    Provision a mainnet key to begin
                   </div>
                 )}
               </div>
@@ -162,37 +167,76 @@ export default function WalletPage() {
         </div>
 
         <div className="space-y-6">
-          <Card className="bg-gradient-to-br from-primary via-primary/95 to-primary/90 text-primary-foreground border-none shadow-2xl relative overflow-hidden rounded-3xl p-2">
-            <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
-              <Lock className="h-32 w-32" />
+          <Card className="bg-slate-950 text-white border-none shadow-2xl relative overflow-hidden rounded-[2rem] p-4">
+            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+              <Lock className="h-48 w-48" />
             </div>
             <CardHeader className="relative z-10 pb-4">
-              <CardTitle className="flex items-center gap-3 text-lg font-bold tracking-tight">
+              <CardTitle className="flex items-center gap-3 text-lg font-black tracking-widest uppercase">
                 <Cpu className="h-6 w-6 text-secondary" />
-                Vault Security
+                Hardware Security
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6 relative z-10">
-              <div className="p-5 bg-white/10 rounded-2xl space-y-4 backdrop-blur-xl border border-white/20 shadow-inner">
-                <div className="text-[10px] font-bold text-white/70 uppercase tracking-widest">Network Encryption Layer</div>
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-sm">VAULT-SECURE-V4</span>
-                  <Badge className="bg-green-500 text-white border-none text-[10px] font-bold">ACTIVE</Badge>
+            <CardContent className="space-y-8 relative z-10">
+              <div className="p-6 bg-white/5 rounded-2xl space-y-6 backdrop-blur-3xl border border-white/10 shadow-inner">
+                <div className="space-y-4">
+                   <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                         <Fingerprint className="h-4 w-4 text-secondary" />
+                         <span className="text-[10px] font-black uppercase tracking-widest text-white/70">Biometric Sync</span>
+                      </div>
+                      <Badge className="bg-green-500 text-white border-none text-[8px] font-black">LOCKED</Badge>
+                   </div>
+                   <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                         <ShieldCheck className="h-4 w-4 text-secondary" />
+                         <span className="text-[10px] font-black uppercase tracking-widest text-white/70">Enclave Isolation</span>
+                      </div>
+                      <Badge className="bg-green-500 text-white border-none text-[8px] font-black">ACTIVE</Badge>
+                   </div>
+                   <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                         <Zap className="h-4 w-4 text-secondary" />
+                         <span className="text-[10px] font-black uppercase tracking-widest text-white/70">AES-256 Auth</span>
+                      </div>
+                      <Badge className="bg-green-500 text-white border-none text-[8px] font-black">ENFORCED</Badge>
+                   </div>
                 </div>
-                <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full bg-secondary w-full" />
+
+                <div className="h-px bg-white/10 w-full" />
+                
+                <div className="space-y-2">
+                  <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Master Key Strength</div>
+                  <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-full bg-secondary w-full" />
+                  </div>
                 </div>
               </div>
-              <p className="text-xs text-primary-foreground/70 leading-relaxed font-medium italic">
-                "Direct cryptographic signing via hardware isolation. Private material remains non-extractable from the vault enclave."
-              </p>
-              <Button variant="secondary" className="w-full font-bold h-12 shadow-2xl flex items-center gap-2 rounded-xl text-primary" asChild>
+              
+              <div className="p-4 bg-secondary/10 rounded-xl border border-secondary/20 flex gap-3 items-start">
+                 <ShieldAlert className="h-5 w-5 text-secondary shrink-0" />
+                 <p className="text-[10px] text-secondary font-bold leading-relaxed uppercase tracking-tight">
+                    Private cryptographic material is generated in the browser and isolated in your private vault. Platform engineers cannot access your funds.
+                 </p>
+              </div>
+
+              <Button variant="outline" className="w-full font-black h-14 shadow-2xl flex items-center gap-2 rounded-2xl border-white/10 hover:bg-white/5 text-white" asChild>
                 <Link href="/buy">
-                   <CreditCard className="h-4 w-4" />
-                   Fund Wallet
+                   <CreditCard className="h-5 w-5 text-secondary" />
+                   Provision Liquidity
                 </Link>
               </Button>
             </CardContent>
+          </Card>
+
+          <Card className="rounded-[2rem] p-8 border-dashed border-2 bg-muted/20 space-y-4">
+             <h4 className="font-black text-sm uppercase tracking-tight flex items-center gap-2">
+                <Lock className="h-4 w-4 text-primary" />
+                Non-Custodial Note
+             </h4>
+             <p className="text-[11px] font-medium text-muted-foreground leading-relaxed">
+                CoinVault operates on a non-custodial protocol. Your keys are yours. We provide the institutional-grade interface and AI trading layer, but you maintain 100% control of the cryptographic signing process.
+             </p>
           </Card>
         </div>
       </div>

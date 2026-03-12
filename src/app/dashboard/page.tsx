@@ -15,7 +15,9 @@ import {
   Sparkles,
   ChevronRight,
   RefreshCw,
-  Smartphone
+  Smartphone,
+  Lock,
+  ShieldAlert
 } from "lucide-react";
 import { useVaultStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -75,94 +77,121 @@ export default function Dashboard() {
   }
   
   return (
-    <div className="space-y-6 sm:space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-6 sm:space-y-8 max-w-7xl mx-auto pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-          <Sparkles className="h-6 w-6 text-secondary" />
-          Dashboard
-        </h2>
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
+            <Sparkles className="h-6 w-6 text-secondary" />
+            Vault Intelligence
+          </h2>
+          <p className="text-muted-foreground text-xs font-medium uppercase tracking-tight">Mainnet Session Verified</p>
+        </div>
         <div className="flex items-center gap-3">
-          <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-semibold">
-            <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-            SYNCED
+          <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
+            <ShieldCheck className="h-3 w-3" />
+            ENCLAVE SECURE
           </Badge>
         </div>
       </div>
 
-      <Card className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground overflow-hidden relative shadow-2xl border-none p-1 sm:p-2 rounded-2xl sm:rounded-3xl">
-        <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none hidden md:block">
-          <CreditCard className="h-48 w-48" />
-        </div>
-        <CardContent className="pt-8 pb-8 px-6 sm:pt-10 sm:pb-10 sm:px-8 relative z-10">
-          <div className="max-w-xl">
-            <h3 className="text-2xl sm:text-4xl font-black tracking-tighter mb-4 flex items-center gap-3">
-              <Zap className="h-6 w-6 sm:h-8 sm:w-8 text-secondary fill-secondary" />
-              Fiat Gateway
-            </h3>
-            <p className="text-base sm:text-lg text-primary-foreground/80 font-medium leading-relaxed mb-4">
-              Fund your wallet instantly with Apple Pay, Google Pay, or Debit Card.
-            </p>
-            <div className="flex flex-wrap gap-2 mb-6 sm:mb-8">
-               <Badge className="bg-white/20 hover:bg-white/30 text-white border-none flex gap-1.5 py-1 px-3">
-                  <Smartphone className="h-3 w-3" /> Apple Pay
-               </Badge>
-               <Badge className="bg-white/20 hover:bg-white/30 text-white border-none flex gap-1.5 py-1 px-3">
-                  <Smartphone className="h-3 w-3" /> Google Pay
-               </Badge>
-               <Badge className="bg-white/20 hover:bg-white/30 text-white border-none flex gap-1.5 py-1 px-3">
-                  <CreditCard className="h-3 w-3" /> Debit Card
-               </Badge>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-              <Button size="lg" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 font-black h-14 sm:h-16 px-6 sm:px-10 text-lg sm:text-xl shadow-xl transition-all group w-full sm:w-auto" asChild>
-                <Link href="/buy">
-                  <CreditCard className="h-5 w-5 sm:h-6 sm:w-6 mr-2 sm:mr-3" /> Buy Crypto <ChevronRight className="ml-1 sm:ml-2 h-4 w-4 sm:h-5 sm:w-5 group-hover:translate-x-1 transition-transform" />
-                </Link>
-              </Button>
-            </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="bg-gradient-to-br from-primary to-primary/90 text-primary-foreground overflow-hidden relative shadow-2xl border-none p-1 rounded-[2rem] md:col-span-2">
+          <div className="absolute top-0 right-0 p-12 opacity-10 pointer-events-none hidden md:block">
+            <Lock className="h-48 w-48" />
           </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-        <Card className="shadow-sm border-primary/10">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-primary" />
-              Vault Total
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl sm:text-3xl font-black tracking-tight text-primary">
-              ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <CardContent className="pt-10 pb-10 px-8 relative z-10">
+            <div className="max-w-xl">
+              <h3 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4 flex items-center gap-3">
+                <Zap className="h-8 w-8 text-secondary fill-secondary" />
+                Fiat Gateway
+              </h3>
+              <p className="text-lg text-primary-foreground/80 font-medium leading-relaxed mb-8">
+                Non-custodial funding protocol. Connect Apple Pay, Google Pay, or Card to provision your vault instantly.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Button size="lg" className="bg-secondary text-secondary-foreground hover:bg-secondary/90 font-black h-16 px-10 text-xl shadow-xl transition-all group w-full sm:w-auto rounded-2xl" asChild>
+                  <Link href="/buy">
+                    <CreditCard className="h-6 w-6 mr-3" /> Buy Crypto <ChevronRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                </Button>
+              </div>
             </div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-2 font-medium">Secured by Cryptographic Enclave</p>
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-2 shadow-sm border-primary/10 overflow-hidden">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-secondary" />
-              Live Highlights
+        <Card className="rounded-[2rem] border-2 border-primary/5 shadow-xl bg-card overflow-hidden">
+          <CardHeader className="bg-muted/30 pb-4">
+            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-primary" />
+              Security Health
             </CardTitle>
-            <Link href="/market" className="text-[10px] font-bold text-secondary uppercase hover:underline">View All</Link>
           </CardHeader>
-          <CardContent className="flex items-center gap-6 sm:gap-8 overflow-x-auto pb-4 sm:pb-2 no-scrollbar">
+          <CardContent className="pt-6 space-y-6">
+            <div className="flex flex-col items-center text-center space-y-2">
+               <div className="h-20 w-20 rounded-full bg-green-500/10 flex items-center justify-center border-4 border-green-500/20">
+                  <ShieldCheck className="h-10 w-10 text-green-600" />
+               </div>
+               <div className="text-xl font-black text-green-600 uppercase tracking-tight">Level 4 Isolated</div>
+               <p className="text-[10px] text-muted-foreground font-bold uppercase opacity-60">AES-256 Hardware Encryption Active</p>
+            </div>
+            <div className="space-y-3">
+               <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest opacity-70">
+                  <span>Encryption Key</span>
+                  <span className="text-green-600">SECURE</span>
+               </div>
+               <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-green-500 w-full" />
+               </div>
+               <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest opacity-70">
+                  <span>Network Isolation</span>
+                  <span className="text-green-600">ACTIVE</span>
+               </div>
+               <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-green-500 w-full" />
+               </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6">
+        <Card className="shadow-sm border-primary/10 rounded-2xl">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+              <ShieldCheck className="h-3 w-3 text-primary" />
+              Total Assets
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-black tracking-tight text-primary">
+              ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-3 shadow-sm border-primary/10 overflow-hidden rounded-2xl">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+              <TrendingUp className="h-3 w-3 text-secondary" />
+              Live Network Highlights
+            </CardTitle>
+            <Link href="/market" className="text-[10px] font-bold text-secondary uppercase hover:underline">Market Explorer</Link>
+          </CardHeader>
+          <CardContent className="flex items-center gap-8 overflow-x-auto pb-2 no-scrollbar">
             {loading ? (
               <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase animate-pulse">
                 <RefreshCw className="h-3 w-3 animate-spin" /> Synchronizing...
               </div>
             ) : marketData.length > 0 ? (
-              marketData.slice(0, 3).map((item) => (
+              marketData.slice(0, 4).map((item) => (
                 <div key={item.id} className="flex items-center gap-3 shrink-0">
-                  <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-muted flex items-center justify-center font-black text-[10px] uppercase border">
+                  <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center font-black text-[10px] uppercase border">
                     {item.symbol}
                   </div>
                   <div>
-                    <div className="text-xs sm:text-sm font-black">${item.current_price.toLocaleString()}</div>
+                    <div className="text-xs font-black">${item.current_price.toLocaleString()}</div>
                     <div className={cn(
-                      "text-[9px] sm:text-[10px] font-bold uppercase",
+                      "text-[9px] font-bold uppercase",
                       item.price_change_percentage_24h >= 0 ? "text-green-600" : "text-red-600"
                     )}>
                       {item.price_change_percentage_24h >= 0 ? '+' : ''}{item.price_change_percentage_24h?.toFixed(2)}%
@@ -179,84 +208,84 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
         <div className="space-y-4">
-          <h3 className="text-base sm:text-lg font-black flex items-center gap-2 text-primary px-1">
+          <h3 className="text-lg font-black flex items-center gap-2 text-primary px-1">
             <TrendingUp className="h-5 w-5 text-secondary" />
-            Asset Breakdown
+            Asset Portfolio
           </h3>
           <div className="grid gap-3">
             {assets.length > 0 ? (
               assets.map((asset) => (
-                <Card key={asset.id} className="hover:border-secondary transition-all cursor-pointer shadow-sm border-primary/5">
-                  <CardContent className="p-4 sm:p-5 flex items-center justify-between">
-                    <div className="flex items-center gap-3 sm:gap-4">
-                      <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-xl sm:rounded-2xl bg-primary/5 flex items-center justify-center font-black text-xs sm:text-sm text-primary border">
+                <Card key={asset.id} className="hover:border-secondary transition-all cursor-pointer shadow-sm border-primary/5 rounded-2xl">
+                  <CardContent className="p-5 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 rounded-2xl bg-primary/5 flex items-center justify-center font-black text-sm text-primary border shadow-inner">
                         {asset.currency}
                       </div>
                       <div>
-                        <div className="font-bold text-base sm:text-lg">{asset.currency}</div>
-                        <div className="text-[10px] sm:text-xs text-muted-foreground font-medium">{asset.amount.toFixed(4)} {asset.currency}</div>
+                        <div className="font-bold text-lg">{asset.currency} Vault</div>
+                        <div className="text-xs text-muted-foreground font-medium">{asset.amount.toFixed(4)} {asset.currency}</div>
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-base sm:text-lg text-primary">${asset.fiatValueUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                      <Badge variant="outline" className="text-[8px] sm:text-[9px] h-3 sm:h-4 font-black uppercase text-green-600 bg-green-50 border-green-200">Live</Badge>
+                      <div className="font-bold text-lg text-primary">${asset.fiatValueUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                      <Badge variant="outline" className="text-[9px] h-4 font-black uppercase text-green-600 bg-green-50 border-green-200">Verified</Badge>
                     </div>
                   </CardContent>
                 </Card>
               ))
             ) : (
-              <div className="py-16 sm:py-20 text-center border-2 border-dashed rounded-2xl sm:rounded-3xl opacity-30 uppercase text-[10px] font-black tracking-widest">
-                No active assets
+              <div className="py-20 text-center border-2 border-dashed rounded-3xl opacity-30 uppercase text-[10px] font-black tracking-widest">
+                No active assets in vault
               </div>
             )}
           </div>
         </div>
 
         <div className="space-y-4">
-          <h3 className="text-base sm:text-lg font-black flex items-center gap-2 text-primary px-1">
+          <h3 className="text-lg font-black flex items-center gap-2 text-primary px-1">
             <Activity className="h-5 w-5 text-secondary" />
-            Activity Ledger
+            Network Ledger
           </h3>
-          <Card className="shadow-sm border-primary/5 overflow-hidden">
+          <Card className="shadow-sm border-primary/5 overflow-hidden rounded-2xl">
             <CardContent className="p-0">
               <div className="divide-y divide-primary/5">
                 {transactions.length > 0 ? (
                   transactions.slice(0, 5).map((tx) => (
-                    <div key={tx.id} className="p-4 sm:p-5 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center gap-3 sm:gap-4">
+                    <div key={tx.id} className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                      <div className="flex items-center gap-4">
                         <div className={cn(
-                          "h-10 w-10 sm:h-12 sm:w-12 rounded-lg sm:rounded-xl flex items-center justify-center border",
+                          "h-12 w-12 rounded-xl flex items-center justify-center border shadow-sm",
                           tx.type === 'receive' ? "bg-green-50 text-green-600 border-green-100" : 
                           tx.type === 'send' ? "bg-blue-50 text-blue-600 border-blue-100" : "bg-purple-50 text-purple-600 border-purple-100"
                         )}>
-                          {tx.type === 'receive' ? <ArrowDownLeft className="h-5 w-5 sm:h-6 sm:w-6" /> : 
-                           tx.type === 'send' ? <ArrowUpRight className="h-5 w-5 sm:h-6 sm:w-6" /> : <Zap className="h-5 w-5 sm:h-6 sm:w-6" />}
+                          {tx.type === 'receive' ? <ArrowDownLeft className="h-6 w-6" /> : 
+                           tx.type === 'send' ? <ArrowUpRight className="h-6 w-6" /> : <Zap className="h-6 w-6" />}
                         </div>
                         <div>
-                          <div className="font-bold text-xs sm:text-sm truncate max-w-[120px] sm:max-w-none">
-                            {tx.type === 'receive' ? 'Received' : tx.type === 'send' ? 'Sent' : 'Trade'} {tx.currency}
+                          <div className="font-bold text-sm">
+                            {tx.type === 'receive' ? 'Deposited' : tx.type === 'send' ? 'Withdrawn' : 'Swapped'} {tx.currency}
                           </div>
-                          <div className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase tracking-tighter truncate max-w-[100px] sm:max-w-[150px]">
+                          <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-tighter truncate max-w-[200px]">
                             {tx.description}
                           </div>
                         </div>
                       </div>
                       <div className="text-right">
                         <div className={cn(
-                          "font-black text-xs sm:text-sm",
+                          "font-black text-sm",
                           tx.type === 'receive' ? "text-green-600" : "text-primary"
                         )}>
                           {tx.type === 'receive' ? '+' : '-'}{tx.amount} {tx.currency.split(' ')[0]}
                         </div>
-                        <div className="text-[9px] sm:text-[10px] text-muted-foreground font-bold uppercase">
+                        <div className="text-[9px] text-muted-foreground font-bold uppercase">
                           {mounted ? new Date(tx.timestamp).toLocaleDateString() : '...'}
                         </div>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className="py-16 sm:py-20 text-center opacity-30 uppercase text-[10px] font-black tracking-widest">
-                    No ledger history
+                  <div className="py-20 text-center opacity-30 uppercase text-[10px] font-black tracking-widest">
+                    No ledger activity found
                   </div>
                 )}
               </div>

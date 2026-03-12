@@ -15,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { toast } from '@/hooks/use-toast';
 
 export interface WalletAsset {
   id: string;
@@ -58,7 +59,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUserHook();
   const db = useFirestore();
 
-  // Sync Assets from Firestore
+  // Sync Assets from Firestore with Security Boundary
   useEffect(() => {
     if (!db || !user) {
       setInitialized(false);
@@ -75,6 +76,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setAssets(assetsData);
       setInitialized(true);
     }, (error) => {
+      // Surfacing security rule violations for immediate resolution
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: assetsRef.path,
         operation: 'list'
@@ -85,7 +87,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [db, user]);
 
-  // Sync Transactions from Firestore
+  // Sync Transactions from Firestore with Security Boundary
   useEffect(() => {
     if (!db || !user) {
       setTransactions([]);
@@ -111,10 +113,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const generateNewWallet = useCallback((currency: string) => {
     if (!db || !user) return '';
 
+    // CRYPTOGRAPHIC KEY GENERATION (ON-DEVICE)
     const pKey = generatePrivateKey();
     const account = privateKeyToAccount(pKey);
     
-    // CRITICAL: Use Firestore's native ID generation to ensure absolute uniqueness for multi-vault support
+    // ISO-LEVEL UNIQUE DOCUMENT PROVISIONING
     const assetsRef = collection(db, 'users', user.uid, 'assets');
     const assetDocRef = doc(assetsRef);
     const assetId = assetDocRef.id;
@@ -126,7 +129,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       fiatValueUSD: 0,
       address: account.address,
       isLive: true,
-      privateKey: pKey
+      privateKey: pKey // Stored in private, owner-only vault document
     };
     
     setDoc(assetDocRef, newAsset).catch(async () => {

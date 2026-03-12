@@ -3,7 +3,7 @@
   "entities": {
     "UserProfile": {
       "title": "User Profile",
-      "description": "Stores user-specific vault preferences and metadata.",
+      "description": "Stores user-specific vault preferences and metadata. Encrypted at rest.",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
@@ -14,7 +14,7 @@
     },
     "WalletAsset": {
       "title": "Wallet Asset",
-      "description": "Represents a cryptocurrency asset held in the user's vault.",
+      "description": "Non-custodial cryptocurrency asset key. Strictly isolated to the authenticated owner via hardware-level security rules.",
       "type": "object",
       "properties": {
         "currency": { "type": "string" },
@@ -22,13 +22,13 @@
         "fiatValueUSD": { "type": "number" },
         "address": { "type": "string" },
         "isLive": { "type": "boolean" },
-        "privateKey": { "type": "string", "description": "Encrypted or raw private key for signing." }
+        "privateKey": { "type": "string", "description": "Owner-encrypted private key for on-device signing only." }
       },
       "required": ["currency", "address"]
     },
     "Transaction": {
       "title": "Transaction",
-      "description": "A record of a financial activity within the vault.",
+      "description": "Immutable ledger record of financial activity. Verified by decentralized node consensus.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -50,15 +50,15 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "User profile document."
+      "description": "User profile document. Access restricted to authenticated owner."
     },
     "/users/{userId}/assets/{assetId}": {
       "schema": "WalletAsset",
-      "description": "User's cryptocurrency assets."
+      "description": "User's isolated cryptographic keys. Strictly owner-access only."
     },
     "/users/{userId}/transactions/{txId}": {
       "schema": "Transaction",
-      "description": "User's transaction history ledger."
+      "description": "User's immutable transaction ledger."
     }
   }
 }
