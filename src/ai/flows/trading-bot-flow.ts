@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for the CoinVault AI Trading Bot.
@@ -26,6 +25,7 @@ const TradingBotInputSchema = z.object({
   })),
   marketData: z.array(MarketEntrySchema),
   riskTolerance: z.enum(['low', 'medium', 'high']).default('medium'),
+  allocationLimitUSD: z.number().describe('The maximum amount of USD value the bot is allowed to trade in this session.'),
 });
 export type TradingBotInput = z.infer<typeof TradingBotInputSchema>;
 
@@ -67,10 +67,12 @@ User Assets:
 {{/each}}
 
 Risk Tolerance: {{{riskTolerance}}}
+Trading Allocation Limit: $ {{{allocationLimitUSD}}}
 
 Your goal is to maximize user earnings while minimizing drawdown. 
 Provide a market sentiment, a strategy summary, and specific actions (buy, sell, or hold).
 If you suggest a trade, ensure the user has sufficient balance in the 'fromAsset'.
+Crucially, the total USD value of your 'buy' and 'sell' actions MUST NOT exceed the Allocation Limit of $ {{{allocationLimitUSD}}}.
 Try to rebalance the portfolio towards assets with high positive momentum.
 
 Output the analysis in the specified JSON format.`,

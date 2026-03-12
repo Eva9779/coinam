@@ -4,6 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Bot, 
   Play, 
@@ -17,7 +20,10 @@ import {
   Loader2,
   RefreshCw,
   LineChart,
-  Globe
+  Globe,
+  Settings2,
+  DollarSign,
+  AlertTriangle
 } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { analyzeMarketAndTrade, TradingBotOutput } from '@/ai/flows/trading-bot-flow';
@@ -28,6 +34,8 @@ export default function TradingBotPage() {
   const { assets, initialized, user, updateBalance, addTransaction } = useVaultStore();
   const [isActive, setIsActive] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [allocation, setAllocation] = useState<string>("1000");
+  const [riskLevel, setRiskLevel] = useState<"low" | "medium" | "high">("medium");
   const [logs, setLogs] = useState<{msg: string, type: 'info' | 'success' | 'warning'}[]>([]);
   const [botOutput, setBotOutput] = useState<TradingBotOutput | null>(null);
   const terminalEndRef = useRef<HTMLDivElement>(null);
@@ -65,6 +73,7 @@ export default function TradingBotPage() {
     if (!user || !initialized) return;
     
     setIsAnalyzing(true);
+    addLog(`Protocol Initiation: Strategy ${riskLevel.toUpperCase()} | Budget $${allocation}`, 'info');
     addLog('Establishing Secure Node Connection...', 'info');
     
     try {
@@ -79,7 +88,8 @@ export default function TradingBotPage() {
           fiatValue: a.fiatValueUSD
         })),
         marketData: liveMarket,
-        riskTolerance: 'medium'
+        riskTolerance: riskLevel,
+        allocationLimitUSD: parseFloat(allocation) || 0
       });
 
       setBotOutput(response);
@@ -130,6 +140,14 @@ export default function TradingBotPage() {
 
   const toggleBot = () => {
     if (!isActive) {
+      if (!allocation || parseFloat(allocation) <= 0) {
+        toast({
+          title: "Configuration Error",
+          description: "Please specify a valid trading allocation amount.",
+          variant: "destructive"
+        });
+        return;
+      }
       setIsActive(true);
       addLog('Production Trading Protocol: ACTIVE', 'success');
       runBotCycle();
@@ -212,11 +230,45 @@ export default function TradingBotPage() {
           <Card className="rounded-[2.5rem] shadow-xl border-primary/10 overflow-hidden bg-card/50 backdrop-blur-xl">
             <CardHeader className="bg-primary/5 pb-6">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
-                <Activity className="h-5 w-5 text-secondary" />
-                Network Metrics
+                <Settings2 className="h-5 w-5 text-secondary" />
+                Bot Configuration
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Trading Capital (USD)</Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      type="number" 
+                      placeholder="1000" 
+                      value={allocation}
+                      onChange={(e) => setAllocation(e.target.value)}
+                      disabled={isActive}
+                      className="pl-9 h-12 rounded-xl font-bold text-lg"
+                    />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground font-medium">The maximum USD value the bot can trade per cycle.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Risk Strategy</Label>
+                  <Select value={riskLevel} onValueChange={(v: any) => setRiskLevel(v)} disabled={isActive}>
+                    <SelectTrigger className="h-12 rounded-xl font-bold">
+                      <SelectValue placeholder="Select Strategy" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="low">Conservative (Low Yield / High Safety)</SelectItem>
+                      <SelectItem value="medium">Balanced (Standard AI Protocol)</SelectItem>
+                      <SelectItem value="high">Aggressive (High Frequency / Volatility)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="h-px bg-primary/10 w-full" />
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-5 rounded-[1.5rem] bg-muted/50 border shadow-inner">
                   <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1 tracking-widest">Total Yield</p>
@@ -228,23 +280,6 @@ export default function TradingBotPage() {
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-1">Active Neural Nodes</p>
-                <div className="p-5 rounded-[1.5rem] bg-primary/5 border border-primary/10 space-y-5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold">Exchange Sync</span>
-                    <Badge className="bg-green-500 text-white border-none text-[8px] font-black">STABLE</Badge>
-                  </div>
-                  <div className="h-2 w-full bg-primary/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-primary w-4/5 animate-pulse" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold">Global Latency</span>
-                    <span className="text-xs font-mono font-bold text-secondary">38ms</span>
-                  </div>
-                </div>
-              </div>
-
               <div className="p-6 rounded-[1.5rem] bg-slate-900 text-white space-y-4 relative overflow-hidden">
                 <Zap className="absolute -right-6 -bottom-6 h-28 w-28 opacity-10 text-secondary" />
                 <h4 className="text-sm font-black flex items-center gap-2">
@@ -252,7 +287,7 @@ export default function TradingBotPage() {
                   Live Governance
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  The bot operates on a non-custodial basis. All trades are executed via your vault's private material stored in the isolated hardware enclave.
+                  The bot operates on a non-custodial basis. All trades are restricted by your specified Allocation Limit and Risk Strategy.
                 </p>
               </div>
 
