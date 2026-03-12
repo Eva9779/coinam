@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -17,7 +18,7 @@ import {
 } from "lucide-react";
 
 const navItems = [
-  { name: "Dashboard", href: "/", icon: LayoutDashboard },
+  { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Wallet", href: "/wallet", icon: Wallet },
   { name: "AI Trading Bot", href: "/bot", icon: Bot },
   { name: "Buy Crypto", href: "/buy", icon: CreditCard },

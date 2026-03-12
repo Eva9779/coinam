@@ -34,17 +34,18 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const auth = useAuth();
 
+  const isPublicPage = pathname === '/' || pathname === '/login' || pathname === '/register';
   const isAuthPage = pathname === '/login' || pathname === '/register';
 
   useEffect(() => {
     if (!loading) {
-      if (!user && !isAuthPage) {
+      if (!user && !isPublicPage) {
         router.push('/login');
       } else if (user && isAuthPage) {
-        router.push('/');
+        router.push('/dashboard');
       }
     }
-  }, [user, loading, isAuthPage, router]);
+  }, [user, loading, isPublicPage, isAuthPage, router]);
 
   if (loading) {
     return (
@@ -57,10 +58,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && isAuthPage) {
+  // Handle Public Pages (Landing, Login, Register)
+  if (isPublicPage) {
     return <>{children}</>;
   }
 
+  // Fallback for private pages without user
   if (!user) {
     return null;
   }
@@ -96,9 +99,7 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
         if (block) {
           setBlockHeight(block.toString());
         }
-      } catch (e) {
-        // Silently handle sync errors
-      }
+      } catch (e) {}
     }
     syncNetwork();
     const interval = setInterval(syncNetwork, 12000); 
@@ -109,10 +110,10 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
     <>
       <aside className="w-64 border-r bg-card flex flex-col hidden lg:flex">
         <div className="h-16 flex items-center px-6 border-b">
-          <div className="flex items-center gap-2 text-primary font-bold text-xl">
+          <Link href="/" className="flex items-center gap-2 text-primary font-bold text-xl hover:opacity-80 transition-opacity">
             <ShieldCheck className="h-8 w-8 text-secondary" />
             <span>CoinVault</span>
-          </div>
+          </Link>
         </div>
         <SidebarNav />
         <div className="mt-auto p-4">
@@ -162,12 +163,8 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
 
           <div className="flex items-center gap-4 flex-1 overflow-hidden">
             <Badge variant="outline" className="text-[9px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden sm:flex whitespace-nowrap">
-              v1.4.2 - AI-ENABLED
+              v1.6.0 - AI-ENABLED
             </Badge>
-            <div className="hidden xl:flex items-center gap-2 px-3 py-1 rounded-full border bg-primary/5 border-primary/10 truncate">
-              <span className="text-[9px] font-bold text-muted-foreground uppercase">VAULT ID:</span>
-              <span className="text-[9px] font-mono font-bold text-primary truncate">{userId}</span>
-            </div>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
@@ -211,6 +208,8 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
   );
 }
 
+import Link from 'next/link';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -222,9 +221,9 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-        <title>CoinVault | Asset Security</title>
+        <title>CoinVault | Institutional AI Asset Security</title>
       </head>
-      <body className="font-body antialiased bg-background text-foreground overflow-hidden">
+      <body className="font-body antialiased bg-background text-foreground overflow-x-hidden">
         <FirebaseClientProvider>
           <VaultProvider>
             <AuthGuard>
