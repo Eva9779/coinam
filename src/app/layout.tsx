@@ -34,7 +34,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const auth = useAuth();
 
-  const isPublicPage = pathname === '/' || pathname === '/login' || pathname === '/register';
+  const isPublicPage = pathname === '/' || pathname === '/login' || pathname === '/register' || pathname === '/market';
   const isAuthPage = pathname === '/login' || pathname === '/register';
 
   useEffect(() => {
@@ -58,29 +58,29 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Handle Public Pages (Landing, Login, Register)
-  if (isPublicPage) {
+  // Handle Public Pages (Landing, Login, Register, Market)
+  if (isPublicPage && !user) {
     return <>{children}</>;
   }
 
-  // Fallback for private pages without user
-  if (!user) {
-    return null;
+  // If user is logged in, show the app shell for all pages (even public ones like landing/market)
+  if (user) {
+    const handleSignOut = () => {
+      firebaseSignOut(auth).then(() => {
+        router.push('/login');
+      });
+    };
+
+    return (
+      <div className="flex h-screen overflow-hidden">
+        <AppContent onSignOut={handleSignOut} userEmail={user.email || 'User'} userId={user.uid}>
+          {children}
+        </AppContent>
+      </div>
+    );
   }
 
-  const handleSignOut = () => {
-    firebaseSignOut(auth).then(() => {
-      router.push('/login');
-    });
-  };
-
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <AppContent onSignOut={handleSignOut} userEmail={user.email || 'User'} userId={user.uid}>
-        {children}
-      </AppContent>
-    </div>
-  );
+  return null;
 }
 
 function AppContent({ children, onSignOut, userEmail, userId }: { children: React.ReactNode, onSignOut: () => void, userEmail: string, userId: string }) {
