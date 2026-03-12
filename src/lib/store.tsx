@@ -173,6 +173,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const updateBalance = (currency: string, amountChange: number, fiatPrice: number) => {
     if (!db || !user) return;
 
+    // Use current assets to find the target asset for updates
     const asset = assets.find(a => a.currency === currency);
     if (!asset) return;
 
