@@ -62,7 +62,7 @@ export default function Dashboard() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-center">Synchronizing Vault Session...</p>
+        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-center">Synchronizing Production Vault...</p>
       </div>
     );
   }
@@ -150,7 +150,7 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
               <ShieldCheck className="h-3 w-3 text-primary" />
-              Total Assets
+              Vault Assets
             </CardTitle>
           </CardHeader>
           <CardContent>
