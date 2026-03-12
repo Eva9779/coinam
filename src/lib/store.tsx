@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -59,7 +58,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUserHook();
   const db = useFirestore();
 
-  // Sync Assets from Firestore with Security Boundary
   useEffect(() => {
     if (!db || !user) {
       setInitialized(false);
@@ -76,7 +74,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setAssets(assetsData);
       setInitialized(true);
     }, (error) => {
-      // Surfacing security rule violations for immediate resolution
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: assetsRef.path,
         operation: 'list'
@@ -87,7 +84,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [db, user]);
 
-  // Sync Transactions from Firestore with Security Boundary
   useEffect(() => {
     if (!db || !user) {
       setTransactions([]);
@@ -113,11 +109,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const generateNewWallet = useCallback((currency: string) => {
     if (!db || !user) return '';
 
-    // CRYPTOGRAPHIC KEY GENERATION (ON-DEVICE)
     const pKey = generatePrivateKey();
     const account = privateKeyToAccount(pKey);
     
-    // ISO-LEVEL UNIQUE DOCUMENT PROVISIONING
     const assetsRef = collection(db, 'users', user.uid, 'assets');
     const assetDocRef = doc(assetsRef);
     const assetId = assetDocRef.id;
@@ -129,7 +123,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       fiatValueUSD: 0,
       address: account.address,
       isLive: true,
-      privateKey: pKey // Stored in private, owner-only vault document
+      privateKey: pKey
     };
     
     setDoc(assetDocRef, newAsset).catch(async () => {
@@ -143,7 +137,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return account.address;
   }, [db, user]);
 
-  // Persistent Auto-provisioning logic for first-time users
   useEffect(() => {
     if (initialized && user && assets.length === 0 && !isProvisioning.current) {
       isProvisioning.current = true;
@@ -152,7 +145,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           generateNewWallet('ETH');
         }
         isProvisioning.current = false;
-      }, 2000);
+      }, 500);
       return () => clearTimeout(timer);
     }
   }, [initialized, user, assets.length, generateNewWallet]);

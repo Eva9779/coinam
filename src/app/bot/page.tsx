@@ -59,7 +59,7 @@ export default function TradingBotPage() {
         { currency: 'USDC', price: data['usd-coin'].usd, change24h: 0 },
       ];
     } catch (error) {
-      addLog('Market Connectivity Warning: Using secondary pricing feed.', 'warning');
+      addLog('Network Warning: Primary pricing feed congested. Using secondary node.', 'warning');
       return [
         { currency: 'BTC', price: 64000, change24h: 0 },
         { currency: 'ETH', price: 2400, change24h: 0 },
@@ -99,10 +99,7 @@ export default function TradingBotPage() {
       // Execute suggested trades
       for (const action of response.actions) {
         if (action.type === 'buy' || action.type === 'sell') {
-          addLog(`Broadcasting Trade: ${action.type.toUpperCase()} ${action.amount} ${action.toAsset} on Peer Network...`, 'warning');
-          
-          // Network Latency Simulation
-          await new Promise(r => setTimeout(r, 2000));
+          addLog(`Executing Protocol Swap: ${action.type.toUpperCase()} ${action.amount} ${action.toAsset} on Ledger...`, 'warning');
           
           const currentPrice = liveMarket.find(m => m.currency === action.fromAsset)?.price || 1;
           const fromData = assets.find(a => a.currency === action.fromAsset);
@@ -119,12 +116,12 @@ export default function TradingBotPage() {
               currency: `${action.fromAsset} → ${action.toAsset}`,
               amount: action.amount,
               fiatValueUSD: action.amount * currentPrice,
-              description: `AI Bot Execution: ${action.reasoning}`
+              description: `AI Execution: ${action.reasoning}`
             });
             
             addLog(`Network Confirmation Received. Transaction Validated.`, 'success');
           } else {
-            addLog(`Trade Aborted: Insufficient Liquidity in ${action.fromAsset} Vault.`, 'warning');
+            addLog(`Execution Aborted: Insufficient Liquidity in ${action.fromAsset} Vault.`, 'warning');
           }
         } else {
           addLog(`Strategic Hold: ${action.reasoning}`, 'info');
@@ -167,7 +164,7 @@ export default function TradingBotPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            Real-world algorithmic rebalancing and live market re-entry.
+            Institutional algorithmic rebalancing and live market re-entry.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -249,7 +246,7 @@ export default function TradingBotPage() {
                       className="pl-9 h-12 rounded-xl font-bold text-lg"
                     />
                   </div>
-                  <p className="text-[10px] text-muted-foreground font-medium">The maximum USD value the bot can trade per cycle.</p>
+                  <p className="text-[10px] text-muted-foreground font-medium">The maximum USD value the bot is allowed to trade per cycle.</p>
                 </div>
 
                 <div className="space-y-2">

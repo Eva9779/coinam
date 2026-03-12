@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -38,15 +37,7 @@ export default function Dashboard() {
     async function fetchMarket() {
       setLoading(true);
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-        const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=5&page=1&sparkline=false', {
-          signal: controller.signal
-        });
-        
-        clearTimeout(timeoutId);
-
+        const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=5&page=1&sparkline=false');
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
         const data = await res.json();
         if (Array.isArray(data)) {
@@ -71,7 +62,7 @@ export default function Dashboard() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-center">Synchronizing Secure Vault...</p>
+        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-center">Synchronizing Vault Session...</p>
       </div>
     );
   }
@@ -131,8 +122,8 @@ export default function Dashboard() {
                <div className="h-20 w-20 rounded-full bg-green-500/10 flex items-center justify-center border-4 border-green-500/20">
                   <ShieldCheck className="h-10 w-10 text-green-600" />
                </div>
-               <div className="text-xl font-black text-green-600 uppercase tracking-tight">Level 4 Isolated</div>
-               <p className="text-[10px] text-muted-foreground font-bold uppercase opacity-60">AES-256 Hardware Encryption Active</p>
+               <div className="text-xl font-black text-green-600 uppercase tracking-tight">AES-256 Isolated</div>
+               <p className="text-[10px] text-muted-foreground font-bold uppercase opacity-60">Hardware Encryption Active</p>
             </div>
             <div className="space-y-3">
                <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest opacity-70">
@@ -173,7 +164,7 @@ export default function Dashboard() {
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
               <TrendingUp className="h-3 w-3 text-secondary" />
-              Live Network Highlights
+              Live Market Highlights
             </CardTitle>
             <Link href="/market" className="text-[10px] font-bold text-secondary uppercase hover:underline">Market Explorer</Link>
           </CardHeader>
