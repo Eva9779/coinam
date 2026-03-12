@@ -1,4 +1,3 @@
-
 'use client';
 
 import './globals.css';
@@ -27,6 +26,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import Link from 'next/link';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useUserHook();
@@ -163,7 +163,7 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
 
           <div className="flex items-center gap-4 flex-1 overflow-hidden">
             <Badge variant="outline" className="text-[9px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden sm:flex whitespace-nowrap">
-              v1.6.0 - AI-ENABLED
+              v1.9.3 - AI-ENABLED
             </Badge>
           </div>
 
@@ -208,8 +208,6 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
   );
 }
 
-import Link from 'next/link';
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -218,6 +216,8 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta name="google-site-verification" content="REPLACE_WITH_YOUR_ACTUAL_CODE_FROM_SEARCH_CONSOLE" />
+        <meta name="description" content="CoinVault | Secure your digital legacy with institutional AI-powered non-custodial asset security." />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
