@@ -216,7 +216,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <meta name="google-site-verification" content="REPLACE_WITH_YOUR_ACTUAL_CODE_FROM_SEARCH_CONSOLE" />
+        <meta name="google-site-verification" content="vZEW1q5YcuccPg3pDH34xDYx09DGHlz3fbn4okapBTA" />
         <meta name="description" content="CoinVault | Secure your digital legacy with institutional AI-powered non-custodial asset security." />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
