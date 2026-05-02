@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/tooltip";
 
 // Institutional Stripe Publishable Key
-const stripeOnrampPromise = loadStripeOnramp("pk_test_51SxgIgEvvi2LpIks9xqfmbDkO0pPjwuYsJgxXBT4GjrFiawOU6j2hHCyEONRPKzGJJ0eea0H8bIFyh1GWmQUKoYM00cCzELCYk");
+const stripeOnrampPromise = loadStripeOnramp("pk_live_51SxgIgEvvi2LpIks4TBzOf2rLTJpKWE5Poq8EzDf3cTM7bKepsZoNk2AUvf1TMN3Br0das4LW2kHHfqlIvBL548i009kh8Iz7t");
 
 export default function BuyCryptoPage() {
   const { assets, initialized } = useVaultStore();
