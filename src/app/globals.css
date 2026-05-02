@@ -63,3 +63,17 @@
     @apply bg-background text-foreground font-body;
   }
 }
+
+/* Stripe Onramp Specific Styles */
+#onramp-message {
+  color: rgb(105, 115, 134);
+  font-size: 16px;
+  line-height: 20px;
+  padding-top: 12px;
+  text-align: center;
+}
+
+#onramp-element {
+  min-width: min(450px, 60vw);
+  margin-bottom: 24px;
+}

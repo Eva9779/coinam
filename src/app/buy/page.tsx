@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -63,7 +64,7 @@ export default function BuyCryptoPage() {
       } else {
         toast({
           title: "Gateway Connection Error",
-          description: error || "Failed to initialize Stripe session. Use fallback bridge if necessary.",
+          description: error || "Failed to initialize Stripe session.",
           variant: "destructive"
         });
       }
@@ -188,22 +189,23 @@ export default function BuyCryptoPage() {
 
           <div className="min-h-[500px] border-2 border-dashed border-primary/10 rounded-3xl p-4 bg-muted/5 flex flex-col items-center justify-center">
             {clientSecret ? (
-              <div className="w-full h-full">
+              <div className="w-full h-full flex flex-col items-center">
                 <p className="text-center text-[10px] font-black text-primary mb-6 uppercase tracking-widest animate-pulse">
                   Stripe Secure Enclave Initialized
                 </p>
                 <CryptoElements stripeOnramp={stripeOnrampPromise}>
                   <OnrampElement
+                    id="onramp-element"
                     clientSecret={clientSecret}
                     appearance={{ theme: "light" }}
                     onChange={onOnrampSessionChange}
-                    className="w-full min-h-[500px]"
+                    className="w-full"
                   />
                 </CryptoElements>
                 {onrampMessage && (
-                   <p className="text-center text-[10px] font-bold text-muted-foreground mt-4 uppercase">
+                   <div id="onramp-message">
                      {onrampMessage}
-                   </p>
+                   </div>
                 )}
               </div>
             ) : isInitializing ? (
