@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,12 +24,64 @@ import {
   Settings2,
   DollarSign,
   AlertTriangle,
-  ArrowUpRight
+  ArrowUpRight,
+  BarChart3,
+  Monitor
 } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { analyzeMarketAndTrade, TradingBotOutput } from '@/ai/flows/trading-bot-flow';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+
+// Institutional Bot Chart Component
+const BotTradingChart = memo(({ symbol }: { symbol: string }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    containerRef.current.innerHTML = ''; 
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+    script.type = "text/javascript";
+    script.async = true;
+    
+    const config = {
+      autosize: true,
+      symbol: `BINANCE:${symbol}USDT`,
+      interval: "1",
+      timezone: "Etc/UTC",
+      theme: "dark",
+      style: "1",
+      locale: "en",
+      enable_publishing: false,
+      hide_top_toolbar: false,
+      hide_legend: false,
+      save_image: false,
+      backgroundColor: "rgba(2, 6, 23, 1)",
+      gridColor: "rgba(30, 41, 59, 0.5)",
+      container_id: "tradingview_bot_chart",
+    };
+
+    script.innerHTML = JSON.stringify(config);
+    containerRef.current.appendChild(script);
+  }, [symbol]);
+
+  return (
+    <div className="w-full h-full min-h-[400px] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl bg-[#020617]">
+      <div 
+        id="tradingview_bot_chart"
+        ref={containerRef} 
+        className="tradingview-widget-container" 
+        style={{ height: "100%", width: "100%" }}
+      >
+        <div className="tradingview-widget-container__widget" style={{ height: "100%", width: "100%" }}></div>
+      </div>
+    </div>
+  );
+});
+
+BotTradingChart.displayName = "BotTradingChart";
 
 export default function TradingBotPage() {
   const { assets, initialized, user, updateBalance, addTransaction } = useVaultStore();
@@ -40,6 +92,7 @@ export default function TradingBotPage() {
   const [logs, setLogs] = useState<{msg: string, type: 'info' | 'success' | 'warning'}[]>([]);
   const [botOutput, setBotOutput] = useState<TradingBotOutput | null>(null);
   const [sessionEarnings, setSessionEarnings] = useState<number>(0);
+  const [chartSymbol, setChartSymbol] = useState("BTC");
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
   const addLog = (msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
@@ -98,9 +151,14 @@ export default function TradingBotPage() {
       addLog(`AI Strategy Formulated: ${response.strategy}`, 'success');
       addLog(`Sentiment: ${response.marketSentiment.toUpperCase()} | confidence: ${response.confidenceScore}%`, 'info');
 
+      // Shift chart to the asset the bot is focusing on
+      if (response.actions.length > 0) {
+        const topAction = response.actions.find(a => a.type !== 'hold');
+        if (topAction) setChartSymbol(topAction.toAsset);
+      }
+
       let sessionProfit = 0;
 
-      // Execute suggested trades directly on the production vault
       for (const action of response.actions) {
         if (action.type === 'buy' || action.type === 'sell') {
           addLog(`Executing Asset Rebalance: ${action.type.toUpperCase()} ${action.amount} ${action.fromAsset} → ${action.toAsset}`, 'warning');
@@ -116,11 +174,9 @@ export default function TradingBotPage() {
           if (fromData && fromData.amount >= action.amount) {
             const receiveAmount = action.amount * (fromPrice / toPrice);
             
-            // Persist income directly to user's production wallet
             updateBalance(action.fromAsset, -action.amount, fromPrice);
             updateBalance(action.toAsset, receiveAmount, toPrice);
             
-            // Record immutable ledger entry
             addTransaction({
               type: 'trade',
               currency: `${action.fromAsset} → ${action.toAsset}`,
@@ -129,7 +185,6 @@ export default function TradingBotPage() {
               description: `AI Income Generation: ${action.reasoning}`
             });
             
-            // Capture session yield for UI feedback
             const tradeGain = (action.amount * fromPrice) * 0.001; 
             sessionProfit += tradeGain;
             
@@ -181,7 +236,7 @@ export default function TradingBotPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            Institutional algorithmic rebalancing and live market re-entry.
+            Institutional algorithmic rebalancing and live market intelligence.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -205,7 +260,19 @@ export default function TradingBotPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <Card className="bg-slate-950 text-slate-50 border-none shadow-2xl rounded-[2.5rem] overflow-hidden min-h-[550px] flex flex-col">
+          {/* Live Market Chart - New Feature */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between px-2">
+              <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-secondary" />
+                Market Intelligence Feed: {chartSymbol}/USDT
+              </h3>
+              <Badge variant="secondary" className="bg-primary/5 text-primary border border-primary/10">REAL-TIME SYNC</Badge>
+            </div>
+            <BotTradingChart symbol={chartSymbol} />
+          </div>
+
+          <Card className="bg-slate-950 text-slate-50 border-none shadow-2xl rounded-[2.5rem] overflow-hidden min-h-[400px] flex flex-col">
             <CardHeader className="border-b border-white/10 flex flex-row items-center justify-between px-8 py-6">
               <div className="flex items-center gap-3">
                 <Terminal className="h-5 w-5 text-secondary" />
@@ -218,7 +285,7 @@ export default function TradingBotPage() {
                 </div>
               )}
             </CardHeader>
-            <CardContent className="flex-1 overflow-y-auto p-8 font-mono text-xs space-y-3 no-scrollbar max-h-[500px]">
+            <CardContent className="flex-1 overflow-y-auto p-8 font-mono text-xs space-y-3 no-scrollbar max-h-[400px]">
               {logs.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center opacity-20 text-center space-y-6 py-20">
                   <Activity className="h-16 w-16" />
