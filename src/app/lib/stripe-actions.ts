@@ -1,3 +1,4 @@
+
 'use server';
 
 import Stripe from 'stripe';
@@ -8,24 +9,21 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_51SxgIgEvvi2
 
 /**
  * Creates a Stripe Onramp Session following the provided Sinatra logic.
- * Primarily used for "Buy" operations.
  */
-export async function createOnrampSession(walletAddress: string, amount?: number, currency: string = 'eth') {
+export async function createOnrampSession(walletAddress: string, amount: string = '13.37', currency: string = 'usdc') {
   try {
     if (!walletAddress || !walletAddress.startsWith('0x')) {
       throw new Error('Invalid vault address.');
     }
 
-    // Following the provided Ruby logic: Create an OnrampSession with transaction details
+    // Creating the session using the Stripe SDK
     const session = await stripe.crypto.onrampSessions.create({
       wallet_addresses: {
         ethereum: walletAddress,
       },
       transaction_details: {
-        supported_destination_currencies: [currency.toLowerCase()],
-        supported_destination_networks: ['ethereum'],
         destination_currency: currency.toLowerCase(),
-        destination_exchange_amount: amount ? amount.toString() : undefined,
+        destination_exchange_amount: amount,
         destination_network: 'ethereum',
       },
     });
@@ -41,13 +39,9 @@ export async function createOnrampSession(walletAddress: string, amount?: number
 
 /**
  * Creates a Stripe Offramp/Withdrawal session.
- * Used for "Sell" and "Withdraw" operations.
  */
 export async function createWithdrawalSession(walletAddress: string, amount: number, currency: string) {
   try {
-    // Note: Stripe currently uses the same Crypto Onramp SDK for many "Buy" flows.
-    // For Sell/Withdrawal, we initiate a session that handles the fiat-to-bank transfer.
-    // If the specific offramp API is restricted, we fallback to the institutional crypto.link.com gateway.
     const session = await stripe.crypto.onrampSessions.create({
       wallet_addresses: {
         ethereum: walletAddress,
