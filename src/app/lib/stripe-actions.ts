@@ -3,12 +3,13 @@
 import Stripe from 'stripe';
 import { headers } from 'next/headers';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_51SxgIgEvvi2LpIksCNVRvrBhBdhgoUlK2fbeKd7iqGnUZM4X8PibwbLtFfOAs4xr23OI2PI6kM37hSjAZJepNBRU00CrTy633V', {
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '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', {
   apiVersion: '2024-12-18.acacia' as any,
 });
 
 /**
- * Creates a Stripe Onramp Session following the Sinatra logic exactly.
+ * Creates a Stripe Onramp Session following the provided Sinatra logic exactly.
+ * Now using the Live Production Key provided by the user.
  */
 export async function createOnrampSession(walletAddress: string, amount: string = '13.37', currency: string = 'usdc') {
   try {
@@ -21,6 +22,7 @@ export async function createOnrampSession(walletAddress: string, amount: string 
     if (cur === 'sol') network = 'solana';
     if (cur === 'btc') network = 'ethereum'; // Fallback for unsupported test networks
 
+    // Matching the Sinatra raw_request structure precisely
     const response: any = await stripe.rawRequest('POST', '/v1/crypto/onramp_sessions', {
       transaction_details: {
         destination_currency: cur,
@@ -34,7 +36,6 @@ export async function createOnrampSession(walletAddress: string, amount: string 
     });
 
     // Node.js SDK rawRequest returns { data: { ... }, headers: { ... }, status: 200 }
-    // We must access .data to get the onramp_session object
     const onrampSession = response.data;
 
     if (!onrampSession || !onrampSession.client_secret) {
