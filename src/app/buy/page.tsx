@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -6,14 +5,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShieldCheck, CreditCard, Loader2, ArrowLeft, Zap, ExternalLink, Smartphone, Info, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, CreditCard, Loader2, ArrowLeft, Zap, Info, ShieldAlert } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
 import { createOnrampSession } from '@/app/lib/stripe-actions';
 import { loadStripeOnramp } from "@stripe/crypto";
+import { CryptoElements, OnrampElement } from "@/components/stripe/crypto-elements";
 import {
   Tooltip,
   TooltipContent,
@@ -28,7 +27,7 @@ export default function BuyCryptoPage() {
   const { assets, initialized } = useVaultStore();
   const [selectedAsset, setSelectedAsset] = useState<string>('');
   const [clientSecret, setClientSecret] = useState<string>('');
-  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
   const [isHttps, setIsHttps] = useState(true);
   const [onrampMessage, setOnrampMessage] = useState("");
 
@@ -48,31 +47,30 @@ export default function BuyCryptoPage() {
     const asset = assets.find(a => a.currency === selectedAsset);
     if (!asset || !asset.address) return;
 
-    setIsRedirecting(true);
+    setIsInitializing(true);
     setClientSecret('');
     
     try {
+      // Amount and currency parameters matching the Sinatra logic requirement
       const { clientSecret: secret, error } = await createOnrampSession(asset.address, '13.37', selectedAsset);
       
       if (secret) {
         setClientSecret(secret);
         toast({
-          title: "Stripe Onramp Ready",
-          description: "Stripe secure terminal initialized.",
+          title: "Stripe Terminal Active",
+          description: "Embedded onramp session initialized.",
         });
       } else {
         toast({
           title: "Gateway Connection Error",
-          description: error || "Failed to initialize Stripe session. Using fallback bridge...",
+          description: error || "Failed to initialize Stripe session. Use fallback bridge if necessary.",
           variant: "destructive"
         });
-        // Fallback bridge link
-        window.open(`https://crypto.link.com/buy?wallet=${asset.address}&asset=${selectedAsset.toLowerCase()}`, '_blank');
       }
     } catch (e) {
       console.error(e);
     } finally {
-      setIsRedirecting(false);
+      setIsInitializing(false);
     }
   }, [selectedAsset, assets]);
 
@@ -101,9 +99,6 @@ export default function BuyCryptoPage() {
     );
   }
 
-  const asset = assets.find(a => a.currency === selectedAsset);
-  const isLinkReady = !!asset && !!asset.address;
-
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       <div className="flex items-center justify-between">
@@ -118,12 +113,12 @@ export default function BuyCryptoPage() {
               <CreditCard className="h-8 w-8 text-secondary" />
               Fiat Gateway
             </h2>
-            <p className="text-muted-foreground text-sm font-medium">Stripe Crypto Onramp & Institutional Provisioning.</p>
+            <p className="text-muted-foreground text-sm font-medium">Embedded Stripe Crypto Onramp & Institutional Bridge.</p>
           </div>
         </div>
         <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
           <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-          Gateway Active v2.0.0
+          Gateway Active v2.0.1
         </Badge>
       </div>
 
@@ -133,8 +128,8 @@ export default function BuyCryptoPage() {
           <div className="text-sm">
             <span className="font-black text-amber-700 block mb-1 uppercase tracking-tight text-xs">Security Requirement</span>
             <p className="leading-relaxed font-medium">
-              Stripe and Native Pay require a **Production HTTPS** connection. 
-              <strong> Please visit your verified production URL to activate full gateway features.</strong>
+              Stripe Crypto Elements require a **Production HTTPS** connection. 
+              <strong> Please visit your verified production URL to activate embedded terminal features.</strong>
             </p>
           </div>
         </div>
@@ -145,7 +140,7 @@ export default function BuyCryptoPage() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-2xl font-black tracking-tight">Stripe Provisioning</CardTitle>
-              <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Direct Stripe Crypto Onramp</CardDescription>
+              <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Embedded Secure Element</CardDescription>
             </div>
             <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center border shadow-inner">
               <ShieldCheck className="h-7 w-7 text-primary" />
@@ -165,7 +160,7 @@ export default function BuyCryptoPage() {
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs p-4 bg-primary text-white border-none rounded-xl shadow-2xl">
                     <p className="text-xs leading-relaxed font-medium">
-                      CoinVault integrates with Stripe to provide secure, direct funding to your non-custodial address using your existing payment methods.
+                      CoinVault utilizes Stripe Crypto Elements to provide a bank-grade, non-custodial funding experience directly to your verified address.
                     </p>
                   </TooltipContent>
                 </Tooltip>
@@ -191,26 +186,27 @@ export default function BuyCryptoPage() {
             </Select>
           </div>
 
-          {/* Stripe Embedded Terminal */}
-          <div className="min-h-[400px] border-2 border-dashed border-primary/10 rounded-3xl flex flex-col items-center justify-center p-4 bg-muted/5">
+          <div className="min-h-[500px] border-2 border-dashed border-primary/10 rounded-3xl p-4 bg-muted/5 flex flex-col items-center justify-center">
             {clientSecret ? (
-              <div className="w-full">
-                {/* 
-                   Normally we'd use StripeCryptoElements.OnrampElement here.
-                   Since we are integrating with the provided SDK pattern:
-                */}
-                <div id="stripe-onramp-container" className="w-full h-full min-h-[500px]">
-                   <p className="text-center text-xs font-bold text-primary mb-4 animate-pulse uppercase">Stripe Secure Session Active</p>
-                   {/* Fallback to hosted redirect for maximum reliability across browsers */}
-                   <Button 
-                      className="w-full h-16 text-lg font-black bg-primary text-white" 
-                      onClick={() => window.open(`https://buy.stripe.com/crypto-onramp?client_secret=${clientSecret}`, '_blank')}
-                   >
-                     Launch Stripe Terminal
-                   </Button>
-                </div>
+              <div className="w-full h-full">
+                <p className="text-center text-[10px] font-black text-primary mb-6 uppercase tracking-widest animate-pulse">
+                  Stripe Secure Enclave Initialized
+                </p>
+                <CryptoElements stripeOnramp={stripeOnrampPromise}>
+                  <OnrampElement
+                    clientSecret={clientSecret}
+                    appearance={{ theme: "light" }}
+                    onChange={onOnrampSessionChange}
+                    className="w-full min-h-[500px]"
+                  />
+                </CryptoElements>
+                {onrampMessage && (
+                   <p className="text-center text-[10px] font-bold text-muted-foreground mt-4 uppercase">
+                     {onrampMessage}
+                   </p>
+                )}
               </div>
-            ) : isRedirecting ? (
+            ) : isInitializing ? (
               <div className="flex flex-col items-center gap-4">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Initializing Secure Stripe Connection...</p>
@@ -241,7 +237,7 @@ export default function BuyCryptoPage() {
                <span className="font-black text-lg italic tracking-tighter">GooglePay</span>
             </div>
             <p className="text-center text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] opacity-60">
-              Secure Stripe Bridge | v2.0.0
+              Secure Stripe Elements | v2.0.1
             </p>
           </div>
         </CardContent>
