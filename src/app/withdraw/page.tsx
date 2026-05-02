@@ -24,14 +24,14 @@ export default function WithdrawPage() {
   const getOfframpUrl = () => {
     const asset = assets.find(a => a.currency === selectedAsset);
     if (!asset || !asset.address) return '#';
-    // Link to a high-availability off-ramp provider (Stripe/Coinbase style)
-    return `https://crypto.link.com/sell?wallet=${asset.address}&destination=bank&asset=${selectedAsset.toLowerCase()}`;
+    // Institutional off-ramp provider crypto.link.com
+    return `https://crypto.link.com/sell?wallet=${asset.address}&asset=${selectedAsset.toLowerCase()}`;
   };
 
   const handleWithdrawClick = () => {
     toast({
       title: "Bank Bridge Initialized",
-      description: "Redirecting to secure fiat off-ramp gateway...",
+      description: "Redirecting to secure crypto.link.com off-ramp gateway...",
     });
   };
 
@@ -60,7 +60,7 @@ export default function WithdrawPage() {
             <Banknote className="h-8 w-8 text-secondary" />
             Fiat Off-Ramp
           </h2>
-          <p className="text-muted-foreground text-sm font-medium">Liquidate assets directly to your US Bank Account or Debit Card.</p>
+          <p className="text-muted-foreground text-sm font-medium">Liquidate assets directly to your Bank Account via crypto.link.com.</p>
         </div>
       </div>
 
@@ -68,7 +68,7 @@ export default function WithdrawPage() {
         <Card className="md:col-span-2 shadow-2xl border-primary/10 bg-card/50 backdrop-blur-xl overflow-hidden rounded-3xl">
           <CardHeader className="border-b bg-muted/20 pb-8">
             <CardTitle className="text-2xl font-bold tracking-tight">Withdrawal Settings</CardTitle>
-            <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Direct Bank Bridge</CardDescription>
+            <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Institutional Bank Bridge</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8 pt-8">
             <div className="space-y-4">
@@ -99,7 +99,7 @@ export default function WithdrawPage() {
               </div>
               <div className="text-sm leading-relaxed">
                 <span className="font-bold text-secondary block mb-1 text-base">KYC Requirement</span>
-                To comply with US Financial Regulations, bank withdrawals require a one-time identity verification (KYC) via the secure gateway.
+                To comply with Financial Regulations, bank withdrawals are settled through our partner gateway, crypto.link.com.
               </div>
             </div>
 
@@ -175,7 +175,7 @@ export default function WithdrawPage() {
               Card Payouts
             </h3>
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Visa Direct and Mastercard Send are supported for eligible US Debit cards. Funds usually arrive in under 30 minutes.
+              Direct card settlements are handled securely by crypto.link.com. Funds usually arrive in under 30 minutes.
             </p>
           </Card>
         </div>

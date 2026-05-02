@@ -76,16 +76,16 @@ export default function BuyCryptoPage() {
 
     setIsRedirecting(true);
     
-    const methodParam = method === 'apple-pay' ? 'applepay' : method === 'google-pay' ? 'googlepay' : 'creditcard';
-    const onramperUrl = `https://buy.onramper.com/?defaultCrypto=${selectedAsset.toLowerCase()}&destinationWallet=${asset.address}&isAddressEditable=false&themeName=light&defaultPaymentMethod=${methodParam}&allPayments=true`;
+    // Updated to use institutional crypto.link.com gateway
+    const gatewayUrl = `https://crypto.link.com/buy?wallet=${asset.address}&asset=${selectedAsset.toLowerCase()}&method=${method}`;
 
     toast({
       title: `${method.toUpperCase().replace('-', ' ')} Gateway`,
-      description: `Initializing secure bridge...`,
+      description: `Initializing secure bridge to crypto.link.com...`,
     });
 
     setTimeout(() => {
-      window.open(onramperUrl, '_blank', 'noopener,noreferrer');
+      window.open(gatewayUrl, '_blank', 'noopener,noreferrer');
       setIsRedirecting(false);
     }, 400);
   };
@@ -116,12 +116,12 @@ export default function BuyCryptoPage() {
               <CreditCard className="h-8 w-8 text-secondary" />
               Fiat Gateway
             </h2>
-            <p className="text-muted-foreground text-sm font-medium">Institutional Apple & Google Pay Provisioning Protocol.</p>
+            <p className="text-muted-foreground text-sm font-medium">Institutional Gateway Provisioning Protocol.</p>
           </div>
         </div>
         <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
           <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-          Network Bridge v1.8.0
+          Network Bridge v1.9.4
         </Badge>
       </div>
 
@@ -131,8 +131,8 @@ export default function BuyCryptoPage() {
           <div className="text-sm">
             <span className="font-black text-amber-700 block mb-1 uppercase tracking-tight text-xs">Security Environment Requirement</span>
             <p className="leading-relaxed font-medium">
-              Apple Pay and Google Pay require a **Production HTTPS** connection. If you are currently on an insecure `http` connection, these options will be hidden by the browser. 
-              <strong> Please visit your verified production URL to activate digital wallet payments.</strong>
+              Native payment methods require a **Production HTTPS** connection. 
+              <strong> Please visit your verified production URL to activate full gateway features.</strong>
             </p>
           </div>
         </div>
@@ -143,7 +143,7 @@ export default function BuyCryptoPage() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="text-2xl font-black tracking-tight">Institutional Provisioning</CardTitle>
-              <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Multi-Provider Terminal</CardDescription>
+              <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Direct Crypto.link.com Terminal</CardDescription>
             </div>
             <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center border shadow-inner">
               <ShieldCheck className="h-7 w-7 text-primary" />
@@ -163,7 +163,7 @@ export default function BuyCryptoPage() {
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs p-4 bg-primary text-white border-none rounded-xl shadow-2xl">
                     <p className="text-xs leading-relaxed font-medium">
-                      On-ramp providers detect your device's native wallet automatically. On Safari, Apple Pay appears. On Android/Chrome, Google Pay appears. These are only visible on verified production domains.
+                      CoinVault integrates with the institutional crypto.link.com gateway to provide secure, direct funding to your non-custodial address.
                     </p>
                   </TooltipContent>
                 </Tooltip>
@@ -194,7 +194,7 @@ export default function BuyCryptoPage() {
                <Label className="text-xs font-black uppercase tracking-widest opacity-70">Digital Wallets</Label>
                {isHttps && (
                  <Badge variant="outline" className="text-[8px] border-green-500/30 text-green-600 bg-green-500/5 gap-1">
-                   <CheckCircle2 className="h-2 w-2" /> Live Detection Active
+                   <CheckCircle2 className="h-2 w-2" /> Gateway Connected
                  </Badge>
                )}
              </div>
@@ -213,7 +213,7 @@ export default function BuyCryptoPage() {
                     <span className="font-black text-xl">Apple Pay</span>
                   </div>
                   <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
-                    {isApplePayAvailable ? "Verified Endpoint" : "Direct Gateway"}
+                    {isApplePayAvailable ? "Verified Endpoint" : "Institutional Gateway"}
                   </span>
                 </Button>
 
@@ -231,7 +231,7 @@ export default function BuyCryptoPage() {
                     <span className="font-black text-xl">Google Pay</span>
                   </div>
                   <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
-                    {isGooglePayAvailable ? "Verified Endpoint" : "Direct Gateway"}
+                    {isGooglePayAvailable ? "Verified Endpoint" : "Institutional Gateway"}
                   </span>
                 </Button>
              </div>
@@ -242,8 +242,8 @@ export default function BuyCryptoPage() {
               <Zap className="h-6 w-6 text-primary" />
             </div>
             <div className="text-sm leading-relaxed">
-              <span className="font-black text-primary block mb-1 text-base tracking-tight">Enterprise Gateway Layer</span>
-              Aggregated gateways ensure Apple and Google Pay work without manual merchant certificates. These providers automatically surface your native payment sheet when they detect a secure, verified production domain.
+              <span className="font-black text-primary block mb-1 text-base tracking-tight">Institutional Gateway Layer</span>
+              All financial operations are verified and settled through the crypto.link.com production network, ensuring bank-grade safety and zero-custody for your assets.
             </div>
           </div>
 
@@ -273,7 +273,7 @@ export default function BuyCryptoPage() {
                <span className="font-black text-lg italic tracking-tighter">GooglePay</span>
             </div>
             <p className="text-center text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] opacity-60">
-              Secure Production Provisioning | v1.8.0
+              Secure Production Bridge | v1.9.4
             </p>
           </div>
         </CardContent>

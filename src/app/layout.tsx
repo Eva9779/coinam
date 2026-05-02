@@ -163,7 +163,7 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
 
           <div className="flex items-center gap-4 flex-1 overflow-hidden">
             <Badge variant="outline" className="text-[9px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden sm:flex whitespace-nowrap">
-              v1.9.3 - AI-ENABLED
+              v1.9.4 - AI-ENABLED
             </Badge>
           </div>
 
