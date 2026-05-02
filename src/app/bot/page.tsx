@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, memo } from 'react';
@@ -26,7 +27,8 @@ import {
   AlertTriangle,
   ArrowUpRight,
   BarChart3,
-  Monitor
+  Monitor,
+  Eye
 } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { analyzeMarketAndTrade, TradingBotOutput } from '@/ai/flows/trading-bot-flow';
@@ -89,7 +91,7 @@ export default function TradingBotPage() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [allocation, setAllocation] = useState<string>("1000");
   const [riskLevel, setRiskLevel] = useState<"low" | "medium" | "high">("medium");
-  const [logs, setLogs] = useState<{msg: string, type: 'info' | 'success' | 'warning'}[]>([]);
+  const [logs, setLogs] = useState<{msg: string, type: 'info' | 'success' | 'warning'}[]>([] );
   const [botOutput, setBotOutput] = useState<TradingBotOutput | null>(null);
   const [sessionEarnings, setSessionEarnings] = useState<number>(0);
   const [chartSymbol, setChartSymbol] = useState("BTC");
@@ -151,7 +153,6 @@ export default function TradingBotPage() {
       addLog(`AI Strategy Formulated: ${response.strategy}`, 'success');
       addLog(`Sentiment: ${response.marketSentiment.toUpperCase()} | confidence: ${response.confidenceScore}%`, 'info');
 
-      // Shift chart to the asset the bot is focusing on
       if (response.actions.length > 0) {
         const topAction = response.actions.find(a => a.type !== 'hold');
         if (topAction) setChartSymbol(topAction.toAsset);
@@ -260,14 +261,18 @@ export default function TradingBotPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          {/* Live Market Chart - New Feature */}
           <div className="space-y-4">
             <div className="flex items-center justify-between px-2">
               <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-secondary" />
-                Market Intelligence Feed: {chartSymbol}/USDT
+                Live Execution View: {chartSymbol}/USDT
               </h3>
-              <Badge variant="secondary" className="bg-primary/5 text-primary border border-primary/10">REAL-TIME SYNC</Badge>
+              <div className="flex items-center gap-2">
+                 <Badge variant="secondary" className="bg-primary/5 text-primary border border-primary/10 flex gap-1.5 items-center">
+                    <Eye className="h-3 w-3" />
+                    LIVE-SYNC
+                 </Badge>
+              </div>
             </div>
             <BotTradingChart symbol={chartSymbol} />
           </div>
@@ -276,7 +281,7 @@ export default function TradingBotPage() {
             <CardHeader className="border-b border-white/10 flex flex-row items-center justify-between px-8 py-6">
               <div className="flex items-center gap-3">
                 <Terminal className="h-5 w-5 text-secondary" />
-                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">Live Execution Feed</CardTitle>
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">Real-time Bot Logs</CardTitle>
               </div>
               {isAnalyzing && (
                 <div className="flex items-center gap-2 text-[10px] font-bold text-secondary">
@@ -312,7 +317,7 @@ export default function TradingBotPage() {
             <CardHeader className="bg-primary/5 pb-6">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <Settings2 className="h-5 w-5 text-secondary" />
-                Bot Parameters
+                Control Parameters
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
@@ -330,7 +335,7 @@ export default function TradingBotPage() {
                       className="pl-9 h-12 rounded-xl font-bold text-lg"
                     />
                   </div>
-                  <p className="text-[10px] text-muted-foreground font-medium">The maximum USD value assigned to AI operations.</p>
+                  <p className="text-[10px] text-muted-foreground font-medium">Max budget per trade session.</p>
                 </div>
 
                 <div className="space-y-2">
@@ -340,9 +345,9 @@ export default function TradingBotPage() {
                       <SelectValue placeholder="Select Strategy" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
-                      <SelectItem value="low">Conservative (Low Yield / High Safety)</SelectItem>
-                      <SelectItem value="medium">Balanced (Standard AI Protocol)</SelectItem>
-                      <SelectItem value="high">Aggressive (High Frequency / Volatility)</SelectItem>
+                      <SelectItem value="low">Conservative (Low Yield)</SelectItem>
+                      <SelectItem value="medium">Balanced (Standard AI)</SelectItem>
+                      <SelectItem value="high">Aggressive (High Frequency)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -352,7 +357,7 @@ export default function TradingBotPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-5 rounded-[1.5rem] bg-muted/50 border shadow-inner">
-                  <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1 tracking-widest">Session Earnings</p>
+                  <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1 tracking-widest">Session Gain</p>
                   <p className="text-2xl font-black text-green-600 flex items-center gap-1">
                     <ArrowUpRight className="h-4 w-4" />
                     ${sessionEarnings.toFixed(2)}
@@ -371,7 +376,7 @@ export default function TradingBotPage() {
                   Execution Policy
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  The bot settles all trade income directly into your non-custodial vault. Profits are immediately visible in your wallet balances.
+                  The bot settles all trade income directly into your non-custodial vault. 
                 </p>
               </div>
 

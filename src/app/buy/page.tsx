@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -5,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShieldCheck, CreditCard, Loader2, ArrowLeft, Zap, Info, ShieldAlert, AlertCircle } from 'lucide-react';
+import { ShieldCheck, CreditCard, Loader2, ArrowLeft, Zap, Info, ShieldAlert, AlertCircle, ExternalLink } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -38,7 +39,6 @@ export default function BuyCryptoPage() {
     }
   }, []);
 
-  // Auto-select first asset if none selected
   useEffect(() => {
     if (initialized && assets.length > 0 && !selectedAsset) {
       setSelectedAsset(assets[0].currency);
@@ -60,16 +60,10 @@ export default function BuyCryptoPage() {
       if (result.clientSecret) {
         setClientSecret(result.clientSecret);
       } else {
-        setError(result.error || "Failed to initialize Stripe session.");
-        toast({
-          title: "Gateway Connection Error",
-          description: result.error || "Check network compatibility.",
-          variant: "destructive"
-        });
+        setError(result.error || "Stripe could not provision a session for this region.");
       }
     } catch (e: any) {
-      console.error(e);
-      setError(e.message || "An unexpected error occurred.");
+      setError(e.message || "Gateway connection interrupted.");
     } finally {
       setIsInitializing(false);
     }
@@ -82,7 +76,7 @@ export default function BuyCryptoPage() {
   }, [selectedAsset, assets.length, handleFetchClientSecret]);
 
   const onOnrampSessionChange = useCallback(({ session }: any) => {
-    setOnrampMessage(`Onramp session status: ${session.status}`);
+    setOnrampMessage(`Stripe Session: ${session.status.replace('_', ' ')}`);
     if (session.status === 'fulfillment_complete') {
       toast({
         title: "Transaction Successful",
@@ -100,6 +94,8 @@ export default function BuyCryptoPage() {
     );
   }
 
+  const currentAsset = assets.find(a => a.currency === selectedAsset);
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-20">
       <div className="flex items-center justify-between">
@@ -114,12 +110,12 @@ export default function BuyCryptoPage() {
               <CreditCard className="h-8 w-8 text-secondary" />
               Fiat Gateway
             </h2>
-            <p className="text-muted-foreground text-sm font-medium">Embedded Stripe Crypto Onramp & Institutional Bridge.</p>
+            <p className="text-muted-foreground text-sm font-medium">Embedded Stripe Crypto Onramp & Institutional Fallback Bridge.</p>
           </div>
         </div>
         <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
           <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-          Gateway Active v2.0.1
+          Gateway Active v2.2.0
         </Badge>
       </div>
 
@@ -139,8 +135,8 @@ export default function BuyCryptoPage() {
         <CardHeader className="border-b bg-muted/20 pb-8 px-8">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-2xl font-black tracking-tight">Stripe Provisioning</CardTitle>
-              <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Embedded Secure Element</CardDescription>
+              <CardTitle className="text-2xl font-black tracking-tight">Provisioning Terminal</CardTitle>
+              <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Stripe & Manual Fallback Protocol</CardDescription>
             </div>
             <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center border shadow-inner">
               <ShieldCheck className="h-7 w-7 text-primary" />
@@ -149,23 +145,7 @@ export default function BuyCryptoPage() {
         </CardHeader>
         <CardContent className="space-y-8 pt-10 px-8 pb-10">
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-black uppercase tracking-widest opacity-70">Target Vault Address</Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button className="flex items-center gap-1.5 text-[10px] font-bold text-secondary uppercase hover:underline">
-                      <Info className="h-3 w-3" /> How it works
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs p-4 bg-primary text-white border-none rounded-xl shadow-2xl">
-                    <p className="text-xs leading-relaxed font-medium">
-                      CoinVault utilizes Stripe Crypto Elements to provide a bank-grade, non-custodial funding experience.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
+            <Label className="text-xs font-black uppercase tracking-widest opacity-70">Target Vault Address</Label>
             <Select value={selectedAsset} onValueChange={setSelectedAsset}>
               <SelectTrigger className="h-20 text-xl font-black bg-background/50 border-2 rounded-3xl transition-all hover:border-primary/50">
                 <SelectValue placeholder="Select asset" />
@@ -188,7 +168,7 @@ export default function BuyCryptoPage() {
             </Select>
           </div>
 
-          <div className="min-h-[500px] border-2 border-dashed border-primary/10 rounded-3xl p-4 bg-muted/5 flex flex-col items-center justify-center">
+          <div className="min-h-[500px] border-2 border-dashed border-primary/10 rounded-3xl p-4 bg-muted/5 flex flex-col items-center justify-center relative overflow-hidden">
             {clientSecret ? (
               <div className="w-full h-full flex flex-col items-center">
                 <p className="text-center text-[10px] font-black text-primary mb-6 uppercase tracking-widest animate-pulse">
@@ -204,7 +184,7 @@ export default function BuyCryptoPage() {
                   />
                 </CryptoElements>
                 {onrampMessage && (
-                   <div id="onramp-message">
+                   <div id="onramp-message" className="mt-4 font-bold text-xs uppercase tracking-tighter text-muted-foreground">
                      {onrampMessage}
                    </div>
                 )}
@@ -212,25 +192,30 @@ export default function BuyCryptoPage() {
             ) : isInitializing ? (
               <div className="flex flex-col items-center gap-4">
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Initializing Secure Stripe Connection...</p>
-              </div>
-            ) : error ? (
-              <div className="text-center space-y-4 max-w-sm px-4">
-                <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
-                   <AlertCircle className="h-8 w-8 text-destructive" />
-                </div>
-                <h4 className="font-black text-destructive uppercase tracking-tight">Provisioning Denied</h4>
-                <p className="text-xs font-medium text-muted-foreground leading-relaxed">
-                   {error}
-                </p>
-                <Button variant="outline" size="sm" onClick={handleFetchClientSecret} className="rounded-xl font-bold">
-                   Retry Connection
-                </Button>
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Initializing Secure Connection...</p>
               </div>
             ) : (
-              <div className="text-center space-y-4">
-                <CreditCard className="h-12 w-12 text-muted-foreground/30 mx-auto" />
-                <p className="text-sm font-bold text-muted-foreground uppercase">Select an asset to begin Stripe funding</p>
+              <div className="text-center space-y-6 max-w-sm px-4">
+                <div className="h-20 w-20 rounded-full bg-primary/5 flex items-center justify-center mx-auto border-2 border-dashed border-primary/20">
+                   <ShieldAlert className="h-10 w-10 text-primary opacity-40" />
+                </div>
+                <div className="space-y-2">
+                  <h4 className="font-black text-primary uppercase tracking-tight">Regional Fallback Active</h4>
+                  <p className="text-xs font-medium text-muted-foreground leading-relaxed">
+                    Stripe direct-onramp is currently limited in your jurisdiction. Use our **Institutional Fallback Gateway** to complete your funding.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <Button size="lg" className="rounded-2xl h-14 font-black shadow-xl gap-2 w-full" asChild>
+                    <a href={`https://crypto.link.com/buy?wallet=${currentAsset?.address}&asset=${selectedAsset?.toLowerCase()}`} target="_blank" rel="noopener noreferrer">
+                      <ExternalLink className="h-5 w-5" />
+                      Open Fallback Gateway
+                    </a>
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleFetchClientSecret} className="rounded-xl font-bold h-10">
+                    Retry Stripe Connection
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -240,8 +225,8 @@ export default function BuyCryptoPage() {
               <Zap className="h-6 w-6 text-primary" />
             </div>
             <div className="text-sm leading-relaxed">
-              <span className="font-black text-primary block mb-1 text-base tracking-tight">Institutional Gateway Layer</span>
-              All operations are verified through Stripe, ensuring bank-grade safety for your assets.
+              <span className="font-black text-primary block mb-1 text-base tracking-tight">Multi-Protocol Routing</span>
+              CoinVault automatically routes your transaction through the most available secure gateway for your region.
             </div>
           </div>
         </CardContent>
