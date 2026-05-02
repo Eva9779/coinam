@@ -10,39 +10,44 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_51SxgIgEvvi2
 
 /**
  * Creates a Stripe Onramp Session following the provided Sinatra logic.
- * Dynamically determines the network based on the selected currency.
+ * Uses rawRequest to match the Ruby implementation exactly.
  */
 export async function createOnrampSession(walletAddress: string, amount: string = '13.37', currency: string = 'usdc') {
   try {
     const headersList = await headers();
     const ip = headersList.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1';
 
-    // Determine network based on currency to avoid initialization failures
+    // Determine network based on currency
     let network = 'ethereum';
     const cur = currency.toLowerCase();
     if (cur === 'sol') network = 'solana';
     if (cur === 'btc') network = 'bitcoin';
 
-    // Create an OnrampSession matching the Sinatra logic parameters exactly
-    // We use the SDK method which maps to /v1/crypto/onramp_sessions
-    const session = await stripe.crypto.onrampSessions.create({
+    /**
+     * Translated Sinatra logic:
+     * response = client.raw_request(:post, '/v1/crypto/onramp_sessions', params: { ... })
+     */
+    const response: any = await stripe.rawRequest('POST', '/v1/crypto/onramp_sessions', {
       transaction_details: {
         destination_currency: cur,
         destination_exchange_amount: amount,
         destination_network: network,
       },
+      // Note: The Sinatra example didn't include wallet_addresses in the params, 
+      // but it is required for non-custodial destination. 
+      // We include it here to ensure fulfillment.
       wallet_addresses: {
         [network]: walletAddress,
       },
       customer_ip_address: ip,
     });
 
+    // Stripe rawRequest returns the body of the response
     return {
-      clientSecret: session.client_secret,
+      clientSecret: response.client_secret,
     };
   } catch (error: any) {
     console.error('Stripe Session Creation Failed:', error.message);
-    // Return the specific Stripe error message to the UI
     return { 
       clientSecret: null, 
       error: error.message || 'The Stripe API returned an unknown error.' 
@@ -55,7 +60,7 @@ export async function createOnrampSession(walletAddress: string, amount: string 
  */
 export async function createWithdrawalSession(walletAddress: string, amount: number, currency: string) {
   try {
-    const session = await stripe.crypto.onrampSessions.create({
+    const response: any = await stripe.rawRequest('POST', '/v1/crypto/onramp_sessions', {
       wallet_addresses: {
         ethereum: walletAddress,
       },
@@ -66,7 +71,7 @@ export async function createWithdrawalSession(walletAddress: string, amount: num
     });
 
     return {
-      clientSecret: session.client_secret,
+      clientSecret: response.client_secret,
     };
   } catch (error: any) {
     return { clientSecret: null, error: error.message };

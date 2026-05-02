@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ShieldCheck, CreditCard, Loader2, ArrowLeft, Zap, Info, ShieldAlert } from 'lucide-react';
+import { ShieldCheck, CreditCard, Loader2, ArrowLeft, Zap, Info, ShieldAlert, AlertCircle } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
@@ -31,6 +31,7 @@ export default function BuyCryptoPage() {
   const [isInitializing, setIsInitializing] = useState(false);
   const [isHttps, setIsHttps] = useState(true);
   const [onrampMessage, setOnrampMessage] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -50,31 +51,25 @@ export default function BuyCryptoPage() {
 
     setIsInitializing(true);
     setClientSecret('');
+    setError(null);
+    setOnrampMessage('');
     
     try {
-      // Amount and currency parameters matching the Sinatra logic requirement
-      const { clientSecret: secret, error } = await createOnrampSession(asset.address, '13.37', selectedAsset);
+      const { clientSecret: secret, error: apiError } = await createOnrampSession(asset.address, '13.37', selectedAsset);
       
       if (secret) {
         setClientSecret(secret);
-        toast({
-          title: "Stripe Terminal Active",
-          description: "Embedded onramp session initialized.",
-        });
       } else {
+        setError(apiError || "Failed to initialize Stripe session.");
         toast({
           title: "Gateway Connection Error",
-          description: error || "Failed to initialize Stripe session. Check network compatibility.",
+          description: apiError || "Check network compatibility.",
           variant: "destructive"
         });
       }
     } catch (e: any) {
       console.error(e);
-      toast({
-        title: "Session Error",
-        description: e.message || "An unexpected error occurred during provisioning.",
-        variant: "destructive"
-      });
+      setError(e.message || "An unexpected error occurred.");
     } finally {
       setIsInitializing(false);
     }
@@ -91,7 +86,7 @@ export default function BuyCryptoPage() {
     if (session.status === 'fulfillment_complete') {
       toast({
         title: "Transaction Successful",
-        description: "Your vault has been funded. Assets will appear after network confirmation.",
+        description: "Your vault has been funded.",
       });
     }
   }, []);
@@ -135,7 +130,6 @@ export default function BuyCryptoPage() {
             <span className="font-black text-amber-700 block mb-1 uppercase tracking-tight text-xs">Security Requirement</span>
             <p className="leading-relaxed font-medium">
               Stripe Crypto Elements require a **Production HTTPS** connection. 
-              <strong> Please visit your verified production URL to activate embedded terminal features.</strong>
             </p>
           </div>
         </div>
@@ -166,7 +160,7 @@ export default function BuyCryptoPage() {
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs p-4 bg-primary text-white border-none rounded-xl shadow-2xl">
                     <p className="text-xs leading-relaxed font-medium">
-                      CoinVault utilizes Stripe Crypto Elements to provide a bank-grade, non-custodial funding experience directly to your verified address.
+                      CoinVault utilizes Stripe Crypto Elements to provide a bank-grade, non-custodial funding experience.
                     </p>
                   </TooltipContent>
                 </Tooltip>
@@ -218,6 +212,19 @@ export default function BuyCryptoPage() {
                 <Loader2 className="h-10 w-10 animate-spin text-primary" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Initializing Secure Stripe Connection...</p>
               </div>
+            ) : error ? (
+              <div className="text-center space-y-4 max-w-sm px-4">
+                <div className="h-16 w-16 rounded-full bg-destructive/10 flex items-center justify-center mx-auto">
+                   <AlertCircle className="h-8 w-8 text-destructive" />
+                </div>
+                <h4 className="font-black text-destructive uppercase tracking-tight">Provisioning Denied</h4>
+                <p className="text-xs font-medium text-muted-foreground leading-relaxed">
+                   {error}
+                </p>
+                <Button variant="outline" size="sm" onClick={handleFetchClientSecret} className="rounded-xl font-bold">
+                   Retry Connection
+                </Button>
+              </div>
             ) : (
               <div className="text-center space-y-4">
                 <CreditCard className="h-12 w-12 text-muted-foreground/30 mx-auto" />
@@ -232,20 +239,8 @@ export default function BuyCryptoPage() {
             </div>
             <div className="text-sm leading-relaxed">
               <span className="font-black text-primary block mb-1 text-base tracking-tight">Institutional Gateway Layer</span>
-              All financial operations are verified and settled through Stripe and the crypto.link.com production network, ensuring bank-grade safety and zero-custody for your assets.
+              All operations are verified through Stripe, ensuring bank-grade safety for your assets.
             </div>
-          </div>
-
-          <div className="flex flex-col items-center gap-3 pt-4">
-            <div className="flex items-center gap-6 opacity-30 grayscale hover:grayscale-0 transition-all">
-               <span className="font-black text-lg italic tracking-tighter">VISA</span>
-               <span className="font-black text-lg italic tracking-tighter">Mastercard</span>
-               <span className="font-black text-lg italic tracking-tighter">ApplePay</span>
-               <span className="font-black text-lg italic tracking-tighter">GooglePay</span>
-            </div>
-            <p className="text-center text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] opacity-60">
-              Secure Stripe Elements | v2.0.1
-            </p>
           </div>
         </CardContent>
       </Card>
