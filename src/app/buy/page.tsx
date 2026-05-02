@@ -53,6 +53,7 @@ export default function BuyCryptoPage() {
     
     try {
       // Amount and currency parameters matching the Sinatra logic requirement
+      // destination_currency: usdc, destination_exchange_amount: 13.37, destination_network: ethereum
       const { clientSecret: secret, error } = await createOnrampSession(asset.address, '13.37', selectedAsset);
       
       if (secret) {
