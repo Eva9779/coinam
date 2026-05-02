@@ -5,28 +5,34 @@ import Stripe from 'stripe';
 import { headers } from 'next/headers';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_51SxgIgEvvi2LpIksCNVRvrBhBdhgoUlK2fbeKd7iqGnUZM4X8PibwbLtFfOAs4xr23OI2PI6kM37hSjAZJepNBRU00CrTy633V', {
-  apiVersion: '2025-02-24.acacia' as any,
+  apiVersion: '2024-12-18.acacia' as any,
 });
 
 /**
  * Creates a Stripe Onramp Session following the provided Sinatra logic.
- * Translated from Ruby/Sinatra to Next.js Server Action.
+ * Dynamically determines the network based on the selected currency.
  */
 export async function createOnrampSession(walletAddress: string, amount: string = '13.37', currency: string = 'usdc') {
   try {
     const headersList = await headers();
     const ip = headersList.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1';
 
-    // Create an OnrampSession matching the Sinatra logic parameters
+    // Determine network based on currency to avoid initialization failures
+    let network = 'ethereum';
+    const cur = currency.toLowerCase();
+    if (cur === 'sol') network = 'solana';
+    if (cur === 'btc') network = 'bitcoin';
+
+    // Create an OnrampSession matching the Sinatra logic parameters exactly
+    // We use the SDK method which maps to /v1/crypto/onramp_sessions
     const session = await stripe.crypto.onrampSessions.create({
       transaction_details: {
-        destination_currency: currency.toLowerCase(),
+        destination_currency: cur,
         destination_exchange_amount: amount,
-        destination_network: 'ethereum',
+        destination_network: network,
       },
-      // Passing the wallet address to ensure the funds reach the correct vault
       wallet_addresses: {
-        ethereum: walletAddress,
+        [network]: walletAddress,
       },
       customer_ip_address: ip,
     });
@@ -36,7 +42,11 @@ export async function createOnrampSession(walletAddress: string, amount: string 
     };
   } catch (error: any) {
     console.error('Stripe Session Creation Failed:', error.message);
-    return { clientSecret: null, error: error.message };
+    // Return the specific Stripe error message to the UI
+    return { 
+      clientSecret: null, 
+      error: error.message || 'The Stripe API returned an unknown error.' 
+    };
   }
 }
 

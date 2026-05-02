@@ -53,7 +53,6 @@ export default function BuyCryptoPage() {
     
     try {
       // Amount and currency parameters matching the Sinatra logic requirement
-      // destination_currency: usdc, destination_exchange_amount: 13.37, destination_network: ethereum
       const { clientSecret: secret, error } = await createOnrampSession(asset.address, '13.37', selectedAsset);
       
       if (secret) {
@@ -65,12 +64,17 @@ export default function BuyCryptoPage() {
       } else {
         toast({
           title: "Gateway Connection Error",
-          description: error || "Failed to initialize Stripe session.",
+          description: error || "Failed to initialize Stripe session. Check network compatibility.",
           variant: "destructive"
         });
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      toast({
+        title: "Session Error",
+        description: e.message || "An unexpected error occurred during provisioning.",
+        variant: "destructive"
+      });
     } finally {
       setIsInitializing(false);
     }
