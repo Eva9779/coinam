@@ -39,7 +39,6 @@ export default function WithdrawPage() {
       if (clientSecret) {
         window.open(`https://buy.stripe.com/crypto-onramp?client_secret=${clientSecret}`, '_blank');
       } else {
-        // Fallback to crypto.link.com as per unified gateway instruction
         const offrampUrl = `https://crypto.link.com/sell?wallet=${asset.address}&asset=${selectedAsset.toLowerCase()}`;
         window.open(offrampUrl, '_blank', 'noopener,noreferrer');
       }
@@ -65,7 +64,7 @@ export default function WithdrawPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild>
+        <Button variant="ghost" size="icon" asChild className="rounded-xl">
           <Link href="/wallet">
             <ArrowLeft className="h-5 w-5" />
           </Link>

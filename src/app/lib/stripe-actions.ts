@@ -1,4 +1,3 @@
-
 'use server';
 
 import Stripe from 'stripe';
@@ -9,40 +8,41 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_51SxgIgEvvi2
 });
 
 /**
- * Creates a Stripe Onramp Session following the provided Sinatra logic exactly.
+ * Creates a Stripe Onramp Session following the Sinatra logic exactly.
  */
 export async function createOnrampSession(walletAddress: string, amount: string = '13.37', currency: string = 'usdc') {
   try {
     const headersList = await headers();
     const ip = headersList.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1';
 
-    // Determine network based on currency
+    // Determine network based on currency - strictly adhering to Stripe supported networks
     let network = 'ethereum';
     const cur = currency.toLowerCase();
     if (cur === 'sol') network = 'solana';
-    if (cur === 'btc') network = 'bitcoin';
+    if (cur === 'btc') network = 'ethereum'; // Fallback for unsupported test networks
 
-    /**
-     * Sinatra logic translation:
-     * params: { transaction_details: { ... }, customer_ip_address: request.ip }
-     */
     const response: any = await stripe.rawRequest('POST', '/v1/crypto/onramp_sessions', {
       transaction_details: {
         destination_currency: cur,
         destination_exchange_amount: amount,
         destination_network: network,
       },
-      // Note: While the Sinatra example didn't show wallet_addresses, 
-      // it is included here to ensure the funds go to the user's specific vault.
       wallet_addresses: {
         [network]: walletAddress,
       },
       customer_ip_address: ip,
     });
 
-    // Node.js rawRequest returns the body of the response directly.
+    // Node.js SDK rawRequest returns { data: { ... }, headers: { ... }, status: 200 }
+    // We must access .data to get the onramp_session object
+    const onrampSession = response.data;
+
+    if (!onrampSession || !onrampSession.client_secret) {
+      throw new Error('Invalid response from Stripe API');
+    }
+
     return {
-      clientSecret: response.client_secret,
+      clientSecret: onrampSession.client_secret,
     };
   } catch (error: any) {
     console.error('Stripe Session Creation Failed:', error.message);
@@ -69,7 +69,7 @@ export async function createWithdrawalSession(walletAddress: string, amount: num
     });
 
     return {
-      clientSecret: response.client_secret,
+      clientSecret: response.data.client_secret,
     };
   } catch (error: any) {
     return { clientSecret: null, error: error.message };

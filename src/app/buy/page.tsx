@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -56,15 +55,15 @@ export default function BuyCryptoPage() {
     setOnrampMessage('');
     
     try {
-      const { clientSecret: secret, error: apiError } = await createOnrampSession(asset.address, '13.37', selectedAsset);
+      const result = await createOnrampSession(asset.address, '13.37', selectedAsset);
       
-      if (secret) {
-        setClientSecret(secret);
+      if (result.clientSecret) {
+        setClientSecret(result.clientSecret);
       } else {
-        setError(apiError || "Failed to initialize Stripe session.");
+        setError(result.error || "Failed to initialize Stripe session.");
         toast({
           title: "Gateway Connection Error",
-          description: apiError || "Check network compatibility.",
+          description: result.error || "Check network compatibility.",
           variant: "destructive"
         });
       }
