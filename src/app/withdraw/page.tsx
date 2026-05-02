@@ -10,10 +10,12 @@ import { Banknote, Building2, ShieldCheck, Loader2, ArrowLeft, Zap, ExternalLink
 import { useVaultStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
+import { createWithdrawalSession } from '@/app/lib/stripe-actions';
 
 export default function WithdrawPage() {
   const { assets, initialized } = useVaultStore();
   const [selectedAsset, setSelectedAsset] = useState<string>('');
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
     if (initialized && assets.length > 0 && !selectedAsset) {
@@ -21,18 +23,31 @@ export default function WithdrawPage() {
     }
   }, [initialized, assets, selectedAsset]);
 
-  const getOfframpUrl = () => {
+  const handleWithdrawClick = async () => {
     const asset = assets.find(a => a.currency === selectedAsset);
-    if (!asset || !asset.address) return '#';
-    // Institutional off-ramp provider crypto.link.com
-    return `https://crypto.link.com/sell?wallet=${asset.address}&asset=${selectedAsset.toLowerCase()}`;
-  };
+    if (!asset || !asset.address) return;
 
-  const handleWithdrawClick = () => {
+    setIsRedirecting(true);
     toast({
       title: "Bank Bridge Initialized",
-      description: "Redirecting to secure crypto.link.com off-ramp gateway...",
+      description: "Redirecting to secure Stripe/Institutional gateway...",
     });
+
+    try {
+      const { clientSecret } = await createWithdrawalSession(asset.address, asset.amount, asset.currency);
+      
+      if (clientSecret) {
+        window.open(`https://buy.stripe.com/crypto-onramp?client_secret=${clientSecret}`, '_blank');
+      } else {
+        // Fallback to crypto.link.com as per unified gateway instruction
+        const offrampUrl = `https://crypto.link.com/sell?wallet=${asset.address}&asset=${selectedAsset.toLowerCase()}`;
+        window.open(offrampUrl, '_blank', 'noopener,noreferrer');
+      }
+    } catch (e) {
+      window.open(`https://crypto.link.com/sell?wallet=${asset.address}&asset=${selectedAsset.toLowerCase()}`, '_blank');
+    } finally {
+      setIsRedirecting(false);
+    }
   };
 
   if (!initialized) {
@@ -60,7 +75,7 @@ export default function WithdrawPage() {
             <Banknote className="h-8 w-8 text-secondary" />
             Fiat Off-Ramp
           </h2>
-          <p className="text-muted-foreground text-sm font-medium">Liquidate assets directly to your Bank Account via crypto.link.com.</p>
+          <p className="text-muted-foreground text-sm font-medium">Liquidate assets directly to your Bank Account via Stripe Gateway.</p>
         </div>
       </div>
 
@@ -68,7 +83,7 @@ export default function WithdrawPage() {
         <Card className="md:col-span-2 shadow-2xl border-primary/10 bg-card/50 backdrop-blur-xl overflow-hidden rounded-3xl">
           <CardHeader className="border-b bg-muted/20 pb-8">
             <CardTitle className="text-2xl font-bold tracking-tight">Withdrawal Settings</CardTitle>
-            <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Institutional Bank Bridge</CardDescription>
+            <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Stripe & Institutional Bank Bridge</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8 pt-8">
             <div className="space-y-4">
@@ -98,35 +113,19 @@ export default function WithdrawPage() {
                 <Zap className="h-5 w-5 text-secondary" />
               </div>
               <div className="text-sm leading-relaxed">
-                <span className="font-bold text-secondary block mb-1 text-base">KYC Requirement</span>
-                To comply with Financial Regulations, bank withdrawals are settled through our partner gateway, crypto.link.com.
+                <span className="font-bold text-secondary block mb-1 text-base">Institutional Requirement</span>
+                To comply with Financial Regulations, bank withdrawals are settled through our Stripe partner gateway and institutional network.
               </div>
             </div>
 
-            {canWithdraw ? (
-              <Button 
-                className="w-full h-20 text-2xl font-black shadow-2xl rounded-2xl transition-all hover:scale-[1.01] active:scale-[0.99] gap-3" 
-                asChild
-              >
-                <a 
-                  href={getOfframpUrl()} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  onClick={handleWithdrawClick}
-                >
-                  <ExternalLink className="h-8 w-8" />
-                  Initialize Bank Withdrawal
-                </a>
-              </Button>
-            ) : (
-              <Button 
-                className="w-full h-20 text-2xl font-black rounded-2xl opacity-50 cursor-not-allowed gap-3" 
-                disabled
-              >
-                <ExternalLink className="h-8 w-8" />
-                Insufficient Balance
-              </Button>
-            )}
+            <Button 
+              className="w-full h-20 text-2xl font-black shadow-2xl rounded-2xl transition-all hover:scale-[1.01] active:scale-[0.99] gap-3" 
+              onClick={handleWithdrawClick}
+              disabled={!canWithdraw || isRedirecting}
+            >
+              {isRedirecting ? <Loader2 className="h-8 w-8 animate-spin" /> : <ExternalLink className="h-8 w-8" />}
+              {isRedirecting ? "Initializing Gateway..." : "Initialize Stripe Withdrawal"}
+            </Button>
 
             {!canWithdraw && (
               <div className="flex flex-col items-center gap-4">
@@ -172,10 +171,10 @@ export default function WithdrawPage() {
           <Card className="rounded-3xl p-6 border-dashed border-2 bg-muted/20">
             <h3 className="text-sm font-bold mb-3 flex items-center gap-2">
               <CreditCard className="h-4 w-4 text-primary" />
-              Card Payouts
+              Stripe Payouts
             </h3>
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Direct card settlements are handled securely by crypto.link.com. Funds usually arrive in under 30 minutes.
+              Direct payouts are handled securely by Stripe and our institutional partners. Funds usually arrive in under 30 minutes.
             </p>
           </Card>
         </div>

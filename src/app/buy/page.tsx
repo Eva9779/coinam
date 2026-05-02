@@ -23,38 +23,11 @@ export default function BuyCryptoPage() {
   const { assets, initialized } = useVaultStore();
   const [selectedAsset, setSelectedAsset] = useState<string>('');
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const [isApplePayAvailable, setIsApplePayAvailable] = useState<boolean | null>(null);
-  const [isGooglePayAvailable, setIsGooglePayAvailable] = useState<boolean | null>(null);
   const [isHttps, setIsHttps] = useState(true);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setIsHttps(window.location.protocol === 'https:');
-
-      const checkWallets = async () => {
-        if ('PaymentRequest' in window) {
-          try {
-            const applePayRequest = new (window as any).PaymentRequest(
-              [{ supportedMethods: 'https://apple.com/apple-pay', data: { version: 3 } }],
-              { total: { label: 'Total', amount: { currency: 'USD', value: '1.00' } } }
-            );
-            const appleAvailable = await applePayRequest.canMakePayment();
-            setIsApplePayAvailable(appleAvailable);
-
-            const googlePayRequest = new (window as any).PaymentRequest(
-              [{ supportedMethods: 'https://google.com/pay' }],
-              { total: { label: 'Total', amount: { currency: 'USD', value: '1.00' } } }
-            );
-            const googleAvailable = await googlePayRequest.canMakePayment();
-            setIsGooglePayAvailable(googleAvailable);
-          } catch (e) {
-            console.warn("Wallet detection limited by security environment.");
-          }
-        }
-      };
-      
-      const timer = setTimeout(checkWallets, 500);
-      return () => clearTimeout(timer);
     }
   }, []);
 
@@ -64,7 +37,7 @@ export default function BuyCryptoPage() {
     }
   }, [initialized, assets, selectedAsset]);
 
-  const handleLinkClick = async (method: string = 'universal') => {
+  const handleStripePurchase = async (method: string = 'universal') => {
     const asset = assets.find(a => a.currency === selectedAsset);
     if (!asset || !asset.address) {
       toast({ 
@@ -78,28 +51,25 @@ export default function BuyCryptoPage() {
     setIsRedirecting(true);
     
     try {
-      // First attempt Stripe Onramp if native integration is active
-      const { clientSecret } = await createOnrampSession(asset.address);
+      const { clientSecret, error } = await createOnrampSession(asset.address, undefined, selectedAsset);
       
       if (clientSecret) {
         toast({
           title: "Stripe Gateway Active",
           description: "Launching secure Stripe Onramp terminal...",
         });
-        // In a full implementation, you would use the Stripe SDK here. 
-        // For this bridge, we redirect to the Stripe hosted onramp.
+        // Redirect to Stripe hosted onramp
         window.open(`https://buy.stripe.com/crypto-onramp?client_secret=${clientSecret}`, '_blank');
       } else {
-        // Fallback to institutional link gateway
+        // Fallback to institutional link gateway if Stripe fails or keys are missing
         const gatewayUrl = `https://crypto.link.com/buy?wallet=${asset.address}&asset=${selectedAsset.toLowerCase()}&method=${method}`;
         toast({
           title: "Institutional Gateway",
-          description: "Initializing secure bridge to crypto.link.com...",
+          description: "Stripe key sync pending. Using backup institutional bridge...",
         });
         window.open(gatewayUrl, '_blank', 'noopener,noreferrer');
       }
     } catch (e) {
-      // Direct fallback
       window.open(`https://crypto.link.com/buy?wallet=${asset.address}&asset=${selectedAsset.toLowerCase()}`, '_blank');
     } finally {
       setIsRedirecting(false);
@@ -137,7 +107,7 @@ export default function BuyCryptoPage() {
         </div>
         <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
           <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-          Gateway Active v1.9.5
+          Gateway Active v2.0.0
         </Badge>
       </div>
 
@@ -158,8 +128,8 @@ export default function BuyCryptoPage() {
         <CardHeader className="border-b bg-muted/20 pb-8 px-8">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-2xl font-black tracking-tight">Institutional Provisioning</CardTitle>
-              <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Direct Stripe & Crypto.link.com Terminal</CardDescription>
+              <CardTitle className="text-2xl font-black tracking-tight">Stripe Provisioning</CardTitle>
+              <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Direct Stripe Onramp Terminal</CardDescription>
             </div>
             <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center border shadow-inner">
               <ShieldCheck className="h-7 w-7 text-primary" />
@@ -207,7 +177,7 @@ export default function BuyCryptoPage() {
 
           <div className="space-y-4">
              <div className="flex items-center justify-between">
-               <Label className="text-xs font-black uppercase tracking-widest opacity-70">Digital Wallets</Label>
+               <Label className="text-xs font-black uppercase tracking-widest opacity-70">Native Wallets</Label>
                {isHttps && (
                  <Badge variant="outline" className="text-[8px] border-green-500/30 text-green-600 bg-green-500/5 gap-1">
                    <CheckCircle2 className="h-2 w-2" /> Gateway Connected
@@ -217,38 +187,28 @@ export default function BuyCryptoPage() {
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Button 
                   variant="outline" 
-                  className={cn(
-                    "h-28 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all group relative overflow-hidden",
-                    isApplePayAvailable ? "border-primary bg-primary/5 ring-4 ring-primary/10 shadow-lg shadow-primary/5" : "hover:border-primary/50"
-                  )}
+                  className="h-28 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 hover:border-primary/50 transition-all group relative overflow-hidden"
                   disabled={!isLinkReady || isRedirecting}
-                  onClick={() => handleLinkClick('apple-pay')}
+                  onClick={() => handleStripePurchase('apple-pay')}
                 >
                   <div className="flex items-center gap-2.5">
                     <Smartphone className="h-6 w-6 text-primary" />
                     <span className="font-black text-xl">Apple Pay</span>
                   </div>
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
-                    {isApplePayAvailable ? "Verified Endpoint" : "Institutional Gateway"}
-                  </span>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">Stripe Gateway</span>
                 </Button>
 
                 <Button 
                   variant="outline" 
-                  className={cn(
-                    "h-28 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 transition-all group relative overflow-hidden",
-                    isGooglePayAvailable ? "border-primary bg-primary/5 ring-4 ring-primary/10 shadow-lg shadow-primary/5" : "hover:border-primary/50"
-                  )}
+                  className="h-28 rounded-3xl border-2 flex flex-col items-center justify-center gap-2 hover:border-primary/50 transition-all group relative overflow-hidden"
                   disabled={!isLinkReady || isRedirecting}
-                  onClick={() => handleLinkClick('google-pay')}
+                  onClick={() => handleStripePurchase('google-pay')}
                 >
                   <div className="flex items-center gap-2.5">
                     <Smartphone className="h-6 w-6 text-primary" />
                     <span className="font-black text-xl">Google Pay</span>
                   </div>
-                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">
-                    {isGooglePayAvailable ? "Verified Endpoint" : "Institutional Gateway"}
-                  </span>
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest opacity-60">Stripe Gateway</span>
                 </Button>
              </div>
           </div>
@@ -265,18 +225,18 @@ export default function BuyCryptoPage() {
 
           <Button 
             className="w-full h-24 text-2xl font-black shadow-2xl rounded-[1.75rem] transition-all hover:scale-[1.01] active:scale-[0.99] gap-4 bg-primary text-white" 
-            onClick={() => handleLinkClick('universal')}
+            onClick={() => handleStripePurchase('universal')}
             disabled={!isLinkReady || isRedirecting}
           >
             {isRedirecting ? (
               <>
                 <Loader2 className="h-8 w-8 animate-spin" />
-                Initializing Gateway...
+                Initializing Stripe...
               </>
             ) : (
               <>
                 <ExternalLink className="h-8 w-8" />
-                Launch Secure Terminal
+                Launch Stripe Terminal
               </>
             )}
           </Button>
@@ -289,7 +249,7 @@ export default function BuyCryptoPage() {
                <span className="font-black text-lg italic tracking-tighter">GooglePay</span>
             </div>
             <p className="text-center text-[10px] text-muted-foreground font-black uppercase tracking-[0.2em] opacity-60">
-              Secure Production Bridge | v1.9.5
+              Secure Stripe Bridge | v2.0.0
             </p>
           </div>
         </CardContent>

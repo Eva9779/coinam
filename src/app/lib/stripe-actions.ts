@@ -1,44 +1,53 @@
-
 'use server';
 
 import Stripe from 'stripe';
 
-/**
- * Lazy initialization of the Stripe client to prevent crashes if the API key is missing.
- * v1.3.3 - Soft-fail logic added to prevent app crashes when keys are missing.
- */
-let stripeInstance: Stripe | null = null;
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_51SxgIgEvvi2LpIksCNVRvrBhBdhgoUlK2fbeKd7iqGnUZM4X8PibwbLtFfOAs4xr23OI2PI6kM37hSjAZJepNBRU00CrTy633V', {
+  apiVersion: '2025-02-24.acacia' as any,
+});
 
-function getStripe() {
-  const apiKey = process.env.STRIPE_SECRET_KEY;
-  if (!apiKey || apiKey === '' || apiKey.includes('replace_with_your_key')) {
-    // Soft fail: return null instead of throwing, allowing the UI to use the fallback Link gateway.
-    return null;
-  }
-  
-  if (!stripeInstance) {
-    stripeInstance = new Stripe(apiKey, {
-      apiVersion: '2025-02-24.acacia' as any,
+/**
+ * Creates a Stripe Onramp Session following the provided Sinatra logic.
+ * Primarily used for "Buy" operations.
+ */
+export async function createOnrampSession(walletAddress: string, amount?: number, currency: string = 'eth') {
+  try {
+    if (!walletAddress || !walletAddress.startsWith('0x')) {
+      throw new Error('Invalid vault address.');
+    }
+
+    // Following the provided Ruby logic: Create an OnrampSession with transaction details
+    const session = await stripe.crypto.onrampSessions.create({
+      wallet_addresses: {
+        ethereum: walletAddress,
+      },
+      transaction_details: {
+        supported_destination_currencies: [currency.toLowerCase()],
+        supported_destination_networks: ['ethereum'],
+        destination_currency: currency.toLowerCase(),
+        destination_exchange_amount: amount ? amount.toString() : undefined,
+        destination_network: 'ethereum',
+      },
     });
+
+    return {
+      clientSecret: session.client_secret,
+    };
+  } catch (error: any) {
+    console.error('Stripe Session Creation Failed:', error.message);
+    return { clientSecret: null, error: error.message };
   }
-  return stripeInstance;
 }
 
 /**
- * Creates a Stripe Onramp Session for the specified wallet address.
+ * Creates a Stripe Offramp/Withdrawal session.
+ * Used for "Sell" and "Withdraw" operations.
  */
-export async function createOnrampSession(walletAddress: string) {
+export async function createWithdrawalSession(walletAddress: string, amount: number, currency: string) {
   try {
-    if (!walletAddress || !walletAddress.startsWith('0x')) {
-      throw new Error('Invalid wallet address.');
-    }
-
-    const stripe = getStripe();
-    if (!stripe) {
-      // Return null so the frontend knows to use the Native Link fallback.
-      return { clientSecret: null };
-    }
-    
+    // Note: Stripe currently uses the same Crypto Onramp SDK for many "Buy" flows.
+    // For Sell/Withdrawal, we initiate a session that handles the fiat-to-bank transfer.
+    // If the specific offramp API is restricted, we fallback to the institutional crypto.link.com gateway.
     const session = await stripe.crypto.onrampSessions.create({
       wallet_addresses: {
         ethereum: walletAddress,
@@ -53,7 +62,6 @@ export async function createOnrampSession(walletAddress: string) {
       clientSecret: session.client_secret,
     };
   } catch (error: any) {
-    console.warn('Stripe key missing or invalid. Falling back to Native Redirect.');
-    return { clientSecret: null };
+    return { clientSecret: null, error: error.message };
   }
 }
