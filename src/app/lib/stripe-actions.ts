@@ -9,8 +9,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || 'sk_test_51SxgIgEvvi2
 });
 
 /**
- * Creates a Stripe Onramp Session following the provided Sinatra logic.
- * Uses rawRequest to match the Ruby implementation exactly.
+ * Creates a Stripe Onramp Session following the provided Sinatra logic exactly.
  */
 export async function createOnrampSession(walletAddress: string, amount: string = '13.37', currency: string = 'usdc') {
   try {
@@ -24,8 +23,8 @@ export async function createOnrampSession(walletAddress: string, amount: string 
     if (cur === 'btc') network = 'bitcoin';
 
     /**
-     * Translated Sinatra logic:
-     * response = client.raw_request(:post, '/v1/crypto/onramp_sessions', params: { ... })
+     * Sinatra logic translation:
+     * params: { transaction_details: { ... }, customer_ip_address: request.ip }
      */
     const response: any = await stripe.rawRequest('POST', '/v1/crypto/onramp_sessions', {
       transaction_details: {
@@ -33,16 +32,15 @@ export async function createOnrampSession(walletAddress: string, amount: string 
         destination_exchange_amount: amount,
         destination_network: network,
       },
-      // Note: The Sinatra example didn't include wallet_addresses in the params, 
-      // but it is required for non-custodial destination. 
-      // We include it here to ensure fulfillment.
+      // Note: While the Sinatra example didn't show wallet_addresses, 
+      // it is included here to ensure the funds go to the user's specific vault.
       wallet_addresses: {
         [network]: walletAddress,
       },
       customer_ip_address: ip,
     });
 
-    // Stripe rawRequest returns the body of the response
+    // Node.js rawRequest returns the body of the response directly.
     return {
       clientSecret: response.client_secret,
     };

@@ -39,6 +39,7 @@ export default function BuyCryptoPage() {
     }
   }, []);
 
+  // Auto-select first asset if none selected
   useEffect(() => {
     if (initialized && assets.length > 0 && !selectedAsset) {
       setSelectedAsset(assets[0].currency);
@@ -76,10 +77,10 @@ export default function BuyCryptoPage() {
   }, [selectedAsset, assets]);
 
   useEffect(() => {
-    if (selectedAsset) {
+    if (selectedAsset && assets.length > 0) {
       handleFetchClientSecret();
     }
-  }, [selectedAsset, handleFetchClientSecret]);
+  }, [selectedAsset, assets.length, handleFetchClientSecret]);
 
   const onOnrampSessionChange = useCallback(({ session }: any) => {
     setOnrampMessage(`Onramp session status: ${session.status}`);
@@ -171,7 +172,7 @@ export default function BuyCryptoPage() {
                 <SelectValue placeholder="Select asset" />
               </SelectTrigger>
               <SelectContent className="rounded-2xl p-2 border-2 shadow-2xl">
-                {assets.map(a => (
+                {assets.length > 0 ? assets.map(a => (
                   <SelectItem key={a.id} value={a.currency} className="rounded-xl h-14 mb-1">
                     <div className="flex items-center gap-4">
                       <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-xs font-black border uppercase">{a.currency}</div>
@@ -181,7 +182,9 @@ export default function BuyCryptoPage() {
                       </div>
                     </div>
                   </SelectItem>
-                ))}
+                )) : (
+                  <SelectItem value="none" disabled>No assets available</SelectItem>
+                )}
               </SelectContent>
             </Select>
           </div>
