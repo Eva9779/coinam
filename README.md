@@ -1,5 +1,5 @@
 
-# CoinVault | Asset Security
+# Coin A,M | Asset Security
 
 This is a high-performance cryptocurrency vault prototype built with Next.js, React, and Genkit.
 

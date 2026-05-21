@@ -1,7 +1,7 @@
 
 'use server';
 /**
- * @fileOverview This file defines a Genkit flow for generating smart alerts for CoinVault users.
+ * @fileOverview This file defines a Genkit flow for generating smart alerts for Coin A,M users.
  *
  * - generateSmartAlerts - A function that generates AI-powered alerts based on user transactions and market data.
  * - SmartAlertsInput - The input type for the generateSmartAlerts function.
@@ -72,7 +72,7 @@ const smartAlertsPrompt = ai.definePrompt({
   name: 'smartAlertsPrompt',
   input: { schema: SmartAlertsInputSchema },
   output: { schema: SmartAlertsOutputSchema },
-  prompt: `You are an expert financial analyst for CoinVault, a secure cryptocurrency wallet application.
+  prompt: `You are an expert financial analyst for Coin A,M, a secure cryptocurrency wallet application.
 Your goal is to provide generative-AI-powered smart alerts to users based on their transaction history, wallet balances, and current market movements.
 Analyze the provided data and identify any unusual or large transactions, as well as significant market changes that might impact the user's holdings.
 Provide clear reasoning and actionable insights for each alert.

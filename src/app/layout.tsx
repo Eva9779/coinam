@@ -1,3 +1,4 @@
+
 'use client';
 
 import './globals.css';
@@ -112,7 +113,7 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
         <div className="h-16 flex items-center px-6 border-b">
           <Link href="/" className="flex items-center gap-2 text-primary font-bold text-xl hover:opacity-80 transition-opacity">
             <ShieldCheck className="h-8 w-8 text-secondary" />
-            <span>CoinVault</span>
+            <span>Coin A,M</span>
           </Link>
         </div>
         <SidebarNav />
@@ -142,7 +143,7 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
               <SheetContent side="left" className="p-0 w-72">
                 <SheetHeader className="p-6 border-b flex flex-row items-center gap-2">
                   <ShieldCheck className="h-8 w-8 text-secondary" />
-                  <SheetTitle className="text-xl font-bold text-primary">CoinVault</SheetTitle>
+                  <SheetTitle className="text-xl font-bold text-primary">Coin A,M</SheetTitle>
                 </SheetHeader>
                 <div className="flex flex-col h-full">
                    <SidebarNav />
@@ -157,7 +158,7 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
             </Sheet>
             <div className="flex items-center gap-2 text-primary font-bold text-lg sm:text-xl lg:hidden">
               <ShieldCheck className="h-6 w-6 sm:h-8 sm:w-8 text-secondary" />
-              <span className="hidden sm:inline">CoinVault</span>
+              <span className="hidden sm:inline">Coin A,M</span>
             </div>
           </div>
 
@@ -217,11 +218,11 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <meta name="google-site-verification" content="vZEW1q5YcuccPg3pDH34xDYx09DGHlz3fbn4okapBTA" />
-        <meta name="description" content="CoinVault | Secure your digital legacy with institutional AI-powered non-custodial asset security." />
+        <meta name="description" content="Coin A,M | Secure your digital legacy with institutional AI-powered non-custodial asset security." />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-        <title>CoinVault | Institutional AI Asset Security</title>
+        <title>Coin A,M | Institutional AI Asset Security</title>
       </head>
       <body className="font-body antialiased bg-background text-foreground overflow-x-hidden">
         <FirebaseClientProvider>

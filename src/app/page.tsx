@@ -27,7 +27,7 @@ export default function LandingPage() {
       <header className="h-20 border-b bg-background/80 backdrop-blur-xl sticky top-0 z-50 px-6 sm:px-12 flex items-center justify-between">
         <div className="flex items-center gap-2 text-primary font-bold text-2xl tracking-tighter">
           <ShieldCheck className="h-9 w-9 text-secondary" />
-          <span>CoinVault</span>
+          <span>Coin A,M</span>
         </div>
         <div className="hidden md:flex items-center gap-8 text-sm font-bold text-muted-foreground uppercase tracking-widest">
           <Link href="#features" className="hover:text-primary transition-colors">Features</Link>
@@ -179,7 +179,7 @@ export default function LandingPage() {
           <div className="space-y-4 max-w-sm">
             <div className="flex items-center gap-2 text-primary font-bold text-2xl tracking-tighter">
               <ShieldCheck className="h-8 w-8 text-secondary" />
-              <span>CoinVault</span>
+              <span>Coin A,M</span>
             </div>
             <p className="text-muted-foreground font-medium text-sm leading-relaxed">
               Leading the transition to decentralized finance with institutional security and AI intelligence.
@@ -205,7 +205,7 @@ export default function LandingPage() {
           </div>
         </div>
         <div className="max-w-7xl mx-auto pt-12 mt-12 border-t flex items-center justify-between text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-          <span>&copy; 2024 CoinVault Protocol</span>
+          <span>&copy; 2024 Coin A,M Protocol</span>
           <div className="flex gap-6">
             <Link href="#">Twitter</Link>
             <Link href="#">Github</Link>

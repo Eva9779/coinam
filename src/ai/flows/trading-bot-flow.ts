@@ -1,6 +1,7 @@
+
 'use server';
 /**
- * @fileOverview This file defines a Genkit flow for the CoinVault AI Trading Bot.
+ * @fileOverview This file defines a Genkit flow for the Coin A,M AI Trading Bot.
  *
  * - analyzeMarketAndTrade - A function that handles market analysis and suggests trade actions.
  * - TradingBotInput - The input type for the analysis.
@@ -53,7 +54,7 @@ const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `You are the CoinVault AI Quantum Trader, a high-frequency algorithmic bot.
+  prompt: `You are the Coin A,M AI Quantum Trader, a high-frequency algorithmic bot.
 Analyze the following market conditions and user assets to determine a profitable trading strategy.
 
 Market Data:
