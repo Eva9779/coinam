@@ -96,7 +96,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       }));
       setHasError(true);
       setIsSyncing(false);
-      // Critical: Don't set initialized to true on error to prevent auto-provisioning a new wallet
+      // DO NOT set initialized to true here. If rules fail, we must not auto-provision.
     });
 
     return () => unsubscribe();
@@ -170,7 +170,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     try {
       const account = privateKeyToAccount(privateKey);
       
-      // Check if this address already exists in the vault to prevent duplicates
+      // Check if this address already exists in the local state to prevent duplicates
       const existing = assets.find(a => a.address.toLowerCase() === account.address.toLowerCase());
       if (existing) {
         toast({ title: "Address already in vault", description: "This cryptographic key is already provisioned." });
@@ -207,23 +207,34 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Production Auto-Provisioner: Strictly guarded against duplicate addresses
+  /**
+   * Institutional Auto-Provisioner
+   * Strictly guarded against duplicate addresses and race conditions.
+   * Only triggers if the sync is definitively FINISHED, SUCCESSFUL, and EMPTY.
+   */
   useEffect(() => {
-    // ONLY provision if:
-    // 1. Initialized successfully (onSnapshot returned at least once)
-    // 2. Not currently syncing
-    // 3. No errors encountered during sync (prevents new wallet on permission failure)
-    // 4. We are CERTAIN there are zero assets
-    if (initialized && !isSyncing && !hasError && user && assets.length === 0 && !isProvisioning.current) {
+    if (
+      initialized && 
+      !isSyncing && 
+      !hasError && 
+      user && 
+      assets.length === 0 && 
+      !isProvisioning.current
+    ) {
       isProvisioning.current = true;
-      // Final confirmation delay to ensure state consistency before creating a new address
+      
+      // Delay to ensure the "empty" state isn't a false positive during rapid reloads
       const timer = setTimeout(() => {
-        if (assets.length === 0) {
+        if (assets.length === 0 && !hasError && initialized) {
           generateNewWallet('ETH');
         }
         isProvisioning.current = false;
-      }, 2000);
-      return () => clearTimeout(timer);
+      }, 3000); 
+
+      return () => {
+        clearTimeout(timer);
+        isProvisioning.current = false;
+      };
     }
   }, [initialized, isSyncing, hasError, user, assets.length, generateNewWallet]);
 
