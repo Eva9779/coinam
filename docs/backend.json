@@ -54,7 +54,7 @@
     },
     "/users/{userId}/assets/{assetId}": {
       "schema": "WalletAsset",
-      "description": "Isolated cryptographic keys. Strictly authorized for the authenticated user ID matching the path."
+      "description": "Isolated cryptographic keys including the primary-vault root endpoint."
     },
     "/users/{userId}/transactions/{txId}": {
       "schema": "Transaction",

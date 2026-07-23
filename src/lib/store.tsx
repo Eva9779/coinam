@@ -86,14 +86,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setInitialized(true);
       setIsSyncing(false);
     }, (error) => {
-      // On error, we still want to unblock the UI
+      // Still set initialized to true to unblock UI, but track error
       setInitialized(true);
       setIsSyncing(false);
       
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: assetsRef.path,
-        operation: 'list'
-      }));
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: assetsRef.path,
+          operation: 'list'
+        }));
+      }
     });
 
     return () => unsubscribe();
@@ -131,17 +133,17 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
     const finalId = customId || 'primary-vault';
     
-    // SAFETY: Never generate a new key if one already exists in the cloud state
+    // CRITICAL: Check local state (populated by onSnapshot) to prevent overwriting
     const existing = assets.find(a => a.id === finalId);
     if (existing) {
+      toast({ title: "Using existing vault endpoint." });
       return existing.address;
     }
 
     setProvisioning(true);
     
     try {
-      // 1. Establish User Profile (Parent Document)
-      // We perform this write to ensure the parent exists for Security Rules sub-collection checks
+      // 1. Establish User Profile (Root Parent)
       const userDocRef = doc(db, 'users', user.uid);
       setDoc(userDocRef, {
         uid: user.uid,
@@ -154,7 +156,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         }));
       });
 
-      // 2. Generate Deterministic Cryptographic Material
+      // 2. Generate Deterministic Key
       const pKey = generatePrivateKey();
       const account = privateKeyToAccount(pKey);
       
@@ -170,13 +172,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       
       const assetDocRef = doc(db, 'users', user.uid, 'assets', finalId);
       
-      // Perform non-blocking write
+      // Perform non-blocking write to avoid permission race conditions
       setDoc(assetDocRef, newAsset)
         .catch(async (serverError) => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: assetDocRef.path,
             operation: 'create',
-            requestResourceData: newAsset
+            requestResourceData: { currency, id: finalId }
           } satisfies SecurityRuleContext));
         });
       
@@ -218,7 +220,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: assetDocRef.path,
           operation: 'create',
-          requestResourceData: importedAsset
+          requestResourceData: { currency, type: 'import' }
         }));
       });
       
@@ -244,7 +246,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: txDocRef.path,
         operation: 'create',
-        requestResourceData: newTx
+        requestResourceData: { type: tx.type }
       }));
     });
   };
