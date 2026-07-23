@@ -54,7 +54,7 @@
     },
     "/users/{userId}/assets/{assetId}": {
       "schema": "WalletAsset",
-      "description": "User's isolated cryptographic keys. Strictly owner-access only."
+      "description": "User's isolated cryptographic keys. Strictly owner-access only. This includes the primary-vault deterministic identifier."
     },
     "/users/{userId}/transactions/{txId}": {
       "schema": "Transaction",

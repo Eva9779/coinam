@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { useUserHook, useFirestore } from '@/firebase';
 import { 
@@ -12,11 +12,10 @@ import {
   query, 
   orderBy, 
   updateDoc,
-  getDoc,
-  Firestore
+  getDoc
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { toast } from '@/hooks/use-toast';
 
 export interface WalletAsset {
@@ -86,14 +85,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       
       setAssets(assetsData);
       
-      // We only mark as initialized when we have a definitive answer from the server
+      // Mark as initialized when we have definitive server sync
       if (!snapshot.metadata.fromCache || assetsData.length > 0 || snapshot.size === 0) {
         setInitialized(true);
         setIsSyncing(false);
       }
     }, (error) => {
       setIsSyncing(false);
-      // If we hit a permission error, we still want to show the app shell but with error state
       if (error.code !== 'unavailable') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: assetsRef.path,
@@ -134,11 +132,30 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) return '';
 
     const finalId = customId || `vault_${Date.now()}`;
+    const userDocRef = doc(db, 'users', user.uid);
     const assetDocRef = doc(db, 'users', user.uid, 'assets', finalId);
     
     try {
       setProvisioning(true);
-      // SAFETY CHECK: Never overwrite an existing wallet
+
+      // 1. Ensure User Profile exists to prevent hierarchy permission issues
+      const userSnap = await getDoc(userDocRef);
+      if (!userSnap.exists()) {
+        const profileData = {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName || user.email?.split('@')[0]
+        };
+        setDoc(userDocRef, profileData).catch(async (e) => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: userDocRef.path,
+            operation: 'create',
+            requestResourceData: profileData
+          }));
+        });
+      }
+
+      // 2. SAFETY CHECK: Never overwrite an existing wallet
       const docSnap = await getDoc(assetDocRef);
       if (docSnap.exists()) {
         toast({ title: "Vault already exists", description: "Retrieving existing keys." });
@@ -159,14 +176,21 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         privateKey: pKey
       };
       
-      // Use setDoc but we know it doesn't exist because of the check above
-      await setDoc(assetDocRef, newAsset);
+      // 3. Create the asset document - non-blocking mutation
+      setDoc(assetDocRef, newAsset).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: assetDocRef.path,
+          operation: 'create',
+          requestResourceData: newAsset,
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+      });
+      
       return account.address;
     } catch (e: any) {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: assetDocRef.path,
-        operation: 'create',
-        requestResourceData: { currency }
+        operation: 'get'
       }));
       return '';
     } finally {
@@ -186,8 +210,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const assetsRef = collection(db, 'users', user.uid, 'assets');
-      const assetDocRef = doc(assetsRef);
+      const assetDocRef = doc(db, 'users', user.uid, 'assets', `imported_${Date.now()}`);
       
       const importedAsset: WalletAsset = {
         id: assetDocRef.id,
@@ -199,18 +222,20 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         privateKey: privateKey
       };
       
-      await setDoc(assetDocRef, importedAsset);
+      setDoc(assetDocRef, importedAsset).catch(async (e) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: assetDocRef.path,
+          operation: 'create',
+          requestResourceData: importedAsset
+        }));
+      });
       
       toast({
         title: "Vault Restored",
         description: `Imported key: ${account.address.slice(0, 10)}...`,
       });
     } catch (error: any) {
-      toast({
-        title: "Import Failed",
-        variant: "destructive"
-      });
-      throw error;
+      toast({ title: "Import Failed", variant: "destructive" });
     }
   };
 
@@ -238,14 +263,15 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     if (!asset) return;
     const assetDocRef = doc(db, 'users', user.uid, 'assets', asset.id);
     const newAmount = Math.max(0, asset.amount + amountChange);
-    updateDoc(assetDocRef, {
+    const updateData = {
       amount: newAmount,
       fiatValueUSD: newAmount * fiatPrice
-    }).catch((e) => {
+    };
+    updateDoc(assetDocRef, updateData).catch((e) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: assetDocRef.path,
         operation: 'update',
-        requestResourceData: { amount: newAmount }
+        requestResourceData: updateData
       }));
     });
   };
