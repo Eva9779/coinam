@@ -71,9 +71,8 @@ Limit: $ {{{allocationLimitUSD}}}
 Instructions:
 1. Maximize yield while minimizing drawdown.
 2. Provide short actions (buy/sell).
-3. Ensure 'fromAsset' has sufficient balance.
-4. Total USD of actions must be under the Allocation Limit.
-5. Rebalance towards high momentum assets.
+3. Total USD of actions must be under the Allocation Limit.
+4. If market is bearish, hold more USDC. If bullish, hold more ETH/SOL.
 
 Output in JSON.`,
 });
