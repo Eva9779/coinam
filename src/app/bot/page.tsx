@@ -15,7 +15,6 @@ import {
   Terminal, 
   TrendingUp, 
   Zap, 
-  Brain, 
   Activity, 
   ShieldCheck, 
   Loader2,
@@ -24,15 +23,12 @@ import {
   Globe,
   Settings2,
   DollarSign,
-  AlertTriangle,
-  ArrowUpRight,
   BarChart3,
-  Monitor,
   Eye,
-  Trophy
+  Trophy,
+  Trash2
 } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
-import { analyzeMarketAndTrade, TradingBotOutput } from '@/ai/flows/trading-bot-flow';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
@@ -86,148 +82,44 @@ const BotTradingChart = memo(({ symbol }: { symbol: string }) => {
 BotTradingChart.displayName = "BotTradingChart";
 
 export default function TradingBotPage() {
-  const { assets, initialized, user, updateBalance, addTransaction, totalBotEarnings, updateBotEarnings } = useVaultStore();
-  const [isActive, setIsActive] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [allocation, setAllocation] = useState<string>("1000");
-  const [riskLevel, setRiskLevel] = useState<"low" | "medium" | "high">("medium");
-  const [logs, setLogs] = useState<{msg: string, type: 'info' | 'success' | 'warning'}[]>([] );
-  const [botOutput, setBotOutput] = useState<TradingBotOutput | null>(null);
-  const [sessionEarnings, setSessionEarnings] = useState<number>(0);
+  const { 
+    assets, 
+    user, 
+    totalBotEarnings, 
+    botActive, 
+    botAllocation, 
+    botRiskLevel, 
+    botLogs, 
+    isAnalyzing,
+    updateBotSettings,
+    clearBotLogs
+  } = useVaultStore();
+
+  const [localAllocation, setLocalAllocation] = useState(botAllocation.toString());
+  const [localRisk, setLocalRisk] = useState<'low' | 'medium' | 'high'>(botRiskLevel);
   const [chartSymbol, setChartSymbol] = useState("BTC");
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
-  const addLog = (msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
-    setLogs(prev => [...prev, { msg, type }]);
-  };
-
   useEffect(() => {
     terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logs]);
+  }, [botLogs]);
 
-  const fetchLiveMarketData = async () => {
-    try {
-      const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,usd-coin&vs_currencies=usd&include_24hr_change=true');
-      const data = await res.json();
-      return [
-        { currency: 'BTC', price: data.bitcoin.usd, change24h: data.bitcoin.usd_24h_change },
-        { currency: 'ETH', price: data.ethereum.usd, change24h: data.ethereum.usd_24h_change },
-        { currency: 'SOL', price: data.solana.usd, change24h: data.solana.usd_24h_change },
-        { currency: 'USDC', price: data['usd-coin'].usd, change24h: 0 },
-      ];
-    } catch (error) {
-      addLog('Primary pricing feed offline. Using failover node.', 'warning');
-      return [
-        { currency: 'BTC', price: 65200, change24h: 1.2 },
-        { currency: 'ETH', price: 2540, change24h: -0.5 },
-        { currency: 'SOL', price: 152, change24h: 4.8 },
-        { currency: 'USDC', price: 1, change24h: 0 },
-      ];
-    }
-  };
+  useEffect(() => {
+    setLocalAllocation(botAllocation.toString());
+    setLocalRisk(botRiskLevel);
+  }, [botAllocation, botRiskLevel]);
 
-  const runBotCycle = async () => {
-    if (!user || !initialized) return;
-    
-    setIsAnalyzing(true);
-    addLog(`Initiating Quantum Protocol: ${riskLevel.toUpperCase()} Strategy`, 'info');
-    
-    try {
-      const liveMarket = await fetchLiveMarketData();
-      addLog('Market Pulse Sync Successful. Analyzing Volatility Indices.', 'success');
-
-      const response = await analyzeMarketAndTrade({
-        userId: user.uid,
-        assets: assets.map(a => ({
-          currency: a.currency,
-          amount: a.amount,
-          fiatValue: a.fiatValueUSD
-        })),
-        marketData: liveMarket,
-        riskTolerance: riskLevel,
-        allocationLimitUSD: parseFloat(allocation) || 0
+  const handleToggleBot = () => {
+    const allocationNum = parseFloat(localAllocation);
+    if (isNaN(allocationNum) || allocationNum <= 0) {
+      toast({
+        title: "Configuration Error",
+        description: "Please specify a valid trading allocation amount.",
+        variant: "destructive"
       });
-
-      setBotOutput(response);
-      addLog(`AI Strategy Formulated: ${response.strategy}`, 'success');
-      addLog(`Sentiment: ${response.marketSentiment.toUpperCase()} | confidence: ${response.confidenceScore}%`, 'info');
-
-      if (response.actions.length > 0) {
-        const topAction = response.actions.find(a => a.type !== 'hold');
-        if (topAction) setChartSymbol(topAction.toAsset);
-      }
-
-      let currentCycleProfit = 0;
-
-      for (const action of response.actions) {
-        if (action.type === 'buy' || action.type === 'sell') {
-          addLog(`Executing Asset Rebalance: ${action.type.toUpperCase()} ${action.amount} ${action.fromAsset} → ${action.toAsset}`, 'warning');
-          
-          const fromMarket = liveMarket.find(m => m.currency === action.fromAsset);
-          const toMarket = liveMarket.find(m => m.currency === action.toAsset);
-          
-          const fromPrice = fromMarket?.price || 1;
-          const toPrice = toMarket?.price || 1;
-          
-          const fromData = assets.find(a => a.currency === action.fromAsset);
-          
-          if (fromData && fromData.amount >= action.amount) {
-            const receiveAmount = action.amount * (fromPrice / toPrice);
-            
-            updateBalance(action.fromAsset, -action.amount, fromPrice);
-            updateBalance(action.toAsset, receiveAmount, toPrice);
-            
-            addTransaction({
-              type: 'trade',
-              currency: `${action.fromAsset} → ${action.toAsset}`,
-              amount: action.amount,
-              fiatValueUSD: action.amount * fromPrice,
-              description: `AI Income Generation: ${action.reasoning}`
-            });
-            
-            // Simulating a small profit from the trade efficiency
-            const tradeGain = (action.amount * fromPrice) * 0.001; 
-            currentCycleProfit += tradeGain;
-            
-            addLog(`Network Confirmation: Trade finalized on-chain. Funds settled.`, 'success');
-          } else {
-            addLog(`Execution Halted: Insufficient ${action.fromAsset} for trade allocation.`, 'warning');
-          }
-        } else {
-          addLog(`Strategic Hold: ${action.reasoning}`, 'info');
-        }
-      }
-
-      if (currentCycleProfit > 0) {
-        setSessionEarnings(prev => prev + currentCycleProfit);
-        updateBotEarnings(currentCycleProfit);
-      }
-
-    } catch (error) {
-      addLog('Node Failure: Could not finalize network broadcast.', 'warning');
-      console.error(error);
-    } finally {
-      setIsAnalyzing(false);
+      return;
     }
-  };
-
-  const toggleBot = () => {
-    if (!isActive) {
-      if (!allocation || parseFloat(allocation) <= 0) {
-        toast({
-          title: "Configuration Error",
-          description: "Please specify a valid trading allocation amount.",
-          variant: "destructive"
-        });
-        return;
-      }
-      setIsActive(true);
-      addLog('Production Trading Protocol: ACTIVE', 'success');
-      runBotCycle();
-    } else {
-      setIsActive(false);
-      addLog('Production Trading Protocol: STANDBY', 'info');
-    }
+    updateBotSettings(!botActive, allocationNum, localRisk);
   };
 
   return (
@@ -240,24 +132,24 @@ export default function TradingBotPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            Institutional algorithmic rebalancing and live market intelligence.
+            Institutional background rebalancing active on all vault endpoints.
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Badge variant="outline" className={cn(
             "px-4 py-1.5 font-black uppercase text-[10px] tracking-[0.2em] border-2",
-            isActive ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+            botActive ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"
           )}>
-            <div className={cn("h-2 w-2 rounded-full mr-2", isActive ? "bg-green-500 animate-pulse" : "bg-amber-500")} />
-            Network: {isActive ? 'LIVE' : 'STANDBY'}
+            <div className={cn("h-2 w-2 rounded-full mr-2", botActive ? "bg-green-500 animate-pulse" : "bg-amber-500")} />
+            Network: {botActive ? 'LIVE' : 'STANDBY'}
           </Badge>
           <Button 
-            onClick={toggleBot} 
-            variant={isActive ? "destructive" : "default"}
+            onClick={handleToggleBot} 
+            variant={botActive ? "destructive" : "default"}
             className="h-12 px-8 font-bold rounded-2xl shadow-xl gap-2 transition-all"
           >
-            {isActive ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-            {isActive ? 'Stop Trading' : 'Launch AI Bot'}
+            {botActive ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+            {botActive ? 'Stop Trading' : 'Launch AI Bot'}
           </Button>
         </div>
       </div>
@@ -268,8 +160,8 @@ export default function TradingBotPage() {
             <Card className="rounded-[2.5rem] bg-gradient-to-br from-primary to-primary/80 text-white border-none shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Total Bot Earnings</p>
-                  <p className="text-4xl font-black tracking-tighter">${totalBotEarnings.toFixed(2)}</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Cloud-Verified Earnings</p>
+                  <p className="text-4xl font-black tracking-tighter">${totalBotEarnings.toFixed(4)}</p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
                   <Trophy className="h-7 w-7 text-secondary" />
@@ -279,11 +171,11 @@ export default function TradingBotPage() {
             <Card className="rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/10 shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Active Session profit</p>
-                  <p className="text-4xl font-black tracking-tighter text-green-600">+${sessionEarnings.toFixed(2)}</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Mainnet Status</p>
+                  <p className="text-4xl font-black tracking-tighter text-green-600">{botActive ? 'SYNCING' : 'IDLE'}</p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-green-500/10 flex items-center justify-center border border-green-500/20">
-                  <TrendingUp className="h-7 w-7 text-green-600" />
+                  <Activity className="h-7 w-7 text-green-600" />
                 </div>
               </CardContent>
             </Card>
@@ -293,14 +185,8 @@ export default function TradingBotPage() {
             <div className="flex items-center justify-between px-2">
               <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-secondary" />
-                Live Execution View: {chartSymbol}/USDT
+                Bot Vision: {chartSymbol}/USDT
               </h3>
-              <div className="flex items-center gap-2">
-                 <Badge variant="secondary" className="bg-primary/5 text-primary border border-primary/10 flex gap-1.5 items-center">
-                    <Eye className="h-3 w-3" />
-                    LIVE-SYNC
-                 </Badge>
-              </div>
             </div>
             <BotTradingChart symbol={chartSymbol} />
           </div>
@@ -309,28 +195,33 @@ export default function TradingBotPage() {
             <CardHeader className="border-b border-white/10 flex flex-row items-center justify-between px-8 py-6">
               <div className="flex items-center gap-3">
                 <Terminal className="h-5 w-5 text-secondary" />
-                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">Real-time Bot Logs</CardTitle>
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">Autonomous Execution Logs</CardTitle>
               </div>
-              {isAnalyzing && (
-                <div className="flex items-center gap-2 text-[10px] font-bold text-secondary">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Neural Logic Processing...
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                {isAnalyzing && (
+                  <div className="flex items-center gap-2 text-[10px] font-bold text-secondary mr-4">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    NEURAL PROCESSING
+                  </div>
+                )}
+                <Button variant="ghost" size="icon" onClick={clearBotLogs} className="h-8 w-8 text-white/30 hover:text-white">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto p-8 font-mono text-xs space-y-3 no-scrollbar max-h-[400px]">
-              {logs.length === 0 ? (
+              {botLogs.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center opacity-20 text-center space-y-6 py-20">
                   <Activity className="h-16 w-16" />
-                  <p className="uppercase tracking-[0.4em] font-black text-sm">Awaiting Protocol Initialization</p>
+                  <p className="uppercase tracking-[0.4em] font-black text-sm">Awaiting Autonomous Pulse</p>
                 </div>
               ) : (
-                logs.map((log, i) => (
+                botLogs.map((log, i) => (
                   <div key={i} className={cn(
                     "flex gap-3 animate-in fade-in slide-in-from-left-4 duration-500",
                     log.type === 'success' ? "text-green-400" : log.type === 'warning' ? "text-amber-400" : "text-blue-300"
                   )}>
-                    <span className="opacity-30">[{new Date().toLocaleTimeString()}]</span>
+                    <span className="opacity-30">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
                     <span className="font-bold">{log.msg}</span>
                   </div>
                 ))
@@ -345,37 +236,37 @@ export default function TradingBotPage() {
             <CardHeader className="bg-primary/5 pb-6">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <Settings2 className="h-5 w-5 text-secondary" />
-                Control Parameters
+                Trading Parameters
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Trading Capital (USD)</Label>
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Capital Allocation Cap (USD)</Label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input 
                       type="number" 
                       placeholder="1000" 
-                      value={allocation}
-                      onChange={(e) => setAllocation(e.target.value)}
-                      disabled={isActive}
+                      value={localAllocation}
+                      onChange={(e) => setLocalAllocation(e.target.value)}
+                      disabled={botActive}
                       className="pl-9 h-12 rounded-xl font-bold text-lg"
                     />
                   </div>
-                  <p className="text-[10px] text-muted-foreground font-medium">Max budget per trade session.</p>
+                  <p className="text-[10px] text-muted-foreground font-medium">The AI will never trade more than this total value from your vault.</p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Risk Tolerance</Label>
-                  <Select value={riskLevel} onValueChange={(v: any) => setRiskLevel(v)} disabled={isActive}>
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Risk Tolerance Profile</Label>
+                  <Select value={localRisk} onValueChange={(v: any) => setLocalRisk(v)} disabled={botActive}>
                     <SelectTrigger className="h-12 rounded-xl font-bold">
                       <SelectValue placeholder="Select Strategy" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
-                      <SelectItem value="low">Conservative (Low Yield)</SelectItem>
+                      <SelectItem value="low">Conservative (Delta Neutral)</SelectItem>
                       <SelectItem value="medium">Balanced (Standard AI)</SelectItem>
-                      <SelectItem value="high">Aggressive (High Frequency)</SelectItem>
+                      <SelectItem value="high">Aggressive (High Volatility)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -387,22 +278,18 @@ export default function TradingBotPage() {
                 <Zap className="absolute -right-6 -bottom-6 h-28 w-28 opacity-10 text-secondary" />
                 <h4 className="text-sm font-black flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-secondary" />
-                  Execution Policy
+                  Autonomous Policy
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  The bot settles all trade income directly into your non-custodial vault. 
+                  The bot settles all trade income directly into your USDC vault endpoint. Assets never leave your non-custodial custody.
                 </p>
               </div>
 
-              <Button 
-                variant="outline" 
-                className="w-full h-14 rounded-2xl font-bold border-secondary/20 text-secondary hover:bg-secondary/5 transition-all"
-                onClick={runBotCycle}
-                disabled={!isActive || isAnalyzing}
-              >
-                <RefreshCw className={cn("h-4 w-4 mr-2", isAnalyzing && "animate-spin")} />
-                Manual Refresh Analysis
-              </Button>
+              {botActive && (
+                <p className="text-center text-[10px] font-black text-green-600 uppercase animate-pulse">
+                  Bot is currently trading in the background.
+                </p>
+              )}
             </CardContent>
           </Card>
         </div>
