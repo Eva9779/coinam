@@ -50,15 +50,15 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "User profile document. Access restricted to authenticated owner."
+      "description": "User profile document. Primary owner identity for all vault sub-collections."
     },
     "/users/{userId}/assets/{assetId}": {
       "schema": "WalletAsset",
-      "description": "User's isolated cryptographic keys. Strictly owner-access only. This includes the primary-vault deterministic identifier."
+      "description": "Isolated cryptographic keys. Strictly owner-access only. This includes the 'primary-vault' deterministic identifier."
     },
     "/users/{userId}/transactions/{txId}": {
       "schema": "Transaction",
-      "description": "User's immutable transaction ledger."
+      "description": "User's immutable transaction ledger for all vault activities."
     }
   }
 }

@@ -129,16 +129,22 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [db, user]);
 
   const generateNewWallet = useCallback(async (currency: string, customId?: string) => {
-    if (!db || !user) return '';
+    if (!db || !user || !initialized) return '';
 
-    const finalId = customId || `vault_${Date.now()}`;
+    const finalId = customId || 'primary-vault';
+    
+    // 1. Check if it already exists in our verified synced state
+    const existing = assets.find(a => a.id === finalId);
+    if (existing) {
+      return existing.address;
+    }
+
+    setProvisioning(true);
     const userDocRef = doc(db, 'users', user.uid);
     const assetDocRef = doc(db, 'users', user.uid, 'assets', finalId);
     
     try {
-      setProvisioning(true);
-
-      // 1. Ensure User Profile exists to prevent hierarchy permission issues
+      // 2. Ensure User Profile exists - atomic write
       const userSnap = await getDoc(userDocRef);
       if (!userSnap.exists()) {
         const profileData = {
@@ -146,7 +152,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           email: user.email,
           displayName: user.displayName || user.email?.split('@')[0]
         };
-        setDoc(userDocRef, profileData).catch(async (e) => {
+        setDoc(userDocRef, profileData).catch((e) => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: userDocRef.path,
             operation: 'create',
@@ -155,14 +161,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      // 2. SAFETY CHECK: Never overwrite an existing wallet
-      const docSnap = await getDoc(assetDocRef);
-      if (docSnap.exists()) {
-        toast({ title: "Vault already exists", description: "Retrieving existing keys." });
-        const existingData = docSnap.data() as WalletAsset;
-        return existingData.address;
-      }
-
+      // 3. Generate and Persist the new key
+      // We skip 'await getDoc(assetDocRef)' because our 'assets' array from the listener
+      // is already server-verified once 'initialized' is true.
       const pKey = generatePrivateKey();
       const account = privateKeyToAccount(pKey);
       
@@ -176,7 +177,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         privateKey: pKey
       };
       
-      // 3. Create the asset document - non-blocking mutation
+      // Non-blocking mutation pattern
       setDoc(assetDocRef, newAsset).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
           path: assetDocRef.path,
@@ -188,15 +189,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       
       return account.address;
     } catch (e: any) {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: assetDocRef.path,
-        operation: 'get'
-      }));
+      // General error handling
+      toast({ title: "Internal provisioning error", variant: "destructive" });
       return '';
     } finally {
       setProvisioning(false);
     }
-  }, [db, user]);
+  }, [db, user, assets, initialized]);
 
   const importPrivateKey = async (currency: string, privateKey: `0x${string}`) => {
     if (!db || !user) return;
