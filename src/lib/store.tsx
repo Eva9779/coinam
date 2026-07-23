@@ -59,7 +59,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
-  const [isSyncedWithServer, setIsSyncedWithServer] = useState(false);
   const [hasError, setHasError] = useState(false);
   const isProvisioning = useRef(false);
   const { user } = useUserHook();
@@ -70,7 +69,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) {
       setInitialized(false);
       setIsSyncing(false);
-      setIsSyncedWithServer(false);
       setAssets([]);
       return;
     }
@@ -78,6 +76,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setIsSyncing(true);
     const assetsRef = collection(db, 'users', user.uid, 'assets');
     
+    // We removed initialized from deps to prevent reset loops
     const unsubscribe = onSnapshot(assetsRef, (snapshot) => {
       const assetsData = snapshot.docs.map(doc => ({
         ...doc.data(),
@@ -85,13 +84,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       } as WalletAsset));
       
       setAssets(assetsData);
-      
-      // Initialize UI immediately from cache or server
       setInitialized(true);
       
-      // Track actual server-sync status
-      if (!snapshot.metadata.fromCache) {
-        setIsSyncedWithServer(true);
+      // Stop syncing indicator once we have a valid snapshot (even if empty)
+      if (!snapshot.metadata.fromCache || assetsData.length > 0) {
         setIsSyncing(false);
       }
     }, (error) => {
@@ -104,22 +100,19 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         setHasError(true);
       }
       setIsSyncing(false);
-      setInitialized(true); // Stop blocking UI even on error
+      setInitialized(true);
     });
 
-    // Safety timeout to prevent infinite loading on bad networks
     const timeout = setTimeout(() => {
-      if (!initialized) {
-        setInitialized(true);
-        setIsSyncing(false);
-      }
-    }, 8000);
+      setInitialized(true);
+      setIsSyncing(false);
+    }, 5000);
 
     return () => {
       unsubscribe();
       clearTimeout(timeout);
     };
-  }, [db, user, initialized]);
+  }, [db, user]);
 
   // Transactions Ledger Listener
   useEffect(() => {
@@ -153,7 +146,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const account = privateKeyToAccount(pKey);
     
     const assetsRef = collection(db, 'users', user.uid, 'assets');
-    // Using a deterministic ID for the primary vault to prevent duplicates
     const finalId = customId || (assets.length === 0 ? 'primary-vault' : undefined);
     const assetDocRef = finalId ? doc(assetsRef, finalId) : doc(assetsRef);
     
@@ -219,20 +211,19 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Critical: Provision primary vault ONLY after server confirmation of empty state
-  // This prevents regeneration while waiting for cache to sync
+  // Critical: Provision primary vault if we are initialized and have no assets
   useEffect(() => {
     if (
-      isSyncedWithServer && 
       initialized && 
       user && 
       assets.length === 0 && 
-      !isProvisioning.current
+      !isProvisioning.current &&
+      !isSyncing // Ensure we've at least finished the initial sync check
     ) {
       isProvisioning.current = true;
       generateNewWallet('ETH', 'primary-vault');
     }
-  }, [isSyncedWithServer, initialized, user, assets.length, generateNewWallet]);
+  }, [initialized, user, assets.length, isSyncing, generateNewWallet]);
 
   const addTransaction = (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
     if (!db || !user) return;

@@ -59,8 +59,7 @@ export default function WalletPage() {
     });
   };
 
-  // Improved loading state: only block if we have NO data at all (not even from cache)
-  if (!initialized) {
+  if (!initialized && isSyncing) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
         <div className="relative">
