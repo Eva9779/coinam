@@ -59,8 +59,8 @@ export default function WalletPage() {
     });
   };
 
-  // Improved loading state that waits for server synchronization
-  if (!initialized || isSyncing) {
+  // Improved loading state: only block if we have NO data at all (not even from cache)
+  if (!initialized) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
         <div className="relative">
@@ -83,7 +83,15 @@ export default function WalletPage() {
             <ShieldCheck className="h-8 w-8 text-secondary" />
             Non-Custodial Vault
           </h2>
-          <p className="text-muted-foreground text-sm font-medium">Cryptographic endpoints synchronized with decentralized peers.</p>
+          <div className="flex items-center gap-2 mt-1">
+            <p className="text-muted-foreground text-sm font-medium">Cryptographic endpoints synchronized with decentralized peers.</p>
+            {isSyncing && (
+              <Badge variant="secondary" className="bg-primary/5 text-primary animate-pulse h-5 flex items-center gap-1 font-bold text-[8px]">
+                <RefreshCw className="h-2 w-2 animate-spin" />
+                SYNCING
+              </Badge>
+            )}
+          </div>
         </div>
         <div className="flex flex-wrap gap-3">
           <Button variant="outline" asChild className="gap-2 h-14 px-6 font-bold rounded-2xl border-primary/20 text-primary hover:bg-primary/5">
@@ -170,10 +178,15 @@ export default function WalletPage() {
                       </div>
                     </div>
                   </div>
-                )) : (
+                )) : assets.length === 0 && !isSyncing ? (
                   <div className="py-24 text-center text-muted-foreground border-2 border-dashed rounded-3xl opacity-50 font-bold uppercase text-xs tracking-widest flex flex-col items-center gap-4">
                     <ShieldAlert className="h-10 w-10 text-muted" />
-                    No active endpoints provisioned
+                    Provisioning primary endpoint...
+                  </div>
+                ) : (
+                  <div className="py-24 text-center text-muted-foreground border-2 border-dashed rounded-3xl opacity-50 font-bold uppercase text-xs tracking-widest flex flex-col items-center gap-4">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                    Syncing Cloud Enclave...
                   </div>
                 )}
               </div>

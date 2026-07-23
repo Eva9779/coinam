@@ -86,10 +86,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       
       setAssets(assetsData);
       
-      // We only consider it "initialized" once we've heard from the server (not just cache)
+      // Initialize UI immediately from cache or server
+      setInitialized(true);
+      
+      // Track actual server-sync status
       if (!snapshot.metadata.fromCache) {
         setIsSyncedWithServer(true);
-        setInitialized(true);
         setIsSyncing(false);
       }
     }, (error) => {
@@ -102,11 +104,22 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         setHasError(true);
       }
       setIsSyncing(false);
-      setInitialized(true); // Stop loading even on error
+      setInitialized(true); // Stop blocking UI even on error
     });
 
-    return () => unsubscribe();
-  }, [db, user]);
+    // Safety timeout to prevent infinite loading on bad networks
+    const timeout = setTimeout(() => {
+      if (!initialized) {
+        setInitialized(true);
+        setIsSyncing(false);
+      }
+    }, 8000);
+
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
+  }, [db, user, initialized]);
 
   // Transactions Ledger Listener
   useEffect(() => {
@@ -207,6 +220,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Critical: Provision primary vault ONLY after server confirmation of empty state
+  // This prevents regeneration while waiting for cache to sync
   useEffect(() => {
     if (
       isSyncedWithServer && 
