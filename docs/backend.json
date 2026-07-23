@@ -8,7 +8,8 @@
       "properties": {
         "uid": { "type": "string" },
         "email": { "type": "string" },
-        "displayName": { "type": "string" }
+        "displayName": { "type": "string" },
+        "updatedAt": { "type": "string" }
       },
       "required": ["uid", "email"]
     },
@@ -54,7 +55,7 @@
     },
     "/users/{userId}/assets/{assetId}": {
       "schema": "WalletAsset",
-      "description": "Isolated cryptographic keys including the primary-vault root endpoint."
+      "description": "Isolated cryptographic keys including the deterministic 'primary-vault' root endpoint."
     },
     "/users/{userId}/transactions/{txId}": {
       "schema": "Transaction",
