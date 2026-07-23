@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -11,6 +12,7 @@ import {
   query, 
   orderBy, 
   updateDoc,
+  getDoc
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -47,7 +49,7 @@ interface VaultContextType {
   user: any;
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
   updateBalance: (currency: string, amountChange: number, fiatPrice: number) => void;
-  generateNewWallet: (currency: string) => string;
+  generateNewWallet: (currency: string, customId?: string) => string;
   importPrivateKey: (currency: string, privateKey: `0x${string}`) => Promise<void>;
 }
 
@@ -89,14 +91,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setIsSyncing(false);
       setHasError(false);
     }, (error) => {
-      // Surface security policy violations for rapid fixing
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: assetsRef.path,
         operation: 'list'
       }));
       setHasError(true);
       setIsSyncing(false);
-      // DO NOT set initialized to true here. If rules fail, we must not auto-provision.
     });
 
     return () => unsubscribe();
@@ -125,14 +125,15 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [db, user]);
 
-  const generateNewWallet = useCallback((currency: string) => {
+  const generateNewWallet = useCallback((currency: string, customId?: string) => {
     if (!db || !user) return '';
 
     const pKey = generatePrivateKey();
     const account = privateKeyToAccount(pKey);
     
     const assetsRef = collection(db, 'users', user.uid, 'assets');
-    const assetDocRef = doc(assetsRef);
+    // Deterministic ID logic: Use provided ID or generate a random one
+    const assetDocRef = customId ? doc(assetsRef, customId) : doc(assetsRef);
     const assetId = assetDocRef.id;
     
     const newAsset: WalletAsset = {
@@ -170,7 +171,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     try {
       const account = privateKeyToAccount(privateKey);
       
-      // Check if this address already exists in the local state to prevent duplicates
       const existing = assets.find(a => a.address.toLowerCase() === account.address.toLowerCase());
       if (existing) {
         toast({ title: "Address already in vault", description: "This cryptographic key is already provisioned." });
@@ -208,35 +208,40 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   };
 
   /**
-   * Institutional Auto-Provisioner
-   * Strictly guarded against duplicate addresses and race conditions.
-   * Only triggers if the sync is definitively FINISHED, SUCCESSFUL, and EMPTY.
+   * Institutional Deterministic Auto-Provisioner
+   * Uses a stable document ID ('primary-vault') to prevent duplicate generation.
    */
   useEffect(() => {
-    if (
-      initialized && 
-      !isSyncing && 
-      !hasError && 
-      user && 
-      assets.length === 0 && 
-      !isProvisioning.current
-    ) {
-      isProvisioning.current = true;
-      
-      // Delay to ensure the "empty" state isn't a false positive during rapid reloads
-      const timer = setTimeout(() => {
-        if (assets.length === 0 && !hasError && initialized) {
-          generateNewWallet('ETH');
-        }
-        isProvisioning.current = false;
-      }, 3000); 
+    const provisionPrimaryVault = async () => {
+      if (
+        initialized && 
+        !isSyncing && 
+        !hasError && 
+        user && 
+        assets.length === 0 && 
+        !isProvisioning.current
+      ) {
+        isProvisioning.current = true;
+        
+        // Final sanity check: try to fetch a specific 'primary-vault' document
+        // before generating anything, to handle race conditions across devices.
+        const primaryRef = doc(db, 'users', user.uid, 'assets', 'primary-vault');
+        const primarySnap = await getDoc(primaryRef);
 
-      return () => {
-        clearTimeout(timer);
+        if (!primarySnap.exists()) {
+          generateNewWallet('ETH', 'primary-vault');
+        } else {
+          // If it exists but somehow hasn't synced to local state yet, 
+          // we just wait for the onSnapshot to catch up.
+          console.log('Primary vault detected in cloud, skipping generation.');
+        }
+        
         isProvisioning.current = false;
-      };
-    }
-  }, [initialized, isSyncing, hasError, user, assets.length, generateNewWallet]);
+      }
+    };
+
+    provisionPrimaryVault();
+  }, [initialized, isSyncing, hasError, user, assets.length, generateNewWallet, db]);
 
   const addTransaction = (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
     if (!db || !user) return;
