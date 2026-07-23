@@ -85,7 +85,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [provisioning, setProvisioning] = useState(false);
   const autoProvisionAttempted = useRef(false);
   
-  // Ref for stable asset access in background cycles
   const assetsRef = useRef<WalletAsset[]>([]);
   const botStateRef = useRef({ active: false, risk: 'medium', allocation: 1000, earnings: 0 });
 
@@ -109,7 +108,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
-  // User Profile & Settings Listener
   useEffect(() => {
     if (!db || !user) return;
 
@@ -200,7 +198,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     if (!active || !user || !db || isAnalyzing) return;
     
     setIsAnalyzing(true);
-    addLog(`Initiating Quantum Protocol Cycle...`, 'info');
+    addLog(`Neural Node Syncing...`, 'info');
     
     try {
       const liveMarket = [
@@ -223,80 +221,80 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         allocationLimitUSD: allocation
       });
 
-      addLog(`AI Strategy Formulated: ${response.strategy}`, 'success');
+      if (response && response.actions) {
+        addLog(`Quantum Strategy: ${response.strategy}`, 'success');
 
-      let currentCycleProfit = 0;
-      let executedAny = false;
+        let currentCycleProfit = 0;
+        let executedAny = false;
 
-      for (const action of response.actions) {
-        if (action.type === 'buy' || action.type === 'sell') {
-          const fromData = currentAssets.find(a => a.currency === action.fromAsset);
-          
-          if (fromData && fromData.amount >= action.amount) {
-            executedAny = true;
-            addLog(`Executing Rebalance: ${action.type.toUpperCase()} ${action.amount} ${action.fromAsset} → ${action.toAsset}`, 'warning');
+        for (const action of response.actions) {
+          if (action.type === 'buy' || action.type === 'sell') {
+            const fromData = currentAssets.find(a => a.currency === action.fromAsset);
             
-            const fromMarket = liveMarket.find(m => m.currency === action.fromAsset);
-            const toMarket = liveMarket.find(m => m.currency === action.toAsset);
-            const fromPrice = fromMarket?.price || 1;
-            const toPrice = toMarket?.price || 1;
-            const receiveAmount = action.amount * (fromPrice / toPrice);
-            
-            updateBalanceInternal(action.fromAsset, -action.amount, fromPrice);
-            updateBalanceInternal(action.toAsset, receiveAmount, toPrice);
-            
-            addTransactionInternal({
-              type: 'trade',
-              currency: `${action.fromAsset} → ${action.toAsset}`,
-              amount: action.amount,
-              fiatValueUSD: action.amount * fromPrice,
-              description: `AI Bot Execution: ${action.reasoning}`
-            });
-            
-            currentCycleProfit += (action.amount * fromPrice) * 0.001; 
+            if (fromData && fromData.amount >= action.amount) {
+              executedAny = true;
+              addLog(`Autonomous Rebalance: ${action.type.toUpperCase()} ${action.amount} ${action.fromAsset}`, 'warning');
+              
+              const fromMarket = liveMarket.find(m => m.currency === action.fromAsset);
+              const toMarket = liveMarket.find(m => m.currency === action.toAsset);
+              const fromPrice = fromMarket?.price || 1;
+              const toPrice = toMarket?.price || 1;
+              const receiveAmount = action.amount * (fromPrice / toPrice);
+              
+              updateBalanceInternal(action.fromAsset, -action.amount, fromPrice);
+              updateBalanceInternal(action.toAsset, receiveAmount, toPrice);
+              
+              addTransactionInternal({
+                type: 'trade',
+                currency: `${action.fromAsset} → ${action.toAsset}`,
+                amount: action.amount,
+                fiatValueUSD: action.amount * fromPrice,
+                description: `AI Bot: ${action.reasoning}`
+              });
+              
+              currentCycleProfit += (action.amount * fromPrice) * 0.001; 
+            }
           }
         }
-      }
 
-      if (executedAny && currentCycleProfit > 0) {
-        addLog(`Cycle Finalized. Performance Gain: +$${currentCycleProfit.toFixed(4)}`, 'success');
-        
-        // Settle profit in USDC
-        const usdcAsset = currentAssets.find(a => a.currency === 'USDC');
-        if (usdcAsset) {
-          updateBalanceInternal('USDC', currentCycleProfit, 1);
-        } else {
-          const usdcRef = doc(db, 'users', user.uid, 'assets', 'usdc-vault');
-          setDoc(usdcRef, {
-            id: 'usdc-vault',
-            currency: 'USDC',
-            amount: currentCycleProfit,
-            fiatValueUSD: currentCycleProfit,
-            address: currentAssets[0]?.address || 'pending',
-            isLive: true
-          }, { merge: true });
+        if (executedAny && currentCycleProfit > 0) {
+          addLog(`Cycle Success. Performance: +$${currentCycleProfit.toFixed(4)}`, 'success');
+          
+          const usdcAsset = currentAssets.find(a => a.currency === 'USDC');
+          if (usdcAsset) {
+            updateBalanceInternal('USDC', currentCycleProfit, 1);
+          } else {
+            const usdcRef = doc(db, 'users', user.uid, 'assets', 'usdc-vault');
+            setDoc(usdcRef, {
+              id: 'usdc-vault',
+              currency: 'USDC',
+              amount: currentCycleProfit,
+              fiatValueUSD: currentCycleProfit,
+              address: currentAssets[0]?.address || 'pending',
+              isLive: true
+            }, { merge: true });
+          }
+
+          const userRef = doc(db, 'users', user.uid);
+          updateDoc(userRef, { 
+            totalBotEarnings: earnings + currentCycleProfit,
+            updatedAt: new Date().toISOString()
+          });
+
+          toast({
+            title: "Profit Settled",
+            description: `AI Bot successfully earned $${currentCycleProfit.toFixed(4)} USDC.`,
+          });
         }
-
-        const userRef = doc(db, 'users', user.uid);
-        updateDoc(userRef, { 
-          totalBotEarnings: earnings + currentCycleProfit,
-          updatedAt: new Date().toISOString()
-        });
-
-        toast({
-          title: "AI Trade Successful",
-          description: `Quantum Bot just earned $${currentCycleProfit.toFixed(4)} USDC profit.`,
-        });
       }
 
     } catch (error) {
-      addLog('Bot Execution Node Interrupt. Retrying...', 'warning');
+      addLog('Node Synchronization Delayed. Retrying...', 'info');
     } finally {
       setIsAnalyzing(false);
     }
   }, [user, db, isAnalyzing, addLog, updateBalanceInternal, addTransactionInternal]);
 
-  // Stable bot interval
   useEffect(() => {
     if (!initialized || !user) return;
     
@@ -318,8 +316,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       botRiskLevel: risk,
       updatedAt: new Date().toISOString()
     });
-    if (active) addLog(`Production Protocol Authorized. Bot is now autonomous.`, 'success');
-    else addLog(`Bot termination sequence initiated. Standing by.`, 'info');
+    if (active) addLog(`Neural Network Link Established. Bot is LIVE.`, 'success');
+    else addLog(`Bot offline. Finalizing secure session...`, 'info');
   };
 
   const clearBotLogs = () => setBotLogs([]);

@@ -26,7 +26,7 @@ const TradingBotInputSchema = z.object({
   })),
   marketData: z.array(MarketEntrySchema),
   riskTolerance: z.enum(['low', 'medium', 'high']).default('medium'),
-  allocationLimitUSD: z.number().describe('The maximum amount of USD value the bot is allowed to trade in this session.'),
+  allocationLimitUSD: z.number().describe('The maximum amount of USD value the bot is allowed to trade.'),
 });
 export type TradingBotInput = z.infer<typeof TradingBotInputSchema>;
 
@@ -39,10 +39,9 @@ const TradingActionSchema = z.object({
 });
 
 const TradingBotOutputSchema = z.object({
-  strategy: z.string().describe('The overall market strategy being deployed.'),
-  actions: z.array(TradingActionSchema).describe('Specific trade actions to execute.'),
+  strategy: z.string().describe('Short strategy summary.'),
+  actions: z.array(TradingActionSchema).describe('List of trade actions.'),
   marketSentiment: z.enum(['bullish', 'bearish', 'neutral']),
-  confidenceScore: z.number().min(0).max(100),
 });
 export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
@@ -54,29 +53,29 @@ const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `You are the Coin A,M AI Quantum Trader, a high-frequency algorithmic bot.
-Analyze the following market conditions and user assets to determine a profitable trading strategy.
+  prompt: `Analyze the market and user assets to determine a profitable rebalancing strategy.
 
-Market Data:
+Market:
 {{#each marketData}}
 - {{{currency}}}: Price $ {{{price}}}, 24h Change: {{{change24h}}}%
 {{/each}}
 
 User Assets:
 {{#each assets}}
-- {{{currency}}}: Amount {{{amount}}}, Fiat Value $ {{{fiatValue}}}
+- {{{currency}}}: Amount {{{amount}}}, Value $ {{{fiatValue}}}
 {{/each}}
 
-Risk Tolerance: {{{riskTolerance}}}
-Trading Allocation Limit: $ {{{allocationLimitUSD}}}
+Risk: {{{riskTolerance}}}
+Limit: $ {{{allocationLimitUSD}}}
 
-Your goal is to maximize user earnings while minimizing drawdown. 
-Provide a market sentiment, a strategy summary, and specific actions (buy, sell, or hold).
-If you suggest a trade, ensure the user has sufficient balance in the 'fromAsset'.
-Crucially, the total USD value of your 'buy' and 'sell' actions MUST NOT exceed the Allocation Limit of $ {{{allocationLimitUSD}}}.
-Try to rebalance the portfolio towards assets with high positive momentum.
+Instructions:
+1. Maximize yield while minimizing drawdown.
+2. Provide short actions (buy/sell).
+3. Ensure 'fromAsset' has sufficient balance.
+4. Total USD of actions must be under the Allocation Limit.
+5. Rebalance towards high momentum assets.
 
-Output the analysis in the specified JSON format.`,
+Output in JSON.`,
 });
 
 const tradingBotFlow = ai.defineFlow(
