@@ -3,7 +3,7 @@
   "entities": {
     "UserProfile": {
       "title": "User Profile",
-      "description": "Primary identity record. Must be provisioned before sub-collections can be accessed.",
+      "description": "Primary identity record. Must be provisioned before sub-collections can be accessed. Owners have full read/write access.",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
@@ -15,7 +15,7 @@
     },
     "WalletAsset": {
       "title": "Wallet Asset",
-      "description": "Non-custodial cryptographic key. Strictly isolated to the authenticated owner. The 'primary-vault' ID is used for the root account identity.",
+      "description": "Non-custodial cryptographic key. Strictly isolated to the authenticated owner. The 'primary-vault' ID is used for the root account identity. Owners have full read/write access.",
       "type": "object",
       "properties": {
         "currency": { "type": "string" },
@@ -29,7 +29,7 @@
     },
     "Transaction": {
       "title": "Transaction",
-      "description": "Immutable ledger record of financial activity.",
+      "description": "Immutable ledger record of financial activity. Owners have full read access and create access.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
