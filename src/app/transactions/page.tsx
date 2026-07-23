@@ -9,12 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowUpRight, ArrowDownLeft, Send, CheckCircle2, History, AlertCircle, Zap, ShieldCheck, Database } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, Send, CheckCircle2, History, AlertCircle, Zap, ShieldCheck, Database, Copy } from "lucide-react";
 import { useVaultStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { getLiveGasPrice, sendLiveTransaction } from "@/lib/blockchain";
 import { Badge } from "@/components/ui/badge";
+import { QRCodeSVG } from 'qrcode.react';
 
 type FeeTier = 'slow' | 'average' | 'fast';
 
@@ -45,7 +46,7 @@ export default function TransactionsPage() {
 
   const getGasEstimate = () => {
     const gasLimit = 21000;
-    const currentGas = baseGas || 20; // Fallback to 20 if sync fails
+    const currentGas = baseGas || 20; 
     const multiplier = feeTier === 'slow' ? 0.9 : feeTier === 'fast' ? 1.5 : 1.1;
     const ethFee = (gasLimit * (currentGas * multiplier)) / 1e9;
     return ethFee;
@@ -122,6 +123,8 @@ export default function TransactionsPage() {
       </div>
     );
   }
+
+  const receiveAddress = assets.find(a => a.currency === currency)?.address || "";
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -272,13 +275,18 @@ export default function TransactionsPage() {
             </CardHeader>
             <CardContent className="flex flex-col items-center space-y-8 py-10">
               <div className="p-8 bg-white rounded-3xl shadow-2xl border border-primary/5">
-                <div className="h-56 w-56 bg-muted flex items-center justify-center relative overflow-hidden group">
-                  <div className="grid grid-cols-4 gap-1 p-4 opacity-80 group-hover:opacity-100 transition-opacity">
-                    {Array.from({ length: 16 }).map((_, i) => (
-                      <div key={i} className={cn("h-10 w-10", (i % 3 === 0 || i % 5 === 1) ? "bg-primary" : "bg-transparent")} />
-                    ))}
+                {receiveAddress ? (
+                  <QRCodeSVG 
+                    value={receiveAddress} 
+                    size={224} 
+                    level="H"
+                    includeMargin={false}
+                  />
+                ) : (
+                  <div className="h-56 w-56 bg-muted flex items-center justify-center rounded-2xl text-center p-4">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Awaiting Address Synchronization...</span>
                   </div>
-                </div>
+                )}
               </div>
               
               <div className="w-full space-y-4 max-w-sm">
@@ -287,17 +295,16 @@ export default function TransactionsPage() {
                   <div className="flex gap-2">
                     <Input 
                       readOnly 
-                      value={assets.find(a => a.currency === currency)?.address || "Synchronizing..."} 
+                      value={receiveAddress || "Synchronizing..."} 
                       className="font-mono text-xs bg-muted/50 font-bold h-12 shadow-inner" 
                     />
                     <Button size="icon" variant="outline" className="h-12 w-12 rounded-xl" onClick={() => {
-                      const addr = assets.find(a => a.currency === currency)?.address;
-                      if (addr) {
-                        navigator.clipboard.writeText(addr);
+                      if (receiveAddress) {
+                        navigator.clipboard.writeText(receiveAddress);
                         toast({ title: "Address copied" });
                       }
                     }}>
-                      <History className="h-4 w-4" />
+                      <Copy className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
