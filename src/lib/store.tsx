@@ -11,7 +11,9 @@ import {
   onSnapshot, 
   query, 
   orderBy, 
-  updateDoc
+  updateDoc,
+  getDoc,
+  Firestore
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -48,7 +50,7 @@ interface VaultContextType {
   user: any;
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
   updateBalance: (currency: string, amountChange: number, fiatPrice: number) => void;
-  generateNewWallet: (currency: string, customId?: string) => string;
+  generateNewWallet: (currency: string, customId?: string) => Promise<string>;
   importPrivateKey: (currency: string, privateKey: `0x${string}`) => Promise<void>;
 }
 
@@ -76,7 +78,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setIsSyncing(true);
     const assetsRef = collection(db, 'users', user.uid, 'assets');
     
-    // We removed initialized from deps to prevent reset loops
     const unsubscribe = onSnapshot(assetsRef, (snapshot) => {
       const assetsData = snapshot.docs.map(doc => ({
         ...doc.data(),
@@ -86,7 +87,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setAssets(assetsData);
       setInitialized(true);
       
-      // Stop syncing indicator once we have a valid snapshot (even if empty)
+      // Only stop syncing if we have a definitive answer from the server
       if (!snapshot.metadata.fromCache || assetsData.length > 0) {
         setIsSyncing(false);
       }
@@ -103,15 +104,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setInitialized(true);
     });
 
-    const timeout = setTimeout(() => {
-      setInitialized(true);
-      setIsSyncing(false);
-    }, 5000);
-
-    return () => {
-      unsubscribe();
-      clearTimeout(timeout);
-    };
+    return () => unsubscribe();
   }, [db, user]);
 
   // Transactions Ledger Listener
@@ -139,18 +132,30 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [db, user]);
 
-  const generateNewWallet = useCallback((currency: string, customId?: string) => {
+  const generateNewWallet = useCallback(async (currency: string, customId?: string) => {
     if (!db || !user) return '';
+
+    const assetsRef = collection(db, 'users', user.uid, 'assets');
+    const finalId = customId || 'primary-vault';
+    const assetDocRef = doc(assetsRef, finalId);
+    
+    // Deterministic Check: Only generate if it truly does not exist
+    try {
+      const docSnap = await getDoc(assetDocRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data() as WalletAsset;
+        return data.address;
+      }
+    } catch (e) {
+      // Fallback if offline/permission issue during check
+      console.warn("Pre-provisioning check failed, proceeding with caution.");
+    }
 
     const pKey = generatePrivateKey();
     const account = privateKeyToAccount(pKey);
     
-    const assetsRef = collection(db, 'users', user.uid, 'assets');
-    const finalId = customId || (assets.length === 0 ? 'primary-vault' : undefined);
-    const assetDocRef = finalId ? doc(assetsRef, finalId) : doc(assetsRef);
-    
     const newAsset: WalletAsset = {
-      id: assetDocRef.id,
+      id: finalId,
       currency,
       amount: 0,
       fiatValueUSD: 0,
@@ -159,7 +164,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       privateKey: pKey
     };
     
-    setDoc(assetDocRef, newAsset, { merge: true })
+    setDoc(assetDocRef, newAsset)
       .catch(async (err) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: assetDocRef.path,
@@ -169,7 +174,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       });
 
     return account.address;
-  }, [db, user, assets.length]);
+  }, [db, user]);
 
   const importPrivateKey = async (currency: string, privateKey: `0x${string}`) => {
     if (!db || !user) return;
@@ -211,17 +216,19 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Critical: Provision primary vault if we are initialized and have no assets
+  // Critical: Provision primary vault if we are definitive that the user has no assets
   useEffect(() => {
     if (
       initialized && 
       user && 
       assets.length === 0 && 
       !isProvisioning.current &&
-      !isSyncing // Ensure we've at least finished the initial sync check
+      !isSyncing 
     ) {
       isProvisioning.current = true;
-      generateNewWallet('ETH', 'primary-vault');
+      generateNewWallet('ETH', 'primary-vault').finally(() => {
+        isProvisioning.current = false;
+      });
     }
   }, [initialized, user, assets.length, isSyncing, generateNewWallet]);
 
