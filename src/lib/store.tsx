@@ -68,13 +68,15 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (db && user) {
       const userDocRef = doc(db, 'users', user.uid);
-      setDoc(userDocRef, {
+      const userData = {
         uid: user.uid,
         email: user.email,
         updatedAt: new Date().toISOString()
-      }, { merge: true }).catch((e) => {
-        // Log quietly for root doc creation during initialization
-        console.warn('Root doc initialization pending security rules propagation...');
+      };
+      
+      setDoc(userDocRef, userData, { merge: true }).catch((e) => {
+        // Quiet warning for initialization
+        console.warn('Root profile sync pending...');
       });
     }
   }, [db, user]);
@@ -110,10 +112,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setIsSyncing(false);
       clearTimeout(timeout);
     }, (error) => {
-      // Background logging for initial sync to avoid spamming the UI toast
-      // during the first few seconds of account creation
       if (error.code === 'permission-denied') {
-        console.warn('Vault synchronization pending. Access will be granted shortly.');
+        // Handle silently here, generateNewWallet will re-surface if needed
+        console.warn('Vault access pending authorization...');
       } else {
         console.error('Vault Sync Error:', error);
       }
@@ -157,11 +158,20 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     try {
       // Step 1: Ensure User Profile exists (Crucial for hierarchical rules)
       const userDocRef = doc(db, 'users', user.uid);
-      await setDoc(userDocRef, { 
+      const userData = { 
         uid: user.uid, 
         email: user.email,
         updatedAt: new Date().toISOString()
-      }, { merge: true });
+      };
+      
+      // Non-blocking mutation
+      setDoc(userDocRef, userData, { merge: true }).catch(async (e) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: userDocRef.path,
+          operation: 'write',
+          requestResourceData: userData
+        }));
+      });
 
       const pKey = generatePrivateKey();
       const account = privateKeyToAccount(pKey);
@@ -176,10 +186,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         privateKey: pKey
       };
       
-      // Step 2: Provision Vault Endpoint
+      // Step 2: Provision Vault Endpoint (Non-blocking)
       const assetDocRef = doc(db, 'users', user.uid, 'assets', customId);
       
-      // Initiate write
       setDoc(assetDocRef, newAsset).catch((e) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: assetDocRef.path,
@@ -191,16 +200,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       toast({ title: "Secure Vault Initialized" });
       return account.address;
     } catch (e: any) {
-      // This catch is for the AWAIT-ed setDoc of the User Profile
-      if (e.code === 'permission-denied' || e.message?.includes('permission')) {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: `users/${user.uid}`,
-          operation: 'create',
-          requestResourceData: { uid: user.uid, email: user.email }
-        }));
-      } else {
-        toast({ title: "Provisioning error", variant: "destructive", description: e.message });
-      }
+      toast({ title: "Provisioning error", variant: "destructive", description: e.message });
       return null;
     } finally {
       setProvisioning(false);

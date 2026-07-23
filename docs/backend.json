@@ -3,7 +3,7 @@
   "entities": {
     "UserProfile": {
       "title": "User Profile",
-      "description": "Root identity document for all account sub-collections. Owners have full read/write access.",
+      "description": "Root identity document for all account sub-collections. Access is strictly controlled to the authenticated owner (UID match).",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
@@ -51,7 +51,7 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "Individual user profile root. Critical for security rules hierarchy."
+      "description": "Individual user profile root. Authorized for create/read/update only by the authenticated user whose UID matches {userId}."
     },
     "/users/{userId}/assets/{assetId}": {
       "schema": "WalletAsset",
