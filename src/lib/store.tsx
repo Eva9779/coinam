@@ -12,7 +12,6 @@ import {
   query, 
   orderBy, 
   updateDoc,
-  getDoc
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -49,7 +48,7 @@ interface VaultContextType {
   user: any;
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
   updateBalance: (currency: string, amountChange: number, fiatPrice: number) => void;
-  generateNewWallet: (currency: string, customId?: string) => Promise<string>;
+  generateNewWallet: (currency: string, customId?: string) => Promise<string | null>;
   importPrivateKey: (currency: string, privateKey: `0x${string}`) => Promise<void>;
 }
 
@@ -129,7 +128,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [db, user]);
 
   const generateNewWallet = useCallback(async (currency: string, customId?: string) => {
-    if (!db || !user || !initialized) return '';
+    if (!db || !user || !initialized) return null;
 
     const finalId = customId || 'primary-vault';
     
@@ -140,30 +139,26 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
 
     setProvisioning(true);
-    const userDocRef = doc(db, 'users', user.uid);
-    const assetDocRef = doc(db, 'users', user.uid, 'assets', finalId);
     
     try {
-      // 2. Ensure User Profile exists - atomic write
-      const userSnap = await getDoc(userDocRef);
-      if (!userSnap.exists()) {
-        const profileData = {
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName || user.email?.split('@')[0]
-        };
-        setDoc(userDocRef, profileData).catch((e) => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: userDocRef.path,
-            operation: 'create',
-            requestResourceData: profileData
-          }));
-        });
-      }
+      // 2. Provision User Profile - Always set to ensure parent exists
+      const userDocRef = doc(db, 'users', user.uid);
+      const profileData = {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName || user.email?.split('@')[0]
+      };
+      
+      // We set the profile first to ensure hierarchy integrity
+      setDoc(userDocRef, profileData, { merge: true }).catch((e) => {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: userDocRef.path,
+          operation: 'write',
+          requestResourceData: profileData
+        }));
+      });
 
       // 3. Generate and Persist the new key
-      // We skip 'await getDoc(assetDocRef)' because our 'assets' array from the listener
-      // is already server-verified once 'initialized' is true.
       const pKey = generatePrivateKey();
       const account = privateKeyToAccount(pKey);
       
@@ -177,7 +172,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         privateKey: pKey
       };
       
-      // Non-blocking mutation pattern
+      const assetDocRef = doc(db, 'users', user.uid, 'assets', finalId);
+      
+      // Non-blocking mutation with asynchronous error handling
       setDoc(assetDocRef, newAsset).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
           path: assetDocRef.path,
@@ -189,9 +186,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       
       return account.address;
     } catch (e: any) {
-      // General error handling
       toast({ title: "Internal provisioning error", variant: "destructive" });
-      return '';
+      return null;
     } finally {
       setProvisioning(false);
     }

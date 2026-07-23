@@ -62,11 +62,13 @@ export default function WalletPage() {
   };
 
   const handleInitializeVault = async () => {
-    await generateNewWallet('ETH', 'primary-vault');
-    toast({
-      title: "Vault Initialized",
-      description: "Your secure cryptographic identity is now live.",
-    });
+    const address = await generateNewWallet('ETH', 'primary-vault');
+    if (address) {
+      toast({
+        title: "Vault Initialized",
+        description: "Your secure cryptographic identity is now live.",
+      });
+    }
   };
 
   if (!initialized && isSyncing) {
