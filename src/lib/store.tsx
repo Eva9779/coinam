@@ -44,6 +44,7 @@ interface VaultContextType {
   transactions: Transaction[];
   initialized: boolean;
   isSyncing: boolean;
+  hasError: boolean;
   user: any;
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
   updateBalance: (currency: string, amountChange: number, fiatPrice: number) => void;
@@ -58,6 +59,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
+  const [hasError, setHasError] = useState(false);
   const isProvisioning = useRef(false);
   const { user } = useUserHook();
   const db = useFirestore();
@@ -67,11 +69,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) {
       setInitialized(false);
       setIsSyncing(false);
+      setHasError(false);
       setAssets([]);
       return;
     }
 
     setIsSyncing(true);
+    setHasError(false);
     const assetsRef = collection(db, 'users', user.uid, 'assets');
     
     // Listen for real-time updates from the production enclave
@@ -84,14 +88,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setAssets(assetsData);
       setInitialized(true);
       setIsSyncing(false);
+      setHasError(false);
     }, (error) => {
       // Surface security policy violations for rapid fixing
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: assetsRef.path,
         operation: 'list'
       }));
-      setInitialized(true);
+      setHasError(true);
       setIsSyncing(false);
+      // We do NOT set initialized to true here to prevent auto-provisioning on failure
     });
 
     return () => unsubscribe();
@@ -140,7 +146,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       privateKey: pKey
     };
     
-    // ATOMIC PERSISTENCE: Ensure the key is written to the cloud enclave before returning
+    // ATOMIC PERSISTENCE
     setDoc(assetDocRef, newAsset)
       .then(() => {
         toast({
@@ -149,7 +155,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         });
       })
       .catch(async (err) => {
-        // Log the denial for agentive fixing loop
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: assetDocRef.path,
           operation: 'create',
@@ -166,6 +171,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     try {
       const account = privateKeyToAccount(privateKey);
       
+      // Check if this address already exists in the vault to prevent duplicates
+      const existing = assets.find(a => a.address.toLowerCase() === account.address.toLowerCase());
+      if (existing) {
+        toast({ title: "Address already in vault", description: "This cryptographic key is already provisioned." });
+        return;
+      }
+
       const assetsRef = collection(db, 'users', user.uid, 'assets');
       const assetDocRef = doc(assetsRef);
       const assetId = assetDocRef.id;
@@ -196,20 +208,25 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Production Auto-Provisioner: Only triggers if data sync is confirmed as empty
+  // Production Auto-Provisioner: Strictly guarded against race conditions and sync errors
   useEffect(() => {
-    if (initialized && !isSyncing && user && assets.length === 0 && !isProvisioning.current) {
+    // ONLY provision if:
+    // 1. Initialized successfully (onSnapshot returned at least once)
+    // 2. Not currently syncing
+    // 3. No errors encountered during sync
+    // 4. We are CERTAIN there are zero assets
+    if (initialized && !isSyncing && !hasError && user && assets.length === 0 && !isProvisioning.current) {
       isProvisioning.current = true;
-      // Safety delay to verify the server is definitively empty
+      // Final confirmation delay to ensure state consistency
       const timer = setTimeout(() => {
         if (assets.length === 0) {
           generateNewWallet('ETH');
         }
         isProvisioning.current = false;
-      }, 2000);
+      }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [initialized, isSyncing, user, assets.length, generateNewWallet]);
+  }, [initialized, isSyncing, hasError, user, assets.length, generateNewWallet]);
 
   const addTransaction = (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
     if (!db || !user) return;
@@ -259,6 +276,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       transactions, 
       initialized, 
       isSyncing,
+      hasError,
       user,
       addTransaction, 
       updateBalance, 
