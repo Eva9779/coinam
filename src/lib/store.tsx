@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -47,6 +48,7 @@ interface VaultContextType {
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
   updateBalance: (currency: string, amountChange: number, fiatPrice: number) => void;
   generateNewWallet: (currency: string) => string;
+  importPrivateKey: (currency: string, privateKey: `0x${string}`) => Promise<void>;
 }
 
 const VaultContext = createContext<VaultContextType | undefined>(undefined);
@@ -158,6 +160,42 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return account.address;
   }, [db, user]);
 
+  const importPrivateKey = async (currency: string, privateKey: `0x${string}`) => {
+    if (!db || !user) return;
+
+    try {
+      const account = privateKeyToAccount(privateKey);
+      
+      const assetsRef = collection(db, 'users', user.uid, 'assets');
+      const assetDocRef = doc(assetsRef);
+      const assetId = assetDocRef.id;
+      
+      const importedAsset: WalletAsset = {
+        id: assetId,
+        currency,
+        amount: 0,
+        fiatValueUSD: 0,
+        address: account.address,
+        isLive: true,
+        privateKey: privateKey
+      };
+      
+      await setDoc(assetDocRef, importedAsset);
+      
+      toast({
+        title: "Vault Restored",
+        description: `Imported existing ${currency} key: ${account.address.slice(0, 10)}...`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Import Failed",
+        description: "Invalid private key format. Please verify and try again.",
+        variant: "destructive"
+      });
+      throw error;
+    }
+  };
+
   // Production Auto-Provisioner: Only triggers if data sync is confirmed as empty
   useEffect(() => {
     if (initialized && !isSyncing && user && assets.length === 0 && !isProvisioning.current) {
@@ -224,7 +262,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       user,
       addTransaction, 
       updateBalance, 
-      generateNewWallet 
+      generateNewWallet,
+      importPrivateKey
     }}>
       {children}
     </VaultContext.Provider>

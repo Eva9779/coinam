@@ -20,16 +20,21 @@ import {
   Fingerprint,
   Eye,
   EyeOff,
-  AlertTriangle
+  AlertTriangle,
+  Download,
+  Terminal
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { 
   Dialog, 
   DialogContent, 
   DialogHeader, 
   DialogTitle, 
   DialogDescription,
-  DialogTrigger 
+  DialogTrigger,
+  DialogFooter
 } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { useVaultStore } from "@/lib/store";
@@ -38,11 +43,15 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export default function WalletPage() {
-  const { assets, generateNewWallet, initialized } = useVaultStore();
+  const { assets, generateNewWallet, importPrivateKey, initialized } = useVaultStore();
   const [isGenerating, setIsGenerating] = useState(false);
   const [search, setSearch] = useState("");
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
   const [revealedKeys, setRevealedKeys] = useState<Record<string, boolean>>({});
+  
+  const [importKey, setImportKey] = useState("");
+  const [importLoading, setImportLoading] = useState(false);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const filteredAssets = assets.filter(a => 
     a.currency.toLowerCase().includes(search.toLowerCase())
@@ -57,6 +66,24 @@ export default function WalletPage() {
       title: "Key Provisioned",
       description: `${currency} cryptographic endpoint is now live on mainnet.`,
     });
+  };
+
+  const handleImport = async () => {
+    if (!importKey.startsWith('0x') || importKey.length !== 66) {
+      toast({ title: "Invalid Key Format", description: "Private keys must be 66 characters long and start with 0x.", variant: "destructive" });
+      return;
+    }
+
+    setImportLoading(true);
+    try {
+      await importPrivateKey('ETH', importKey as `0x${string}`);
+      setIsImportOpen(false);
+      setImportKey("");
+    } catch (e) {
+      // Error handled in store
+    } finally {
+      setImportLoading(false);
+    }
   };
 
   const handleSyncBalance = async (address: string, currency: string) => {
@@ -98,7 +125,50 @@ export default function WalletPage() {
           </h2>
           <p className="text-muted-foreground text-sm font-medium">Cryptographic endpoints synchronized with decentralized peers.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
+          <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="gap-2 h-14 px-6 font-bold rounded-2xl border-primary/20 text-primary hover:bg-primary/5">
+                <Download className="h-5 w-5" />
+                Import Key
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="rounded-[2rem] max-w-md">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-black tracking-tight flex items-center gap-2">
+                  <Terminal className="h-5 w-5 text-secondary" />
+                  Restore Vault
+                </DialogTitle>
+                <DialogDescription className="text-sm font-medium">
+                  Enter an existing Ethereum private key to restore your vault assets.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Private Cryptographic Key</Label>
+                  <Textarea 
+                    placeholder="0x..." 
+                    className="font-mono text-xs min-h-[100px] rounded-xl bg-muted/30"
+                    value={importKey}
+                    onChange={(e) => setImportKey(e.target.value)}
+                  />
+                  <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-tighter">Format: 64 character hex string starting with 0x.</p>
+                </div>
+                <div className="p-4 bg-amber-500/10 rounded-xl border border-dashed border-amber-500/20 flex gap-3 items-start">
+                  <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0" />
+                  <p className="text-[10px] text-amber-700 font-bold uppercase tracking-tight leading-relaxed">
+                    Importing a key gives this identity full control over the associated funds.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button className="w-full h-12 font-bold rounded-xl" onClick={handleImport} disabled={importLoading}>
+                  {importLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Authorize Restore"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
           <Button variant="outline" asChild className="gap-2 h-14 px-6 font-bold rounded-2xl border-secondary/20 text-secondary hover:bg-secondary/5">
             <Link href="/buy">
               <CreditCard className="h-5 w-5" />
