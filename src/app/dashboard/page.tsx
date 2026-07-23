@@ -1,7 +1,8 @@
+
 "use client";
 
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
   ArrowUpRight, 
@@ -14,9 +15,11 @@ import {
   Sparkles,
   ChevronRight,
   RefreshCw,
-  Smartphone,
   Lock,
-  ShieldAlert
+  ShieldAlert,
+  Bot,
+  BrainCircuit,
+  Terminal
 } from "lucide-react";
 import { useVaultStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -25,7 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { INITIAL_MARKET_DATA } from "@/lib/data";
 
 export default function Dashboard() {
-  const { assets, transactions, initialized } = useVaultStore();
+  const { assets, transactions, initialized, botActive, botLogs, isAnalyzing, totalBotEarnings } = useVaultStore();
   const [marketData, setMarketData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -78,6 +81,12 @@ export default function Dashboard() {
           <p className="text-muted-foreground text-xs font-medium uppercase tracking-tight">Mainnet Session Verified</p>
         </div>
         <div className="flex items-center gap-3">
+          {botActive && (
+            <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px] animate-pulse">
+              <BrainCircuit className="h-3.5 w-3.5" />
+              AI QUANTUM ACTIVE
+            </Badge>
+          )}
           <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
             <ShieldCheck className="h-3 w-3" />
             ENCLAVE SECURE
@@ -110,38 +119,53 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-[2rem] border-2 border-primary/5 shadow-xl bg-card overflow-hidden">
-          <CardHeader className="bg-muted/30 pb-4">
+        <Card className="rounded-[2rem] border-2 border-primary/5 shadow-xl bg-card overflow-hidden flex flex-col">
+          <CardHeader className="bg-muted/30 pb-4 border-b">
             <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 text-primary" />
-              Security Health
+              <Terminal className="h-4 w-4 text-primary" />
+              Intelligence Feed
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-6 space-y-6">
-            <div className="flex flex-col items-center text-center space-y-2">
-               <div className="h-20 w-20 rounded-full bg-green-500/10 flex items-center justify-center border-4 border-green-500/20">
-                  <ShieldCheck className="h-10 w-10 text-green-600" />
-               </div>
-               <div className="text-xl font-black text-green-600 uppercase tracking-tight">AES-256 Isolated</div>
-               <p className="text-[10px] text-muted-foreground font-bold uppercase opacity-60">Hardware Encryption Active</p>
-            </div>
-            <div className="space-y-3">
-               <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest opacity-70">
-                  <span>Encryption Key</span>
-                  <span className="text-green-600">SECURE</span>
-               </div>
-               <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-green-500 w-full" />
-               </div>
-               <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest opacity-70">
-                  <span>Network Isolation</span>
-                  <span className="text-green-600">ACTIVE</span>
-               </div>
-               <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-green-500 w-full" />
-               </div>
-            </div>
+          <CardContent className="flex-1 p-4 space-y-3 overflow-y-auto max-h-[300px] no-scrollbar">
+            {botLogs.length > 0 ? (
+              botLogs.slice(-10).reverse().map((log, i) => (
+                <div key={i} className="flex gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                  <div className={cn(
+                    "h-1.5 w-1.5 rounded-full mt-1.5 shrink-0",
+                    log.type === 'success' ? "bg-green-500" : log.type === 'warning' ? "bg-amber-500" : "bg-blue-400"
+                  )} />
+                  <div className="flex flex-col">
+                    <span className={cn(
+                      "text-[10px] font-bold leading-tight",
+                      log.type === 'success' ? "text-green-600" : log.type === 'warning' ? "text-amber-600" : "text-blue-600"
+                    )}>
+                      {log.msg}
+                    </span>
+                    <span className="text-[8px] text-muted-foreground opacity-50 font-mono">
+                      {new Date(log.timestamp).toLocaleTimeString()}
+                    </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center opacity-30 py-10">
+                <Bot className="h-10 w-10 mb-3" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-center">Awaiting Autonomous Activity</p>
+              </div>
+            )}
+            {isAnalyzing && (
+              <div className="flex items-center gap-2 text-[10px] font-bold text-secondary animate-pulse px-2 py-1 bg-secondary/5 rounded-lg">
+                <RefreshCw className="h-3 w-3 animate-spin" />
+                AI PROCESSING CYCLE
+              </div>
+            )}
           </CardContent>
+          {totalBotEarnings > 0 && (
+            <div className="p-4 bg-primary text-primary-foreground border-t flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest opacity-70">AI Net Profit</span>
+              <span className="text-sm font-black tracking-tighter">${totalBotEarnings.toFixed(4)}</span>
+            </div>
+          )}
         </Card>
       </div>
 
