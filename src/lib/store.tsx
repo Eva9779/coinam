@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -97,7 +96,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       }));
       setHasError(true);
       setIsSyncing(false);
-      // We do NOT set initialized to true here to prevent auto-provisioning on failure
+      // Critical: Don't set initialized to true on error to prevent auto-provisioning a new wallet
     });
 
     return () => unsubscribe();
@@ -208,22 +207,22 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Production Auto-Provisioner: Strictly guarded against race conditions and sync errors
+  // Production Auto-Provisioner: Strictly guarded against duplicate addresses
   useEffect(() => {
     // ONLY provision if:
     // 1. Initialized successfully (onSnapshot returned at least once)
     // 2. Not currently syncing
-    // 3. No errors encountered during sync
+    // 3. No errors encountered during sync (prevents new wallet on permission failure)
     // 4. We are CERTAIN there are zero assets
     if (initialized && !isSyncing && !hasError && user && assets.length === 0 && !isProvisioning.current) {
       isProvisioning.current = true;
-      // Final confirmation delay to ensure state consistency
+      // Final confirmation delay to ensure state consistency before creating a new address
       const timer = setTimeout(() => {
         if (assets.length === 0) {
           generateNewWallet('ETH');
         }
         isProvisioning.current = false;
-      }, 3000);
+      }, 2000);
       return () => clearTimeout(timer);
     }
   }, [initialized, isSyncing, hasError, user, assets.length, generateNewWallet]);
