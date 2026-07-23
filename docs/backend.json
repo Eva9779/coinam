@@ -51,15 +51,15 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "Root user document. Authorizes owner-only access. Deployment trigger: v1.0.1"
+      "description": "Root user document. Authorizes owner-only access (request.auth.uid == userId). Deployment trigger: v1.0.2"
     },
     "/users/{userId}/assets/{assetId}": {
       "schema": "WalletAsset",
-      "description": "Owner-only access to vault endpoints. Authorizes read/write for primary-vault ID. Deployment trigger: v1.0.1"
+      "description": "Owner-only access to vault endpoints. Authorizes read/write for primary-vault ID (request.auth.uid == userId). Deployment trigger: v1.0.2"
     },
     "/users/{userId}/transactions/{txId}": {
       "schema": "Transaction",
-      "description": "Owner-only financial ledger. Authorizes list/create access. Deployment trigger: v1.0.1"
+      "description": "Owner-only financial ledger. Authorizes list/create access (request.auth.uid == userId). Deployment trigger: v1.0.2"
     }
   }
 }
