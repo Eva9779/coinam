@@ -17,7 +17,8 @@ import {
   Cpu,
   Fingerprint,
   Settings,
-  ArrowRight
+  ArrowRight,
+  Loader2
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
@@ -27,7 +28,7 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export default function WalletPage() {
-  const { assets, initialized } = useVaultStore();
+  const { assets, initialized, isSyncing } = useVaultStore();
   const [search, setSearch] = useState("");
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
 
@@ -58,7 +59,21 @@ export default function WalletPage() {
     });
   };
 
-  if (!initialized) return null;
+  // Show a professional loading state while synchronizing with the enclave
+  if (!initialized || isSyncing) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
+        <div className="relative">
+          <Loader2 className="h-16 w-16 animate-spin text-primary opacity-20" />
+          <ShieldCheck className="h-8 w-8 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+        </div>
+        <div className="text-center space-y-2">
+          <p className="text-xs font-black uppercase tracking-[0.3em] text-primary animate-pulse">Syncing Vault Enclave</p>
+          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest opacity-60">Establishing Secure Handshake...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-10">
