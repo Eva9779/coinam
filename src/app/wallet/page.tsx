@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,6 @@ import {
   Plus, 
   Search, 
   Copy, 
-  MoreVertical,
   Key,
   ShieldCheck,
   Cpu,
@@ -18,9 +17,20 @@ import {
   CreditCard,
   ShieldAlert,
   Zap,
-  Fingerprint
+  Fingerprint,
+  Eye,
+  EyeOff,
+  AlertTriangle
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription,
+  DialogTrigger 
+} from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { useVaultStore } from "@/lib/store";
 import { getLiveBalance } from "@/lib/blockchain";
@@ -32,6 +42,7 @@ export default function WalletPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [search, setSearch] = useState("");
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
+  const [revealedKeys, setRevealedKeys] = useState<Record<string, boolean>>({});
 
   const filteredAssets = assets.filter(a => 
     a.currency.toLowerCase().includes(search.toLowerCase())
@@ -61,6 +72,18 @@ export default function WalletPage() {
     } finally {
       setSyncingBalances(prev => ({ ...prev, [address]: false }));
     }
+  };
+
+  const toggleRevealKey = (address: string) => {
+    setRevealedKeys(prev => ({ ...prev, [address]: !prev[address] }));
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: `${label} Copied`,
+      description: "Stored in secure clipboard.",
+    });
   };
 
   if (!initialized) return null;
@@ -110,48 +133,106 @@ export default function WalletPage() {
             <CardContent className="p-6">
               <div className="space-y-4">
                 {filteredAssets.length > 0 ? filteredAssets.map((asset, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-6 border-2 rounded-3xl hover:bg-muted/10 transition-all group border-primary/5 hover:border-secondary/30 bg-background/30">
-                    <div className="flex items-center gap-5">
-                      <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center font-bold text-lg text-primary shadow-lg border border-primary/10">
-                        {asset.currency}
-                      </div>
-                      <div className="space-y-1">
-                        <div className="font-bold text-xl flex items-center gap-2">
+                  <div key={idx} className="flex flex-col p-6 border-2 rounded-3xl hover:bg-muted/10 transition-all border-primary/5 hover:border-secondary/30 bg-background/30">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-5">
+                        <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center font-bold text-lg text-primary shadow-lg border border-primary/10">
                           {asset.currency}
-                          <Badge variant="outline" className="text-[9px] h-4 font-black uppercase tracking-widest bg-green-500/10 text-green-600 border-green-500/20">
-                            MAINNET LIVE
-                          </Badge>
                         </div>
-                        <div className="text-[10px] text-muted-foreground font-mono font-bold flex items-center gap-2 opacity-80">
-                          {asset.address.slice(0, 10)}...{asset.address.slice(-6)}
-                          <button 
-                            className="p-1 hover:bg-secondary/20 rounded transition-colors"
-                            onClick={() => {
-                              navigator.clipboard.writeText(asset.address);
-                              toast({ title: "Address copied" });
-                            }}
-                          >
-                            <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-secondary" />
-                          </button>
+                        <div className="space-y-1">
+                          <div className="font-bold text-xl flex items-center gap-2">
+                            {asset.currency}
+                            <Badge variant="outline" className="text-[9px] h-4 font-black uppercase tracking-widest bg-green-500/10 text-green-600 border-green-500/20">
+                              MAINNET LIVE
+                            </Badge>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground font-mono font-bold flex items-center gap-2 opacity-80">
+                            {asset.address.slice(0, 10)}...{asset.address.slice(-6)}
+                            <button 
+                              className="p-1 hover:bg-secondary/20 rounded transition-colors"
+                              onClick={() => copyToClipboard(asset.address, "Address")}
+                            >
+                              <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-secondary" />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4 sm:gap-10">
                       <div className="text-right hidden sm:block">
                         <div className="font-black text-2xl tracking-tighter">{asset.amount.toFixed(4)} <span className="text-xs font-bold text-muted-foreground opacity-50">{asset.currency}</span></div>
                         <div className="text-xs text-green-500 font-bold opacity-80">${asset.fiatValueUSD.toLocaleString()}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between pt-4 border-t border-primary/5">
+                      <div className="flex gap-2">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="gap-2 h-10 px-4 rounded-xl hover:bg-primary/10 text-primary font-bold">
+                              <Key className="h-4 w-4" />
+                              Reveal Private Key
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="rounded-[2rem] max-w-md">
+                            <DialogHeader>
+                              <div className="h-12 w-12 rounded-2xl bg-destructive/10 flex items-center justify-center mb-4">
+                                <AlertTriangle className="h-6 w-6 text-destructive" />
+                              </div>
+                              <DialogTitle className="text-xl font-black tracking-tight">Secret Key Exposure</DialogTitle>
+                              <DialogDescription className="text-sm font-medium leading-relaxed">
+                                This key grants absolute control over your <span className="text-primary font-bold">{asset.currency}</span> vault. **NEVER** share this with anyone.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className="mt-6 space-y-6">
+                              <div className="p-5 bg-slate-950 rounded-2xl border border-white/10 relative overflow-hidden">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-secondary mb-3">Private Cryptographic Key</p>
+                                <div className="font-mono text-xs break-all text-white/90 leading-relaxed min-h-[40px] flex items-center">
+                                  {revealedKeys[asset.address] ? (
+                                    asset.privateKey || "Key not found in enclave."
+                                  ) : (
+                                    <span className="opacity-30 tracking-[0.3em]">••••••••••••••••••••••••••••••••</span>
+                                  )}
+                                </div>
+                                <div className="absolute top-4 right-4 flex gap-2">
+                                  <Button 
+                                    variant="ghost" 
+                                    size="icon" 
+                                    className="h-8 w-8 text-white/50 hover:text-white"
+                                    onClick={() => toggleRevealKey(asset.address)}
+                                  >
+                                    {revealedKeys[asset.address] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                  </Button>
+                                  {revealedKeys[asset.address] && asset.privateKey && (
+                                    <Button 
+                                      variant="ghost" 
+                                      size="icon" 
+                                      className="h-8 w-8 text-white/50 hover:text-white"
+                                      onClick={() => copyToClipboard(asset.privateKey!, "Private Key")}
+                                    >
+                                      <Copy className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="p-4 bg-amber-500/10 rounded-xl border border-dashed border-amber-500/20 flex gap-3 items-start">
+                                <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0" />
+                                <p className="text-[10px] text-amber-700 font-bold uppercase tracking-tight leading-relaxed">
+                                  Platform engineers cannot recover this key if lost. Keep it in an offline, secure location.
+                                </p>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
                       </div>
                       <div className="flex gap-2">
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-12 w-12 rounded-xl hover:bg-secondary/10"
+                          className="h-10 w-10 rounded-xl hover:bg-secondary/10"
                           onClick={() => handleSyncBalance(asset.address, asset.currency)}
                           disabled={syncingBalances[asset.address]}
                         >
-                          <RefreshCw className={cn("h-5 w-5 text-secondary", syncingBalances[asset.address] && "animate-spin")} />
+                          <RefreshCw className={cn("h-4 w-4 text-secondary", syncingBalances[asset.address] && "animate-spin")} />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-12 w-12 rounded-xl hover:bg-muted"><MoreVertical className="h-4 w-4" /></Button>
                       </div>
                     </div>
                   </div>
@@ -235,7 +316,7 @@ export default function WalletPage() {
                 Non-Custodial Note
              </h4>
              <p className="text-[11px] font-medium text-muted-foreground leading-relaxed">
-                CoinVault operates on a non-custodial protocol. Your keys are yours. We provide the institutional-grade interface and AI trading layer, but you maintain 100% control of the cryptographic signing process.
+                Coin A,M operates on a non-custodial protocol. Your keys are yours. We provide the institutional-grade interface and AI trading layer, but you maintain 100% control of the cryptographic signing process.
              </p>
           </Card>
         </div>
