@@ -46,7 +46,7 @@ interface VaultContextType {
   transactions: Transaction[];
   initialized: boolean;
   isSyncing: boolean;
-  hasError: boolean;
+  isProvisioning: boolean;
   user: any;
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
   updateBalance: (currency: string, amountChange: number, fiatPrice: number) => void;
@@ -61,8 +61,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
-  const [hasError, setHasError] = useState(false);
-  const isProvisioning = useRef(false);
+  const [provisioning, setProvisioning] = useState(false);
+  
+  const provisioningLock = useRef(false);
   const { user } = useUserHook();
   const db = useFirestore();
 
@@ -78,6 +79,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setIsSyncing(true);
     const assetsRef = collection(db, 'users', user.uid, 'assets');
     
+    // onSnapshot is our primary source of truth. 
+    // It handles the cache and the server updates automatically.
     const unsubscribe = onSnapshot(assetsRef, (snapshot) => {
       const assetsData = snapshot.docs.map(doc => ({
         ...doc.data(),
@@ -85,23 +88,25 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       } as WalletAsset));
       
       setAssets(assetsData);
-      setInitialized(true);
       
-      // Only stop syncing if we have a definitive answer from the server
+      // We only set initialized to true once we have a definitive answer from the server
+      // or if we have cached data to show immediately.
       if (!snapshot.metadata.fromCache || assetsData.length > 0) {
+        setInitialized(true);
         setIsSyncing(false);
       }
     }, (error) => {
       console.error("Firestore sync error:", error);
+      // If we can't sync, we must stop the spinner but mark it as failed
+      setIsSyncing(false);
+      setInitialized(true); 
+      
       if (error.code !== 'unavailable') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: assetsRef.path,
           operation: 'list'
         }));
-        setHasError(true);
       }
-      setIsSyncing(false);
-      setInitialized(true);
     });
 
     return () => unsubscribe();
@@ -135,46 +140,59 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const generateNewWallet = useCallback(async (currency: string, customId?: string) => {
     if (!db || !user) return '';
 
-    const assetsRef = collection(db, 'users', user.uid, 'assets');
-    const finalId = customId || 'primary-vault';
-    const assetDocRef = doc(assetsRef, finalId);
+    const finalId = customId || `vault_${Date.now()}`;
+    const assetDocRef = doc(db, 'users', user.uid, 'assets', finalId);
     
-    // Deterministic Check: Only generate if it truly does not exist
     try {
+      // CRITICAL: Double check existence to prevent overwriting existing wallets
       const docSnap = await getDoc(assetDocRef);
       if (docSnap.exists()) {
-        const data = docSnap.data() as WalletAsset;
-        return data.address;
+        const existingData = docSnap.data() as WalletAsset;
+        return existingData.address;
       }
-    } catch (e) {
-      // Fallback if offline/permission issue during check
-      console.warn("Pre-provisioning check failed, proceeding with caution.");
+
+      // Generate a brand new cryptographic key
+      const pKey = generatePrivateKey();
+      const account = privateKeyToAccount(pKey);
+      
+      const newAsset: WalletAsset = {
+        id: finalId,
+        currency,
+        amount: 0,
+        fiatValueUSD: 0,
+        address: account.address,
+        isLive: true,
+        privateKey: pKey
+      };
+      
+      await setDoc(assetDocRef, newAsset);
+      return account.address;
+    } catch (e: any) {
+      console.error("Provisioning failed:", e);
+      return '';
     }
-
-    const pKey = generatePrivateKey();
-    const account = privateKeyToAccount(pKey);
-    
-    const newAsset: WalletAsset = {
-      id: finalId,
-      currency,
-      amount: 0,
-      fiatValueUSD: 0,
-      address: account.address,
-      isLive: true,
-      privateKey: pKey
-    };
-    
-    setDoc(assetDocRef, newAsset)
-      .catch(async (err) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: assetDocRef.path,
-          operation: 'create',
-          requestResourceData: newAsset
-        }));
-      });
-
-    return account.address;
   }, [db, user]);
+
+  // Auto-Provisioning logic for brand new users
+  useEffect(() => {
+    if (
+      initialized && 
+      !isSyncing && 
+      user && 
+      assets.length === 0 && 
+      !provisioningLock.current
+    ) {
+      provisioningLock.current = true;
+      setProvisioning(true);
+      
+      // We use a deterministic ID 'primary-vault' so it's impossible to create duplicates
+      generateNewWallet('ETH', 'primary-vault').finally(() => {
+        setProvisioning(false);
+        // We keep the lock true to prevent re-running in the same session 
+        // if the user deletes the asset.
+      });
+    }
+  }, [initialized, isSyncing, user, assets.length, generateNewWallet]);
 
   const importPrivateKey = async (currency: string, privateKey: `0x${string}`) => {
     if (!db || !user) return;
@@ -216,22 +234,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Critical: Provision primary vault if we are definitive that the user has no assets
-  useEffect(() => {
-    if (
-      initialized && 
-      user && 
-      assets.length === 0 && 
-      !isProvisioning.current &&
-      !isSyncing 
-    ) {
-      isProvisioning.current = true;
-      generateNewWallet('ETH', 'primary-vault').finally(() => {
-        isProvisioning.current = false;
-      });
-    }
-  }, [initialized, user, assets.length, isSyncing, generateNewWallet]);
-
   const addTransaction = (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}`;
@@ -262,7 +264,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       transactions, 
       initialized, 
       isSyncing,
-      hasError,
+      isProvisioning: provisioning,
       user,
       addTransaction, 
       updateBalance, 

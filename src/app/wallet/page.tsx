@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export default function WalletPage() {
-  const { assets, initialized, isSyncing } = useVaultStore();
+  const { assets, initialized, isSyncing, isProvisioning } = useVaultStore();
   const [search, setSearch] = useState("");
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
 
@@ -59,6 +59,7 @@ export default function WalletPage() {
     });
   };
 
+  // FULL PAGE LOADING STATE: Only while waiting for the first server handshake
   if (!initialized && isSyncing) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
@@ -177,15 +178,15 @@ export default function WalletPage() {
                       </div>
                     </div>
                   </div>
-                )) : assets.length === 0 && !isSyncing ? (
+                )) : isProvisioning ? (
                   <div className="py-24 text-center text-muted-foreground border-2 border-dashed rounded-3xl opacity-50 font-bold uppercase text-xs tracking-widest flex flex-col items-center gap-4">
-                    <ShieldAlert className="h-10 w-10 text-muted" />
+                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
                     Provisioning primary endpoint...
                   </div>
                 ) : (
                   <div className="py-24 text-center text-muted-foreground border-2 border-dashed rounded-3xl opacity-50 font-bold uppercase text-xs tracking-widest flex flex-col items-center gap-4">
-                    <Loader2 className="h-8 w-8 animate-spin" />
-                    Syncing Cloud Enclave...
+                    <ShieldAlert className="h-10 w-10 text-muted" />
+                    No assets found in vault enclave.
                   </div>
                 )}
               </div>
