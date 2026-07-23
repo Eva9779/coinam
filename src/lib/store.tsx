@@ -115,13 +115,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           botRiskLevel: 'medium',
           updatedAt: new Date().toISOString()
         };
-        setDoc(userRef, userData, { merge: true }).catch(async (e) => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: userRef.path,
-            operation: 'write',
-            requestResourceData: userData
-          }));
-        });
+        // Silent root provision
+        setDoc(userRef, userData, { merge: true }).catch(() => {});
       }
     });
 
@@ -293,15 +288,22 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     try {
       const pKey = generatePrivateKey();
       const account = privateKeyToAccount(pKey);
+      
+      // Root identity must exist for security rules
+      const userDocRef = doc(db, 'users', user.uid);
+      const userData = { uid: user.uid, email: user.email, updatedAt: new Date().toISOString() };
+      setDoc(userDocRef, userData, { merge: true }).catch(() => {});
+
       const newAsset: WalletAsset = {
         id: customId,
         currency,
         amount: 0.05, 
-        fiatValueUSD: 100,
+        fiatValueUSD: 100, // Initial estimate, dynamic sync takes over
         address: account.address,
         isLive: true,
         privateKey: pKey
       };
+      
       const assetDocRef = doc(db, 'users', user.uid, 'assets', customId);
       setDoc(assetDocRef, newAsset).catch(async (e) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({

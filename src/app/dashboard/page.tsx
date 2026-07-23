@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
@@ -16,7 +16,6 @@ import {
   ChevronRight,
   RefreshCw,
   Lock,
-  ShieldAlert,
   Bot,
   BrainCircuit,
   Terminal
@@ -33,32 +32,45 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
-  const totalBalance = assets.reduce((acc, curr) => acc + curr.fiatValueUSD, 0);
+  // Calculate live total balance based on fetched market prices
+  const liveTotalBalance = useMemo(() => {
+    if (!initialized || assets.length === 0) return 0;
+    
+    return assets.reduce((acc, asset) => {
+      // Find the current live price for this asset from our market data
+      const liveCoin = marketData.find(c => c.symbol?.toUpperCase() === asset.currency?.toUpperCase());
+      const currentPrice = liveCoin?.current_price || (asset.fiatValueUSD / Math.max(asset.amount, 0.00001));
+      return acc + (asset.amount * currentPrice);
+    }, 0);
+  }, [assets, marketData, initialized]);
+
+  const fetchMarket = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false');
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setMarketData(data);
+      }
+    } catch (err) {
+      setMarketData(INITIAL_MARKET_DATA.map(m => ({
+        id: m.currency.toLowerCase(),
+        symbol: m.currency.toLowerCase(),
+        name: m.currency,
+        current_price: m.currentPriceUSD || 0,
+        price_change_percentage_24h: m.dailyChangePercent || 0
+      })));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
-    async function fetchMarket() {
-      setLoading(true);
-      try {
-        const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=5&page=1&sparkline=false');
-        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          setMarketData(data);
-        }
-      } catch (err) {
-        setMarketData(INITIAL_MARKET_DATA.map(m => ({
-          id: m.currency.toLowerCase(),
-          symbol: m.currency,
-          name: m.currency,
-          current_price: m.currentPriceUSD || 0,
-          price_change_percentage_24h: m.dailyChangePercent || 0
-        })));
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchMarket();
+    const interval = setInterval(fetchMarket, 60000); // Sync every minute
+    return () => clearInterval(interval);
   }, []);
 
   if (!initialized || !mounted) {
@@ -155,7 +167,7 @@ export default function Dashboard() {
             )}
             {isAnalyzing && (
               <div className="flex items-center gap-2 text-[10px] font-bold text-secondary animate-pulse px-2 py-1 bg-secondary/5 rounded-lg">
-                <RefreshCw className="h-3 w-3 animate-spin" />
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
                 AI PROCESSING CYCLE
               </div>
             )}
@@ -174,13 +186,14 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
             <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
               <ShieldCheck className="h-3 w-3 text-primary" />
-              Vault Assets
+              Live Vault Value
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black tracking-tight text-primary">
-              ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ${liveTotalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
+            <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase">Dynamic Market Valuation</p>
           </CardContent>
         </Card>
 
@@ -200,8 +213,8 @@ export default function Dashboard() {
             ) : marketData.length > 0 ? (
               marketData.slice(0, 4).map((item) => (
                 <div key={item.id} className="flex items-center gap-3 shrink-0">
-                  <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center font-black text-[10px] uppercase border">
-                    {item.symbol}
+                  <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center font-black text-[10px] uppercase border overflow-hidden">
+                    <img src={item.image} alt={item.symbol} className="h-full w-full object-cover" />
                   </div>
                   <div>
                     <div className="text-xs font-black">${item.current_price.toLocaleString()}</div>
@@ -229,25 +242,31 @@ export default function Dashboard() {
           </h3>
           <div className="grid gap-3">
             {assets.length > 0 ? (
-              assets.map((asset) => (
-                <Card key={asset.id} className="hover:border-secondary transition-all cursor-pointer shadow-sm border-primary/5 rounded-2xl">
-                  <CardContent className="p-5 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-2xl bg-primary/5 flex items-center justify-center font-black text-sm text-primary border shadow-inner">
-                        {asset.currency}
+              assets.map((asset) => {
+                const liveCoin = marketData.find(c => c.symbol?.toUpperCase() === asset.currency?.toUpperCase());
+                const currentPrice = liveCoin?.current_price || (asset.fiatValueUSD / Math.max(asset.amount, 0.00001));
+                const liveFiatValue = asset.amount * currentPrice;
+
+                return (
+                  <Card key={asset.id} className="hover:border-secondary transition-all cursor-pointer shadow-sm border-primary/5 rounded-2xl">
+                    <CardContent className="p-5 flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 rounded-2xl bg-primary/5 flex items-center justify-center font-black text-sm text-primary border shadow-inner uppercase">
+                          {asset.currency}
+                        </div>
+                        <div>
+                          <div className="font-bold text-lg">{asset.currency} Vault</div>
+                          <div className="text-xs text-muted-foreground font-medium">{asset.amount.toFixed(4)} {asset.currency}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-bold text-lg">{asset.currency} Vault</div>
-                        <div className="text-xs text-muted-foreground font-medium">{asset.amount.toFixed(4)} {asset.currency}</div>
+                      <div className="text-right">
+                        <div className="font-bold text-lg text-primary">${liveFiatValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                        <Badge variant="outline" className="text-[9px] h-4 font-black uppercase text-green-600 bg-green-50 border-green-200">Verified</Badge>
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-lg text-primary">${asset.fiatValueUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                      <Badge variant="outline" className="text-[9px] h-4 font-black uppercase text-green-600 bg-green-50 border-green-200">Verified</Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+                    </CardContent>
+                  </Card>
+                );
+              })
             ) : (
               <div className="py-20 text-center border-2 border-dashed rounded-3xl opacity-30 uppercase text-[10px] font-black tracking-widest">
                 No active assets in vault
