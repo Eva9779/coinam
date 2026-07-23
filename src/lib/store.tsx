@@ -71,16 +71,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setInitialized(false);
       setIsSyncing(false);
       setIsSyncedWithServer(false);
-      setHasError(false);
       setAssets([]);
       return;
     }
 
     setIsSyncing(true);
-    setHasError(false);
     const assetsRef = collection(db, 'users', user.uid, 'assets');
     
-    // Listen for real-time updates
     const unsubscribe = onSnapshot(assetsRef, (snapshot) => {
       const assetsData = snapshot.docs.map(doc => ({
         ...doc.data(),
@@ -89,15 +86,14 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       
       setAssets(assetsData);
       
-      // Determine if we have a stable server-verified view
+      // We only consider it "initialized" once we've heard from the server (not just cache)
       if (!snapshot.metadata.fromCache) {
         setIsSyncedWithServer(true);
+        setInitialized(true);
+        setIsSyncing(false);
       }
-
-      setInitialized(true);
-      setIsSyncing(false);
     }, (error) => {
-      // Handle network errors gracefully
+      console.error("Firestore sync error:", error);
       if (error.code !== 'unavailable') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: assetsRef.path,
@@ -106,6 +102,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         setHasError(true);
       }
       setIsSyncing(false);
+      setInitialized(true); // Stop loading even on error
     });
 
     return () => unsubscribe();
@@ -143,7 +140,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const account = privateKeyToAccount(pKey);
     
     const assetsRef = collection(db, 'users', user.uid, 'assets');
-    const assetDocRef = customId ? doc(assetsRef, customId) : doc(assetsRef);
+    // Using a deterministic ID for the primary vault to prevent duplicates
+    const finalId = customId || (assets.length === 0 ? 'primary-vault' : undefined);
+    const assetDocRef = finalId ? doc(assetsRef, finalId) : doc(assetsRef);
     
     const newAsset: WalletAsset = {
       id: assetDocRef.id,
@@ -155,7 +154,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       privateKey: pKey
     };
     
-    setDoc(assetDocRef, newAsset)
+    setDoc(assetDocRef, newAsset, { merge: true })
       .catch(async (err) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: assetDocRef.path,
@@ -165,7 +164,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       });
 
     return account.address;
-  }, [db, user]);
+  }, [db, user, assets.length]);
 
   const importPrivateKey = async (currency: string, privateKey: `0x${string}`) => {
     if (!db || !user) return;
@@ -207,7 +206,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // One-time provisioning of the Primary Vault
+  // Critical: Provision primary vault ONLY after server confirmation of empty state
   useEffect(() => {
     if (
       isSyncedWithServer && 

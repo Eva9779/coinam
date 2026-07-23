@@ -59,7 +59,7 @@ export default function WalletPage() {
     });
   };
 
-  // Show a professional loading state while synchronizing with the enclave
+  // Improved loading state that waits for server synchronization
   if (!initialized || isSyncing) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
@@ -69,7 +69,7 @@ export default function WalletPage() {
         </div>
         <div className="text-center space-y-2">
           <p className="text-xs font-black uppercase tracking-[0.3em] text-primary animate-pulse">Syncing Vault Enclave</p>
-          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest opacity-60">Establishing Secure Handshake...</p>
+          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest opacity-60">Connecting to Blockchain Nodes...</p>
         </div>
       </div>
     );
@@ -136,7 +136,7 @@ export default function WalletPage() {
                             </Badge>
                           </div>
                           <div className="text-[10px] text-muted-foreground font-mono font-bold flex items-center gap-2 opacity-80">
-                            {asset.address.slice(0, 10)}...{asset.address.slice(-6)}
+                            {asset.address}
                             <button 
                               className="p-1 hover:bg-secondary/20 rounded transition-colors"
                               onClick={() => copyToClipboard(asset.address, "Address")}
@@ -237,7 +237,7 @@ export default function WalletPage() {
                 Non-Custodial Note
              </h4>
              <p className="text-[11px] font-medium text-muted-foreground leading-relaxed">
-                Coin A,M provides high-performance interfaces to decentralized peers. Key management is now handled exclusively in the secure **Settings Terminal**.
+                Coin A,M provides high-performance interfaces to decentralized peers. Key management is handled exclusively in the secure **Settings Terminal**.
              </p>
           </Card>
         </div>
