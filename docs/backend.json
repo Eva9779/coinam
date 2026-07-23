@@ -3,7 +3,7 @@
   "entities": {
     "UserProfile": {
       "title": "User Profile",
-      "description": "Stores user-specific vault preferences and metadata. Encrypted at rest.",
+      "description": "Primary identity record. Must be provisioned before sub-collections can be accessed.",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
@@ -14,7 +14,7 @@
     },
     "WalletAsset": {
       "title": "Wallet Asset",
-      "description": "Non-custodial cryptocurrency asset key. Strictly isolated to the authenticated owner via hardware-level security rules.",
+      "description": "Non-custodial cryptographic key. Strictly isolated to the authenticated owner. The 'primary-vault' ID is used for the root account identity.",
       "type": "object",
       "properties": {
         "currency": { "type": "string" },
@@ -22,13 +22,13 @@
         "fiatValueUSD": { "type": "number" },
         "address": { "type": "string" },
         "isLive": { "type": "boolean" },
-        "privateKey": { "type": "string", "description": "Owner-encrypted private key for on-device signing only." }
+        "privateKey": { "type": "string" }
       },
       "required": ["currency", "address"]
     },
     "Transaction": {
       "title": "Transaction",
-      "description": "Immutable ledger record of financial activity. Verified by decentralized node consensus.",
+      "description": "Immutable ledger record of financial activity.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -50,15 +50,15 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "User profile document. Primary owner identity for all vault sub-collections. Must exist before sub-documents can be provisioned."
+      "description": "Verified owner profile. Grants access to all sub-collection vault assets."
     },
     "/users/{userId}/assets/{assetId}": {
       "schema": "WalletAsset",
-      "description": "Isolated cryptographic keys. Strictly owner-access only. The 'primary-vault' document ID is used for deterministic root identity."
+      "description": "Isolated cryptographic keys. Strictly authorized for the authenticated user ID matching the path."
     },
     "/users/{userId}/transactions/{txId}": {
       "schema": "Transaction",
-      "description": "User's immutable transaction ledger for all vault activities."
+      "description": "Immutable transaction history ledger for the vault owner."
     }
   }
 }

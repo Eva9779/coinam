@@ -64,7 +64,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUserHook();
   const db = useFirestore();
 
-  // Primary Assets Listener - Wait for definitive server response
+  // Primary Assets Listener
   useEffect(() => {
     if (!db || !user) {
       setInitialized(false);
@@ -83,13 +83,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       } as WalletAsset));
       
       setAssets(assetsData);
-      
-      // Only set initialized to true once we have a definitive answer from the stream
       setInitialized(true);
       setIsSyncing(false);
     }, (error) => {
-      // If we hit a permission error, we must still allow the UI to load
-      // but the 'assets' will be empty and error reported.
+      // On error, we still want to unblock the UI
       setInitialized(true);
       setIsSyncing(false);
       
@@ -134,7 +131,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
     const finalId = customId || 'primary-vault';
     
-    // SAFETY: Never generate a new key if one already exists in the synced cloud state
+    // SAFETY: Never generate a new key if one already exists in the cloud state
     const existing = assets.find(a => a.id === finalId);
     if (existing) {
       return existing.address;
@@ -144,7 +141,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     
     try {
       // 1. Establish User Profile (Parent Document)
-      // This is required by Security Rules to allow child document creation
+      // We perform this write to ensure the parent exists for Security Rules sub-collection checks
       const userDocRef = doc(db, 'users', user.uid);
       setDoc(userDocRef, {
         uid: user.uid,
@@ -173,13 +170,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       
       const assetDocRef = doc(db, 'users', user.uid, 'assets', finalId);
       
-      // Use non-blocking setDoc pattern as per guidelines
+      // Perform non-blocking write
       setDoc(assetDocRef, newAsset)
         .catch(async (serverError) => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: assetDocRef.path,
             operation: 'create',
-            requestResourceData: { currency }
+            requestResourceData: newAsset
           } satisfies SecurityRuleContext));
         });
       
@@ -220,7 +217,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setDoc(assetDocRef, importedAsset).catch(async (e) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: assetDocRef.path,
-          operation: 'create'
+          operation: 'create',
+          requestResourceData: importedAsset
         }));
       });
       
@@ -245,7 +243,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setDoc(txDocRef, newTx).catch((e) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: txDocRef.path,
-        operation: 'create'
+        operation: 'create',
+        requestResourceData: newTx
       }));
     });
   };
@@ -263,7 +262,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     updateDoc(assetDocRef, updateData).catch((e) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: assetDocRef.path,
-        operation: 'update'
+        operation: 'update',
+        requestResourceData: updateData
       }));
     });
   };
