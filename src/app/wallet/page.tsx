@@ -61,13 +61,11 @@ export default function WalletPage() {
   };
 
   const handleInitializeVault = async () => {
-    // Calling the deterministic provisioner
     await generateNewWallet('ETH', 'primary-vault');
   };
 
-  // FULL SCREEN LOADING GUARD:
-  // We only show this if we are still waiting for the FIRST sync from Firebase
-  if (!initialized && isSyncing) {
+  // FULL SCREEN LOADING GUARD: Ensures we don't show empty UI before cloud sync is definitive
+  if (!initialized) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
         <div className="relative">
@@ -76,7 +74,7 @@ export default function WalletPage() {
         </div>
         <div className="text-center space-y-2">
           <p className="text-xs font-black uppercase tracking-[0.3em] text-primary animate-pulse">Syncing Cloud Enclave</p>
-          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest opacity-60">Verifying Security Credentials...</p>
+          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest opacity-60">Connecting to secure vault network...</p>
         </div>
       </div>
     );
@@ -191,7 +189,7 @@ export default function WalletPage() {
                       <>
                         <Loader2 className="h-12 w-12 animate-spin text-primary" />
                         <div className="space-y-2">
-                          <h4 className="text-lg font-black uppercase tracking-tight">Generating Private Key</h4>
+                          <h4 className="text-lg font-black uppercase tracking-tight">Provisioning Secure Key</h4>
                           <p className="text-xs text-muted-foreground max-w-xs mx-auto">Initializing hardware-isolated cryptographic endpoints. Do not refresh.</p>
                         </div>
                       </>
@@ -206,9 +204,8 @@ export default function WalletPage() {
                         </div>
                         <Button 
                           size="lg" 
-                          className="h-16 px-10 text-lg font-black rounded-2xl shadow-2xl gap-3" 
+                          className="h-16 px-10 text-lg font-black rounded-2xl shadow-2xl gap-3 transition-transform hover:scale-105 active:scale-95" 
                           onClick={handleInitializeVault}
-                          disabled={isSyncing}
                         >
                           <PlusCircle className="h-6 w-6" />
                           Initialize Secure Vault

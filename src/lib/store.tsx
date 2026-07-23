@@ -64,7 +64,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUserHook();
   const db = useFirestore();
 
-  // Primary Assets Listener - Hardened for persistence
+  // Primary Assets Listener - Wait for definitive server response
   useEffect(() => {
     if (!db || !user) {
       setInitialized(false);
@@ -76,8 +76,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setIsSyncing(true);
     const assetsRef = collection(db, 'users', user.uid, 'assets');
     
-    // We listen to the collection. We only mark initialized when we get a non-cache result
-    // or when data actually arrives.
     const unsubscribe = onSnapshot(assetsRef, (snapshot) => {
       const assetsData = snapshot.docs.map(doc => ({
         ...doc.data(),
@@ -86,15 +84,15 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       
       setAssets(assetsData);
       
-      // CRITICAL: Only set initialized to true if we've successfully contacted the server
-      // or if we have data (even from cache). This prevents "guessing" the vault is empty.
-      if (!snapshot.metadata.fromCache || snapshot.size > 0) {
-        setInitialized(true);
-        setIsSyncing(false);
-      }
-    }, (error) => {
+      // Only set initialized to true once we have a definitive answer from the stream
+      setInitialized(true);
       setIsSyncing(false);
-      // We don't mark as initialized on error to prevent accidental overwrites
+    }, (error) => {
+      // If we hit a permission error, we must still allow the UI to load
+      // but the 'assets' will be empty and error reported.
+      setInitialized(true);
+      setIsSyncing(false);
+      
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: assetsRef.path,
         operation: 'list'
@@ -118,53 +116,48 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const txData = snapshot.docs.map(doc => doc.data() as Transaction);
       setTransactions(txData);
     }, (error) => {
-      if (error.code !== 'unavailable') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: txRef.path,
-          operation: 'list'
-        }));
-      }
+      if (error.code !== 'permission-denied') return;
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: txRef.path,
+        operation: 'list'
+      }));
     });
 
     return () => unsubscribe();
   }, [db, user]);
 
   const generateNewWallet = useCallback(async (currency: string, customId?: string) => {
-    // SAFETY CHECK: Never allow generation if we haven't confirmed current state with the server
-    if (!db || !user || isSyncing || !initialized) {
-      toast({ title: "Synchronizing with cloud... Please wait." });
+    if (!db || !user || !initialized) {
+      toast({ title: "Synchronizing with cloud vault..." });
       return null;
     }
 
     const finalId = customId || 'primary-vault';
     
-    // 1. Double-check if it already exists in our verified synced state
+    // SAFETY: Never generate a new key if one already exists in the synced cloud state
     const existing = assets.find(a => a.id === finalId);
     if (existing) {
-      toast({ title: "Vault already exists. Retrieving address..." });
       return existing.address;
     }
 
     setProvisioning(true);
     
     try {
-      // 2. Establish User Profile (Root Document)
+      // 1. Establish User Profile (Parent Document)
+      // This is required by Security Rules to allow child document creation
       const userDocRef = doc(db, 'users', user.uid);
-      const profileData = {
+      setDoc(userDocRef, {
         uid: user.uid,
         email: user.email,
         updatedAt: new Date().toISOString()
-      };
-      
-      // Non-blocking write for profile
-      setDoc(userDocRef, profileData, { merge: true }).catch((e) => {
+      }, { merge: true }).catch((e) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: userDocRef.path,
           operation: 'write'
         }));
       });
 
-      // 3. Generate NEW Cryptographic Material
+      // 2. Generate Deterministic Cryptographic Material
       const pKey = generatePrivateKey();
       const account = privateKeyToAccount(pKey);
       
@@ -180,28 +173,28 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       
       const assetDocRef = doc(db, 'users', user.uid, 'assets', finalId);
       
-      // CRITICAL: We initiatize the write but do NOT block. 
-      // This ensures the local state updates optimistically.
-      setDoc(assetDocRef, newAsset).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: assetDocRef.path,
-          operation: 'create',
-          requestResourceData: { currency },
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-      });
+      // Use non-blocking setDoc pattern as per guidelines
+      setDoc(assetDocRef, newAsset)
+        .catch(async (serverError) => {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: assetDocRef.path,
+            operation: 'create',
+            requestResourceData: { currency }
+          } satisfies SecurityRuleContext));
+        });
       
+      toast({ title: "Vault Successfully Provisioned" });
       return account.address;
     } catch (e: any) {
-      toast({ title: "Internal vault error", variant: "destructive" });
+      toast({ title: "Internal provisioning error", variant: "destructive" });
       return null;
     } finally {
       setProvisioning(false);
     }
-  }, [db, user, assets, initialized, isSyncing]);
+  }, [db, user, assets, initialized]);
 
   const importPrivateKey = async (currency: string, privateKey: `0x${string}`) => {
-    if (!db || !user || isSyncing) return;
+    if (!db || !user) return;
 
     try {
       const account = privateKeyToAccount(privateKey);

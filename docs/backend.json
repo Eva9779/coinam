@@ -50,11 +50,11 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "User profile document. Primary owner identity for all vault sub-collections."
+      "description": "User profile document. Primary owner identity for all vault sub-collections. Must exist before sub-documents can be provisioned."
     },
     "/users/{userId}/assets/{assetId}": {
       "schema": "WalletAsset",
-      "description": "Isolated cryptographic keys. Strictly owner-access only. This includes the 'primary-vault' deterministic identifier."
+      "description": "Isolated cryptographic keys. Strictly owner-access only. The 'primary-vault' document ID is used for deterministic root identity."
     },
     "/users/{userId}/transactions/{txId}": {
       "schema": "Transaction",
