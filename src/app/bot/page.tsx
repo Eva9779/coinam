@@ -28,14 +28,14 @@ import {
   ArrowUpRight,
   BarChart3,
   Monitor,
-  Eye
+  Eye,
+  Trophy
 } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { analyzeMarketAndTrade, TradingBotOutput } from '@/ai/flows/trading-bot-flow';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
-// Institutional Bot Chart Component
 const BotTradingChart = memo(({ symbol }: { symbol: string }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -86,7 +86,7 @@ const BotTradingChart = memo(({ symbol }: { symbol: string }) => {
 BotTradingChart.displayName = "BotTradingChart";
 
 export default function TradingBotPage() {
-  const { assets, initialized, user, updateBalance, addTransaction } = useVaultStore();
+  const { assets, initialized, user, updateBalance, addTransaction, totalBotEarnings, updateBotEarnings } = useVaultStore();
   const [isActive, setIsActive] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [allocation, setAllocation] = useState<string>("1000");
@@ -131,7 +131,6 @@ export default function TradingBotPage() {
     
     setIsAnalyzing(true);
     addLog(`Initiating Quantum Protocol: ${riskLevel.toUpperCase()} Strategy`, 'info');
-    addLog('Synchronizing with Global Liquidity Nodes...', 'info');
     
     try {
       const liveMarket = await fetchLiveMarketData();
@@ -158,7 +157,7 @@ export default function TradingBotPage() {
         if (topAction) setChartSymbol(topAction.toAsset);
       }
 
-      let sessionProfit = 0;
+      let currentCycleProfit = 0;
 
       for (const action of response.actions) {
         if (action.type === 'buy' || action.type === 'sell') {
@@ -186,8 +185,9 @@ export default function TradingBotPage() {
               description: `AI Income Generation: ${action.reasoning}`
             });
             
+            // Simulating a small profit from the trade efficiency
             const tradeGain = (action.amount * fromPrice) * 0.001; 
-            sessionProfit += tradeGain;
+            currentCycleProfit += tradeGain;
             
             addLog(`Network Confirmation: Trade finalized on-chain. Funds settled.`, 'success');
           } else {
@@ -198,7 +198,10 @@ export default function TradingBotPage() {
         }
       }
 
-      setSessionEarnings(prev => prev + sessionProfit);
+      if (currentCycleProfit > 0) {
+        setSessionEarnings(prev => prev + currentCycleProfit);
+        updateBotEarnings(currentCycleProfit);
+      }
 
     } catch (error) {
       addLog('Node Failure: Could not finalize network broadcast.', 'warning');
@@ -261,6 +264,31 @@ export default function TradingBotPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="rounded-[2.5rem] bg-gradient-to-br from-primary to-primary/80 text-white border-none shadow-xl">
+              <CardContent className="p-8 flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Total Bot Earnings</p>
+                  <p className="text-4xl font-black tracking-tighter">${totalBotEarnings.toFixed(2)}</p>
+                </div>
+                <div className="h-14 w-14 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
+                  <Trophy className="h-7 w-7 text-secondary" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/10 shadow-xl">
+              <CardContent className="p-8 flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Active Session profit</p>
+                  <p className="text-4xl font-black tracking-tighter text-green-600">+${sessionEarnings.toFixed(2)}</p>
+                </div>
+                <div className="h-14 w-14 rounded-2xl bg-green-500/10 flex items-center justify-center border border-green-500/20">
+                  <TrendingUp className="h-7 w-7 text-green-600" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <div className="space-y-4">
             <div className="flex items-center justify-between px-2">
               <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
@@ -354,20 +382,6 @@ export default function TradingBotPage() {
               </div>
 
               <div className="h-px bg-primary/10 w-full" />
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-5 rounded-[1.5rem] bg-muted/50 border shadow-inner">
-                  <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1 tracking-widest">Session Gain</p>
-                  <p className="text-2xl font-black text-green-600 flex items-center gap-1">
-                    <ArrowUpRight className="h-4 w-4" />
-                    ${sessionEarnings.toFixed(2)}
-                  </p>
-                </div>
-                <div className="p-5 rounded-[1.5rem] bg-muted/50 border shadow-inner">
-                  <p className="text-[10px] font-bold uppercase text-muted-foreground mb-1 tracking-widest">AI Confidence</p>
-                  <p className="text-2xl font-black text-primary">{botOutput?.confidenceScore || 0}%</p>
-                </div>
-              </div>
 
               <div className="p-6 rounded-[1.5rem] bg-slate-900 text-white space-y-4 relative overflow-hidden">
                 <Zap className="absolute -right-6 -bottom-6 h-28 w-28 opacity-10 text-secondary" />

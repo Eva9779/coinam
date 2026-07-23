@@ -12,6 +12,7 @@ import {
   query, 
   orderBy, 
   updateDoc,
+  getDoc
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -46,10 +47,12 @@ interface VaultContextType {
   isSyncing: boolean;
   isProvisioning: boolean;
   user: any;
+  totalBotEarnings: number;
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
   updateBalance: (currency: string, amountChange: number, fiatPrice: number) => void;
   generateNewWallet: (currency: string, customId?: string) => Promise<string | null>;
   importPrivateKey: (currency: string, privateKey: `0x${string}`) => Promise<void>;
+  updateBotEarnings: (amount: number) => void;
 }
 
 const VaultContext = createContext<VaultContextType | undefined>(undefined);
@@ -57,6 +60,7 @@ const VaultContext = createContext<VaultContextType | undefined>(undefined);
 export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [totalBotEarnings, setTotalBotEarnings] = useState(0);
   const [initialized, setInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
   const [provisioning, setProvisioning] = useState(false);
@@ -64,6 +68,21 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   
   const { user } = useUserHook();
   const db = useFirestore();
+
+  // User Profile & Earnings Listener
+  useEffect(() => {
+    if (!db || !user) return;
+
+    const userRef = doc(db, 'users', user.uid);
+    const unsubscribe = onSnapshot(userRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setTotalBotEarnings(data.totalBotEarnings || 0);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [db, user]);
 
   // Assets Synchronization Listener
   useEffect(() => {
@@ -77,7 +96,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setIsSyncing(true);
     const assetsRef = collection(db, 'users', user.uid, 'assets');
     
-    // Release the "Syncing" hang after 3 seconds even if cloud is empty or rules are propagating
     const timeout = setTimeout(() => {
       if (!initialized) {
         setInitialized(true);
@@ -96,9 +114,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setIsSyncing(false);
       clearTimeout(timeout);
     }, (error) => {
-      // Quietly log permission issues during initial sync
       if (error.code === 'permission-denied') {
-        console.warn('Vault sync deferred: Firestore security rules may still be initializing for this account.');
+        console.warn('Vault sync deferred');
       }
       setInitialized(true);
       setIsSyncing(false);
@@ -137,12 +154,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setProvisioning(true);
     
     try {
-      // Step 1: establish Root Identity (Non-blocking)
       const userDocRef = doc(db, 'users', user.uid);
       const userData = { 
         uid: user.uid, 
         email: user.email,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        totalBotEarnings: totalBotEarnings
       };
       
       setDoc(userDocRef, userData, { merge: true }).catch((e) => {
@@ -166,7 +183,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         privateKey: pKey
       };
       
-      // Step 2: Provision Vault Endpoint (Non-blocking)
       const assetDocRef = doc(db, 'users', user.uid, 'assets', customId);
       
       setDoc(assetDocRef, newAsset).catch((e) => {
@@ -177,7 +193,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         } satisfies SecurityRuleContext));
       });
       
-      console.log(`Autonomous Vault Provisioned: ${account.address}`);
       return account.address;
     } catch (e: any) {
       console.error('Provisioning failure:', e);
@@ -185,9 +200,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setProvisioning(false);
     }
-  }, [db, user]);
+  }, [db, user, totalBotEarnings]);
 
-  // NEURAL AUTO-PROVISION: If initialized but empty, provision the vault automatically
   useEffect(() => {
     if (initialized && user && assets.length === 0 && !provisioning && !autoProvisionAttempted.current) {
       autoProvisionAttempted.current = true;
@@ -256,10 +270,24 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     });
   };
 
+  const updateBotEarnings = (amount: number) => {
+    if (!db || !user) return;
+    const userDocRef = doc(db, 'users', user.uid);
+    const newTotal = totalBotEarnings + amount;
+    
+    updateDoc(userDocRef, { totalBotEarnings: newTotal }).catch((e) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: userDocRef.path,
+        operation: 'update',
+        requestResourceData: { totalBotEarnings: newTotal }
+      } satisfies SecurityRuleContext));
+    });
+  };
+
   return (
     <VaultContext.Provider value={{ 
       assets, transactions, initialized, isSyncing, isProvisioning: provisioning, user,
-      addTransaction, updateBalance, generateNewWallet, importPrivateKey
+      totalBotEarnings, addTransaction, updateBalance, generateNewWallet, importPrivateKey, updateBotEarnings
     }}>
       {children}
     </VaultContext.Provider>
