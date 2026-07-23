@@ -76,7 +76,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       
       setDoc(userDocRef, userData, { merge: true }).catch((e) => {
         // Quiet warning for initialization
-        console.warn('Root profile sync pending...');
+        console.warn('Root profile sync pending authorization...');
       });
     }
   }, [db, user]);
@@ -99,7 +99,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         setInitialized(true);
         setIsSyncing(false);
       }
-    }, 4000);
+    }, 3000);
 
     const unsubscribe = onSnapshot(assetsRef, (snapshot) => {
       const assetsData = snapshot.docs.map(doc => ({
@@ -113,12 +113,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(timeout);
     }, (error) => {
       if (error.code === 'permission-denied') {
-        // Handle silently here, generateNewWallet will re-surface if needed
         console.warn('Vault access pending authorization...');
       } else {
         console.error('Vault Sync Error:', error);
       }
       
+      // Still set initialized true so the UI can show the "Initialize" state
       setInitialized(true);
       setIsSyncing(false);
       clearTimeout(timeout);
@@ -164,13 +164,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         updatedAt: new Date().toISOString()
       };
       
-      // Non-blocking mutation
-      setDoc(userDocRef, userData, { merge: true }).catch(async (e) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: userDocRef.path,
-          operation: 'write',
-          requestResourceData: userData
-        }));
+      // Quietly set the user doc - if this fails, the asset create will likely show the definitive error
+      setDoc(userDocRef, userData, { merge: true }).catch((e) => {
+        console.warn('Metadata sync deferred:', e.message);
       });
 
       const pKey = generatePrivateKey();
