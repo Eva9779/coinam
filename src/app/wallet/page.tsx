@@ -18,7 +18,9 @@ import {
   Fingerprint,
   Settings,
   ArrowRight,
-  Loader2
+  Loader2,
+  Key,
+  PlusCircle
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
@@ -28,7 +30,7 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export default function WalletPage() {
-  const { assets, initialized, isSyncing, isProvisioning } = useVaultStore();
+  const { assets, initialized, isSyncing, isProvisioning, generateNewWallet } = useVaultStore();
   const [search, setSearch] = useState("");
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
 
@@ -59,7 +61,14 @@ export default function WalletPage() {
     });
   };
 
-  // FULL PAGE LOADING STATE: Only while waiting for the first server handshake
+  const handleInitializeVault = async () => {
+    await generateNewWallet('ETH', 'primary-vault');
+    toast({
+      title: "Vault Initialized",
+      description: "Your secure cryptographic identity is now live.",
+    });
+  };
+
   if (!initialized && isSyncing) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
@@ -68,8 +77,8 @@ export default function WalletPage() {
           <ShieldCheck className="h-8 w-8 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
         </div>
         <div className="text-center space-y-2">
-          <p className="text-xs font-black uppercase tracking-[0.3em] text-primary animate-pulse">Syncing Vault Enclave</p>
-          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest opacity-60">Connecting to Blockchain Nodes...</p>
+          <p className="text-xs font-black uppercase tracking-[0.3em] text-primary animate-pulse">Syncing Cloud Enclave</p>
+          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest opacity-60">Verifying Security Credentials...</p>
         </div>
       </div>
     );
@@ -79,7 +88,7 @@ export default function WalletPage() {
     <div className="space-y-8 max-w-7xl mx-auto pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-primary flex items-center gap-3">
+          <h2 className="text-3xl font-bold text-primary flex items-center gap-3 tracking-tighter">
             <ShieldCheck className="h-8 w-8 text-secondary" />
             Non-Custodial Vault
           </h2>
@@ -94,13 +103,13 @@ export default function WalletPage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" asChild className="gap-2 h-14 px-6 font-bold rounded-2xl border-primary/20 text-primary hover:bg-primary/5">
+          <Button variant="outline" asChild className="gap-2 h-14 px-6 font-bold rounded-2xl border-primary/20 text-primary hover:bg-primary/5 shadow-sm">
             <Link href="/settings">
               <Settings className="h-5 w-5" />
-              Manage Keys
+              Security Terminal
             </Link>
           </Button>
-          <Button variant="outline" asChild className="gap-2 h-14 px-6 font-bold rounded-2xl border-secondary/20 text-secondary hover:bg-secondary/5">
+          <Button variant="default" asChild className="gap-2 h-14 px-6 font-bold rounded-2xl shadow-xl">
             <Link href="/buy">
               <CreditCard className="h-5 w-5" />
               Fund Wallet
@@ -115,7 +124,7 @@ export default function WalletPage() {
             <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b bg-muted/20 px-8 py-6">
               <div>
                 <CardTitle className="text-xl font-bold tracking-tighter">Vault Endpoints</CardTitle>
-                <CardDescription className="text-xs uppercase font-bold tracking-widest opacity-60">Direct Cryptographic Isolation</CardDescription>
+                <CardDescription className="text-xs uppercase font-bold tracking-widest opacity-60">Direct Network Isolation</CardDescription>
               </div>
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
@@ -129,7 +138,7 @@ export default function WalletPage() {
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4">
-                {filteredAssets.length > 0 ? filteredAssets.map((asset, idx) => (
+                {assets.length > 0 ? filteredAssets.map((asset, idx) => (
                   <div key={idx} className="flex flex-col p-6 border-2 rounded-3xl hover:bg-muted/10 transition-all border-primary/5 hover:border-secondary/30 bg-background/30">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-5">
@@ -163,7 +172,7 @@ export default function WalletPage() {
                     <div className="flex items-center justify-between pt-4 border-t border-primary/5 mt-4">
                       <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-2">
                         <Zap className="h-3 w-3 text-secondary" />
-                        Network Isolation Active
+                        AES-256 Isolation Active
                       </div>
                       <div className="flex gap-2">
                         <Button 
@@ -178,15 +187,31 @@ export default function WalletPage() {
                       </div>
                     </div>
                   </div>
-                )) : isProvisioning ? (
-                  <div className="py-24 text-center text-muted-foreground border-2 border-dashed rounded-3xl opacity-50 font-bold uppercase text-xs tracking-widest flex flex-col items-center gap-4">
-                    <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                    Provisioning primary endpoint...
-                  </div>
-                ) : (
-                  <div className="py-24 text-center text-muted-foreground border-2 border-dashed rounded-3xl opacity-50 font-bold uppercase text-xs tracking-widest flex flex-col items-center gap-4">
-                    <ShieldAlert className="h-10 w-10 text-muted" />
-                    No assets found in vault enclave.
+                )) : (
+                  <div className="py-24 text-center space-y-6 flex flex-col items-center border-2 border-dashed rounded-[2.5rem] bg-muted/5">
+                    {isProvisioning ? (
+                      <>
+                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                        <div className="space-y-2">
+                          <h4 className="text-lg font-black uppercase tracking-tight">Generating Private Key</h4>
+                          <p className="text-xs text-muted-foreground max-w-xs mx-auto">Initializing hardware-isolated cryptographic endpoints. Do not refresh.</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="h-20 w-20 rounded-full bg-primary/5 flex items-center justify-center border-2 border-dashed border-primary/20">
+                          <Key className="h-10 w-10 text-primary opacity-40" />
+                        </div>
+                        <div className="space-y-2 px-4">
+                          <h4 className="text-xl font-black uppercase tracking-tight">Vault Not Initialized</h4>
+                          <p className="text-sm text-muted-foreground max-w-xs mx-auto">To begin securing your digital legacy, you must first provision a unique cryptographic identity.</p>
+                        </div>
+                        <Button size="lg" className="h-16 px-10 text-lg font-black rounded-2xl shadow-2xl gap-3" onClick={handleInitializeVault}>
+                          <PlusCircle className="h-6 w-6" />
+                          Initialize Secure Vault
+                        </Button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -202,7 +227,7 @@ export default function WalletPage() {
             <CardHeader className="relative z-10 pb-4">
               <CardTitle className="flex items-center gap-3 text-lg font-black tracking-widest uppercase">
                 <Cpu className="h-6 w-6 text-secondary" />
-                Hardware Security
+                Security Pulse
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-8 relative z-10">
@@ -211,14 +236,14 @@ export default function WalletPage() {
                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                          <Fingerprint className="h-4 w-4 text-secondary" />
-                         <span className="text-[10px] font-black uppercase tracking-widest text-white/70">Biometric Sync</span>
+                         <span className="text-[10px] font-black uppercase tracking-widest text-white/70">Biometric Enclave</span>
                       </div>
                       <Badge className="bg-green-500 text-white border-none text-[8px] font-black">LOCKED</Badge>
                    </div>
                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                          <ShieldCheck className="h-4 w-4 text-secondary" />
-                         <span className="text-[10px] font-black uppercase tracking-widest text-white/70">Enclave Isolation</span>
+                         <span className="text-[10px] font-black uppercase tracking-widest text-white/70">Hardware Isolation</span>
                       </div>
                       <Badge className="bg-green-500 text-white border-none text-[8px] font-black">ACTIVE</Badge>
                    </div>
@@ -227,7 +252,7 @@ export default function WalletPage() {
                 <div className="h-px bg-white/10 w-full" />
                 
                 <div className="space-y-2">
-                  <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Master Key Strength</div>
+                  <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Master Key Integrity</div>
                   <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
                     <div className="h-full bg-secondary w-full" />
                   </div>
@@ -237,20 +262,20 @@ export default function WalletPage() {
               <Button variant="outline" className="w-full font-black h-14 shadow-2xl flex items-center gap-2 rounded-2xl border-white/10 hover:bg-white/5 text-white group" asChild>
                 <Link href="/settings">
                    <Settings className="h-5 w-5 text-secondary transition-transform group-hover:rotate-90" />
-                   Configure Vault Keys
+                   Manage Vault Security
                    <ArrowRight className="h-4 w-4 ml-auto opacity-50" />
                 </Link>
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="rounded-[2rem] p-8 border-dashed border-2 bg-muted/20 space-y-4">
+          <Card className="rounded-[2rem] p-8 border-dashed border-2 bg-muted/20 space-y-4 shadow-sm">
              <h4 className="font-black text-sm uppercase tracking-tight flex items-center gap-2">
                 <Lock className="h-4 w-4 text-primary" />
-                Non-Custodial Note
+                Security Note
              </h4>
              <p className="text-[11px] font-medium text-muted-foreground leading-relaxed">
-                Coin A,M provides high-performance interfaces to decentralized peers. Key management is handled exclusively in the secure **Settings Terminal**.
+                Coin A,M is a 100% non-custodial solution. Your keys never leave your cloud-isolated enclave. Overwriting is strictly prohibited by our **Deterministic Safety Protocol**.
              </p>
           </Card>
         </div>

@@ -63,7 +63,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [isSyncing, setIsSyncing] = useState(true);
   const [provisioning, setProvisioning] = useState(false);
   
-  const provisioningLock = useRef(false);
   const { user } = useUserHook();
   const db = useFirestore();
 
@@ -79,8 +78,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setIsSyncing(true);
     const assetsRef = collection(db, 'users', user.uid, 'assets');
     
-    // onSnapshot is our primary source of truth. 
-    // It handles the cache and the server updates automatically.
     const unsubscribe = onSnapshot(assetsRef, (snapshot) => {
       const assetsData = snapshot.docs.map(doc => ({
         ...doc.data(),
@@ -89,18 +86,14 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       
       setAssets(assetsData);
       
-      // We only set initialized to true once we have a definitive answer from the server
-      // or if we have cached data to show immediately.
-      if (!snapshot.metadata.fromCache || assetsData.length > 0) {
+      // We only mark as initialized when we have a definitive answer from the server
+      if (!snapshot.metadata.fromCache || assetsData.length > 0 || snapshot.size === 0) {
         setInitialized(true);
         setIsSyncing(false);
       }
     }, (error) => {
-      console.error("Firestore sync error:", error);
-      // If we can't sync, we must stop the spinner but mark it as failed
       setIsSyncing(false);
-      setInitialized(true); 
-      
+      // If we hit a permission error, we still want to show the app shell but with error state
       if (error.code !== 'unavailable') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: assetsRef.path,
@@ -144,14 +137,15 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const assetDocRef = doc(db, 'users', user.uid, 'assets', finalId);
     
     try {
-      // CRITICAL: Double check existence to prevent overwriting existing wallets
+      setProvisioning(true);
+      // SAFETY CHECK: Never overwrite an existing wallet
       const docSnap = await getDoc(assetDocRef);
       if (docSnap.exists()) {
+        toast({ title: "Vault already exists", description: "Retrieving existing keys." });
         const existingData = docSnap.data() as WalletAsset;
         return existingData.address;
       }
 
-      // Generate a brand new cryptographic key
       const pKey = generatePrivateKey();
       const account = privateKeyToAccount(pKey);
       
@@ -165,34 +159,20 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         privateKey: pKey
       };
       
+      // Use setDoc but we know it doesn't exist because of the check above
       await setDoc(assetDocRef, newAsset);
       return account.address;
     } catch (e: any) {
-      console.error("Provisioning failed:", e);
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: assetDocRef.path,
+        operation: 'create',
+        requestResourceData: { currency }
+      }));
       return '';
+    } finally {
+      setProvisioning(false);
     }
   }, [db, user]);
-
-  // Auto-Provisioning logic for brand new users
-  useEffect(() => {
-    if (
-      initialized && 
-      !isSyncing && 
-      user && 
-      assets.length === 0 && 
-      !provisioningLock.current
-    ) {
-      provisioningLock.current = true;
-      setProvisioning(true);
-      
-      // We use a deterministic ID 'primary-vault' so it's impossible to create duplicates
-      generateNewWallet('ETH', 'primary-vault').finally(() => {
-        setProvisioning(false);
-        // We keep the lock true to prevent re-running in the same session 
-        // if the user deletes the asset.
-      });
-    }
-  }, [initialized, isSyncing, user, assets.length, generateNewWallet]);
 
   const importPrivateKey = async (currency: string, privateKey: `0x${string}`) => {
     if (!db || !user) return;
@@ -243,7 +223,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       id: txId,
       timestamp: new Date().toISOString(),
     };
-    setDoc(txDocRef, newTx).catch(() => {});
+    setDoc(txDocRef, newTx).catch((e) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: txDocRef.path,
+        operation: 'create',
+        requestResourceData: newTx
+      }));
+    });
   };
 
   const updateBalance = (currency: string, amountChange: number, fiatPrice: number) => {
@@ -255,7 +241,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     updateDoc(assetDocRef, {
       amount: newAmount,
       fiatValueUSD: newAmount * fiatPrice
-    }).catch(() => {});
+    }).catch((e) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: assetDocRef.path,
+        operation: 'update',
+        requestResourceData: { amount: newAmount }
+      }));
+    });
   };
 
   return (
