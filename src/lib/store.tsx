@@ -11,8 +11,7 @@ import {
   onSnapshot, 
   query, 
   orderBy, 
-  updateDoc,
-  getDoc
+  updateDoc
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -60,6 +59,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [initialized, setInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
+  const [isSyncedWithServer, setIsSyncedWithServer] = useState(false);
   const [hasError, setHasError] = useState(false);
   const isProvisioning = useRef(false);
   const { user } = useUserHook();
@@ -70,6 +70,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) {
       setInitialized(false);
       setIsSyncing(false);
+      setIsSyncedWithServer(false);
       setHasError(false);
       setAssets([]);
       return;
@@ -87,15 +88,25 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       } as WalletAsset));
       
       setAssets(assetsData);
+      
+      // CRITICAL: Only consider the vault "synced" when metadata confirms data is NOT just from cache.
+      // This prevents the app from thinking the vault is empty just because the cache is empty.
+      if (!snapshot.metadata.fromCache) {
+        setIsSyncedWithServer(true);
+      }
+
       setInitialized(true);
       setIsSyncing(false);
       setHasError(false);
     }, (error) => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: assetsRef.path,
-        operation: 'list'
-      }));
-      setHasError(true);
+      // Only emit error if it's a legitimate permission issue
+      if (error.code !== 'unavailable') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: assetsRef.path,
+          operation: 'list'
+        }));
+        setHasError(true);
+      }
       setIsSyncing(false);
     });
 
@@ -116,10 +127,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const txData = snapshot.docs.map(doc => doc.data() as Transaction);
       setTransactions(txData);
     }, (error) => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: txRef.path,
-        operation: 'list'
-      }));
+      if (error.code !== 'unavailable') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: txRef.path,
+          operation: 'list'
+        }));
+      }
     });
 
     return () => unsubscribe();
@@ -132,7 +145,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const account = privateKeyToAccount(pKey);
     
     const assetsRef = collection(db, 'users', user.uid, 'assets');
-    // Deterministic ID logic: Use provided ID or generate a random one
+    // Deterministic ID logic: Use 'primary-vault' for the initial setup
     const assetDocRef = customId ? doc(assetsRef, customId) : doc(assetsRef);
     const assetId = assetDocRef.id;
     
@@ -146,14 +159,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       privateKey: pKey
     };
     
-    // ATOMIC PERSISTENCE
+    // Initiate non-blocking write
     setDoc(assetDocRef, newAsset)
-      .then(() => {
-        toast({
-          title: "Vault Key Secured",
-          description: "Hardware cryptographic material successfully persisted to the cloud enclave.",
-        });
-      })
       .catch(async (err) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: assetDocRef.path,
@@ -209,39 +216,21 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * Institutional Deterministic Auto-Provisioner
-   * Uses a stable document ID ('primary-vault') to prevent duplicate generation.
+   * Only fires once a stable server-verified connection is confirmed.
    */
   useEffect(() => {
-    const provisionPrimaryVault = async () => {
-      if (
-        initialized && 
-        !isSyncing && 
-        !hasError && 
-        user && 
-        assets.length === 0 && 
-        !isProvisioning.current
-      ) {
-        isProvisioning.current = true;
-        
-        // Final sanity check: try to fetch a specific 'primary-vault' document
-        // before generating anything, to handle race conditions across devices.
-        const primaryRef = doc(db, 'users', user.uid, 'assets', 'primary-vault');
-        const primarySnap = await getDoc(primaryRef);
-
-        if (!primarySnap.exists()) {
-          generateNewWallet('ETH', 'primary-vault');
-        } else {
-          // If it exists but somehow hasn't synced to local state yet, 
-          // we just wait for the onSnapshot to catch up.
-          console.log('Primary vault detected in cloud, skipping generation.');
-        }
-        
-        isProvisioning.current = false;
-      }
-    };
-
-    provisionPrimaryVault();
-  }, [initialized, isSyncing, hasError, user, assets.length, generateNewWallet, db]);
+    if (
+      isSyncedWithServer && 
+      initialized && 
+      user && 
+      assets.length === 0 && 
+      !isProvisioning.current
+    ) {
+      isProvisioning.current = true;
+      generateNewWallet('ETH', 'primary-vault');
+      // No need to reset ref, it's a one-time setup for the session
+    }
+  }, [isSyncedWithServer, initialized, user, assets.length, generateNewWallet]);
 
   const addTransaction = (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
     if (!db || !user) return;
