@@ -51,15 +51,15 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "Root user profile."
+      "description": "Individual user profile root. Critical for security rules hierarchy."
     },
     "/users/{userId}/assets/{assetId}": {
       "schema": "WalletAsset",
-      "description": "Individual wallet keys and balances."
+      "description": "Secure vault assets locked to the specific user. The primary-vault ID is reserved for the root wallet."
     },
     "/users/{userId}/transactions/{txId}": {
       "schema": "Transaction",
-      "description": "Historical transaction ledger."
+      "description": "Private financial ledger for the authenticated user."
     }
   }
 }
