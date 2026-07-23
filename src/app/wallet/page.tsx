@@ -6,36 +6,20 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Plus, 
   Search, 
   Copy, 
-  Key,
-  ShieldCheck,
-  Cpu,
-  Lock,
-  RefreshCw,
-  CreditCard,
+  ShieldCheck, 
+  RefreshCw, 
+  CreditCard, 
   ShieldAlert,
   Zap,
+  Lock,
+  Cpu,
   Fingerprint,
-  Eye,
-  EyeOff,
-  AlertTriangle,
-  Download,
-  Terminal
+  Settings,
+  ArrowRight
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription,
-  DialogTrigger,
-  DialogFooter
-} from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { useVaultStore } from "@/lib/store";
 import { getLiveBalance } from "@/lib/blockchain";
@@ -43,48 +27,13 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export default function WalletPage() {
-  const { assets, generateNewWallet, importPrivateKey, initialized } = useVaultStore();
-  const [isGenerating, setIsGenerating] = useState(false);
+  const { assets, initialized } = useVaultStore();
   const [search, setSearch] = useState("");
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
-  const [revealedKeys, setRevealedKeys] = useState<Record<string, boolean>>({});
-  
-  const [importKey, setImportKey] = useState("");
-  const [importLoading, setImportLoading] = useState(false);
-  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const filteredAssets = assets.filter(a => 
     a.currency.toLowerCase().includes(search.toLowerCase())
   );
-
-  const handleGenerate = async () => {
-    setIsGenerating(true);
-    const currency = 'ETH';
-    generateNewWallet(currency);
-    setIsGenerating(false);
-    toast({
-      title: "Key Provisioned",
-      description: `${currency} cryptographic endpoint is now live on mainnet.`,
-    });
-  };
-
-  const handleImport = async () => {
-    if (!importKey.startsWith('0x') || importKey.length !== 66) {
-      toast({ title: "Invalid Key Format", description: "Private keys must be 66 characters long and start with 0x.", variant: "destructive" });
-      return;
-    }
-
-    setImportLoading(true);
-    try {
-      await importPrivateKey('ETH', importKey as `0x${string}`);
-      setIsImportOpen(false);
-      setImportKey("");
-    } catch (e) {
-      // Error handled in store
-    } finally {
-      setImportLoading(false);
-    }
-  };
 
   const handleSyncBalance = async (address: string, currency: string) => {
     setSyncingBalances(prev => ({ ...prev, [address]: true }));
@@ -99,10 +48,6 @@ export default function WalletPage() {
     } finally {
       setSyncingBalances(prev => ({ ...prev, [address]: false }));
     }
-  };
-
-  const toggleRevealKey = (address: string) => {
-    setRevealedKeys(prev => ({ ...prev, [address]: !prev[address] }));
   };
 
   const copyToClipboard = (text: string, label: string) => {
@@ -126,58 +71,17 @@ export default function WalletPage() {
           <p className="text-muted-foreground text-sm font-medium">Cryptographic endpoints synchronized with decentralized peers.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="gap-2 h-14 px-6 font-bold rounded-2xl border-primary/20 text-primary hover:bg-primary/5">
-                <Download className="h-5 w-5" />
-                Import Key
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="rounded-[2rem] max-w-md">
-              <DialogHeader>
-                <DialogTitle className="text-xl font-black tracking-tight flex items-center gap-2">
-                  <Terminal className="h-5 w-5 text-secondary" />
-                  Restore Vault
-                </DialogTitle>
-                <DialogDescription className="text-sm font-medium">
-                  Enter an existing Ethereum private key to restore your vault assets.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Private Cryptographic Key</Label>
-                  <Textarea 
-                    placeholder="0x..." 
-                    className="font-mono text-xs min-h-[100px] rounded-xl bg-muted/30"
-                    value={importKey}
-                    onChange={(e) => setImportKey(e.target.value)}
-                  />
-                  <p className="text-[9px] text-muted-foreground font-medium uppercase tracking-tighter">Format: 64 character hex string starting with 0x.</p>
-                </div>
-                <div className="p-4 bg-amber-500/10 rounded-xl border border-dashed border-amber-500/20 flex gap-3 items-start">
-                  <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0" />
-                  <p className="text-[10px] text-amber-700 font-bold uppercase tracking-tight leading-relaxed">
-                    Importing a key gives this identity full control over the associated funds.
-                  </p>
-                </div>
-              </div>
-              <DialogFooter>
-                <Button className="w-full h-12 font-bold rounded-xl" onClick={handleImport} disabled={importLoading}>
-                  {importLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Authorize Restore"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-
+          <Button variant="outline" asChild className="gap-2 h-14 px-6 font-bold rounded-2xl border-primary/20 text-primary hover:bg-primary/5">
+            <Link href="/settings">
+              <Settings className="h-5 w-5" />
+              Manage Keys
+            </Link>
+          </Button>
           <Button variant="outline" asChild className="gap-2 h-14 px-6 font-bold rounded-2xl border-secondary/20 text-secondary hover:bg-secondary/5">
             <Link href="/buy">
               <CreditCard className="h-5 w-5" />
               Fund Wallet
             </Link>
-          </Button>
-          <Button onClick={handleGenerate} disabled={isGenerating} className="gap-2 h-14 px-8 shadow-2xl bg-primary hover:bg-primary/90 font-bold rounded-2xl">
-            <Plus className="h-5 w-5" /> 
-            {isGenerating ? "Authorizing..." : "Generate Key"}
           </Button>
         </div>
       </div>
@@ -204,7 +108,7 @@ export default function WalletPage() {
               <div className="space-y-4">
                 {filteredAssets.length > 0 ? filteredAssets.map((asset, idx) => (
                   <div key={idx} className="flex flex-col p-6 border-2 rounded-3xl hover:bg-muted/10 transition-all border-primary/5 hover:border-secondary/30 bg-background/30">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-5">
                         <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center font-bold text-lg text-primary shadow-lg border border-primary/10">
                           {asset.currency}
@@ -227,71 +131,16 @@ export default function WalletPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="text-right hidden sm:block">
+                      <div className="text-right">
                         <div className="font-black text-2xl tracking-tighter">{asset.amount.toFixed(4)} <span className="text-xs font-bold text-muted-foreground opacity-50">{asset.currency}</span></div>
                         <div className="text-xs text-green-500 font-bold opacity-80">${asset.fiatValueUSD.toLocaleString()}</div>
                       </div>
                     </div>
                     
-                    <div className="flex items-center justify-between pt-4 border-t border-primary/5">
-                      <div className="flex gap-2">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" className="gap-2 h-10 px-4 rounded-xl hover:bg-primary/10 text-primary font-bold">
-                              <Key className="h-4 w-4" />
-                              Reveal Private Key
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="rounded-[2rem] max-w-md">
-                            <DialogHeader>
-                              <div className="h-12 w-12 rounded-2xl bg-destructive/10 flex items-center justify-center mb-4">
-                                <AlertTriangle className="h-6 w-6 text-destructive" />
-                              </div>
-                              <DialogTitle className="text-xl font-black tracking-tight">Secret Key Exposure</DialogTitle>
-                              <DialogDescription className="text-sm font-medium leading-relaxed">
-                                This key grants absolute control over your <span className="text-primary font-bold">{asset.currency}</span> vault. **NEVER** share this with anyone.
-                              </DialogDescription>
-                            </DialogHeader>
-                            <div className="mt-6 space-y-6">
-                              <div className="p-5 bg-slate-950 rounded-2xl border border-white/10 relative overflow-hidden">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-secondary mb-3">Private Cryptographic Key</p>
-                                <div className="font-mono text-xs break-all text-white/90 leading-relaxed min-h-[40px] flex items-center">
-                                  {revealedKeys[asset.address] ? (
-                                    asset.privateKey || "Key not found in enclave."
-                                  ) : (
-                                    <span className="opacity-30 tracking-[0.3em]">••••••••••••••••••••••••••••••••</span>
-                                  )}
-                                </div>
-                                <div className="absolute top-4 right-4 flex gap-2">
-                                  <Button 
-                                    variant="ghost" 
-                                    size="icon" 
-                                    className="h-8 w-8 text-white/50 hover:text-white"
-                                    onClick={() => toggleRevealKey(asset.address)}
-                                  >
-                                    {revealedKeys[asset.address] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                  </Button>
-                                  {revealedKeys[asset.address] && asset.privateKey && (
-                                    <Button 
-                                      variant="ghost" 
-                                      size="icon" 
-                                      className="h-8 w-8 text-white/50 hover:text-white"
-                                      onClick={() => copyToClipboard(asset.privateKey!, "Private Key")}
-                                    >
-                                      <Copy className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="p-4 bg-amber-500/10 rounded-xl border border-dashed border-amber-500/20 flex gap-3 items-start">
-                                <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0" />
-                                <p className="text-[10px] text-amber-700 font-bold uppercase tracking-tight leading-relaxed">
-                                  Platform engineers cannot recover this key if lost. Keep it in an offline, secure location.
-                                </p>
-                              </div>
-                            </div>
-                          </DialogContent>
-                        </Dialog>
+                    <div className="flex items-center justify-between pt-4 border-t border-primary/5 mt-4">
+                      <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-2">
+                        <Zap className="h-3 w-3 text-secondary" />
+                        Network Isolation Active
                       </div>
                       <div className="flex gap-2">
                         <Button 
@@ -309,7 +158,7 @@ export default function WalletPage() {
                 )) : (
                   <div className="py-24 text-center text-muted-foreground border-2 border-dashed rounded-3xl opacity-50 font-bold uppercase text-xs tracking-widest flex flex-col items-center gap-4">
                     <ShieldAlert className="h-10 w-10 text-muted" />
-                    Provision a mainnet key to begin
+                    No active endpoints provisioned
                   </div>
                 )}
               </div>
@@ -345,13 +194,6 @@ export default function WalletPage() {
                       </div>
                       <Badge className="bg-green-500 text-white border-none text-[8px] font-black">ACTIVE</Badge>
                    </div>
-                   <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                         <Zap className="h-4 w-4 text-secondary" />
-                         <span className="text-[10px] font-black uppercase tracking-widest text-white/70">AES-256 Auth</span>
-                      </div>
-                      <Badge className="bg-green-500 text-white border-none text-[8px] font-black">ENFORCED</Badge>
-                   </div>
                 </div>
 
                 <div className="h-px bg-white/10 w-full" />
@@ -364,17 +206,11 @@ export default function WalletPage() {
                 </div>
               </div>
               
-              <div className="p-4 bg-secondary/10 rounded-xl border border-secondary/20 flex gap-3 items-start">
-                 <ShieldAlert className="h-5 w-5 text-secondary shrink-0" />
-                 <p className="text-[10px] text-secondary font-bold leading-relaxed uppercase tracking-tight">
-                    Private cryptographic material is generated in the browser and isolated in your private vault. Platform engineers cannot access your funds.
-                 </p>
-              </div>
-
-              <Button variant="outline" className="w-full font-black h-14 shadow-2xl flex items-center gap-2 rounded-2xl border-white/10 hover:bg-white/5 text-white" asChild>
-                <Link href="/buy">
-                   <CreditCard className="h-5 w-5 text-secondary" />
-                   Provision Liquidity
+              <Button variant="outline" className="w-full font-black h-14 shadow-2xl flex items-center gap-2 rounded-2xl border-white/10 hover:bg-white/5 text-white group" asChild>
+                <Link href="/settings">
+                   <Settings className="h-5 w-5 text-secondary transition-transform group-hover:rotate-90" />
+                   Configure Vault Keys
+                   <ArrowRight className="h-4 w-4 ml-auto opacity-50" />
                 </Link>
               </Button>
             </CardContent>
@@ -386,7 +222,7 @@ export default function WalletPage() {
                 Non-Custodial Note
              </h4>
              <p className="text-[11px] font-medium text-muted-foreground leading-relaxed">
-                Coin A,M operates on a non-custodial protocol. Your keys are yours. We provide the institutional-grade interface and AI trading layer, but you maintain 100% control of the cryptographic signing process.
+                Coin A,M provides high-performance interfaces to decentralized peers. Key management is now handled exclusively in the secure **Settings Terminal**.
              </p>
           </Card>
         </div>
