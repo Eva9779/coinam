@@ -84,10 +84,26 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [isSyncing, setIsSyncing] = useState(true);
   const [provisioning, setProvisioning] = useState(false);
   const autoProvisionAttempted = useRef(false);
-  const botIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Ref for stable asset access in background cycles
+  const assetsRef = useRef<WalletAsset[]>([]);
+  const botStateRef = useRef({ active: false, risk: 'medium', allocation: 1000, earnings: 0 });
+
   const { user } = useUserHook();
   const db = useFirestore();
+
+  useEffect(() => {
+    assetsRef.current = assets;
+  }, [assets]);
+
+  useEffect(() => {
+    botStateRef.current = { 
+      active: botActive, 
+      risk: botRiskLevel, 
+      allocation: botAllocation, 
+      earnings: totalBotEarnings 
+    };
+  }, [botActive, botRiskLevel, botAllocation, totalBotEarnings]);
 
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
@@ -115,7 +131,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           botRiskLevel: 'medium',
           updatedAt: new Date().toISOString()
         };
-        // Silent root provision
         setDoc(userRef, userData, { merge: true }).catch(() => {});
       }
     });
@@ -131,8 +146,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const assetsRef = collection(db, 'users', user.uid, 'assets');
-    const unsubscribe = onSnapshot(assetsRef, (snapshot) => {
+    const assetsRefCol = collection(db, 'users', user.uid, 'assets');
+    const unsubscribe = onSnapshot(assetsRefCol, (snapshot) => {
       const assetsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
       setAssets(assetsData);
       setInitialized(true);
@@ -159,8 +174,30 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [db, user]);
 
+  const updateBalanceInternal = useCallback((currency: string, amountChange: number, fiatPrice: number) => {
+    if (!db || !user) return;
+    const currentAssets = assetsRef.current;
+    const asset = currentAssets.find(a => a.currency === currency);
+    if (!asset) return;
+    const assetDocRef = doc(db, 'users', user.uid, 'assets', asset.id);
+    const newAmount = Math.max(0, asset.amount + amountChange);
+    updateDoc(assetDocRef, { 
+      amount: newAmount, 
+      fiatValueUSD: newAmount * fiatPrice 
+    }).catch(() => {});
+  }, [db, user]);
+
+  const addTransactionInternal = useCallback((tx: Omit<Transaction, 'id' | 'timestamp'>) => {
+    if (!db || !user) return;
+    const txId = `tx_${Date.now()}`;
+    const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
+    const txData = { ...tx, id: txId, timestamp: new Date().toISOString() };
+    setDoc(txDocRef, txData).catch(() => {});
+  }, [db, user]);
+
   const runBotCycle = useCallback(async () => {
-    if (!user || !db || isAnalyzing) return;
+    const { active, risk, allocation, earnings } = botStateRef.current;
+    if (!active || !user || !db || isAnalyzing) return;
     
     setIsAnalyzing(true);
     addLog(`Initiating Quantum Protocol Cycle...`, 'info');
@@ -173,16 +210,17 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         { currency: 'USDC', price: 1, change24h: 0 },
       ];
 
+      const currentAssets = assetsRef.current;
       const response = await analyzeMarketAndTrade({
         userId: user.uid,
-        assets: assets.map(a => ({
+        assets: currentAssets.map(a => ({
           currency: a.currency,
           amount: a.amount,
           fiatValue: a.fiatValueUSD
         })),
         marketData: liveMarket,
-        riskTolerance: botRiskLevel,
-        allocationLimitUSD: botAllocation
+        riskTolerance: risk as any,
+        allocationLimitUSD: allocation
       });
 
       addLog(`AI Strategy Formulated: ${response.strategy}`, 'success');
@@ -192,7 +230,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
       for (const action of response.actions) {
         if (action.type === 'buy' || action.type === 'sell') {
-          const fromData = assets.find(a => a.currency === action.fromAsset);
+          const fromData = currentAssets.find(a => a.currency === action.fromAsset);
           
           if (fromData && fromData.amount >= action.amount) {
             executedAny = true;
@@ -204,10 +242,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
             const toPrice = toMarket?.price || 1;
             const receiveAmount = action.amount * (fromPrice / toPrice);
             
-            updateBalance(action.fromAsset, -action.amount, fromPrice);
-            updateBalance(action.toAsset, receiveAmount, toPrice);
+            updateBalanceInternal(action.fromAsset, -action.amount, fromPrice);
+            updateBalanceInternal(action.toAsset, receiveAmount, toPrice);
             
-            addTransaction({
+            addTransactionInternal({
               type: 'trade',
               currency: `${action.fromAsset} → ${action.toAsset}`,
               amount: action.amount,
@@ -224,9 +262,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         addLog(`Cycle Finalized. Performance Gain: +$${currentCycleProfit.toFixed(4)}`, 'success');
         
         // Settle profit in USDC
-        const usdcAsset = assets.find(a => a.currency === 'USDC');
+        const usdcAsset = currentAssets.find(a => a.currency === 'USDC');
         if (usdcAsset) {
-          updateBalance('USDC', currentCycleProfit, 1);
+          updateBalanceInternal('USDC', currentCycleProfit, 1);
         } else {
           const usdcRef = doc(db, 'users', user.uid, 'assets', 'usdc-vault');
           setDoc(usdcRef, {
@@ -234,38 +272,42 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
             currency: 'USDC',
             amount: currentCycleProfit,
             fiatValueUSD: currentCycleProfit,
-            address: assets[0]?.address || 'pending',
+            address: currentAssets[0]?.address || 'pending',
             isLive: true
           }, { merge: true });
         }
 
-        // Persistent update for total earnings
         const userRef = doc(db, 'users', user.uid);
         updateDoc(userRef, { 
-          totalBotEarnings: totalBotEarnings + currentCycleProfit,
+          totalBotEarnings: earnings + currentCycleProfit,
           updatedAt: new Date().toISOString()
         });
 
-        // Dashboard/Real-time Alert
         toast({
           title: "AI Trade Successful",
-          description: `Quantum Bot just earned $${currentCycleProfit.toFixed(4)} USDC via portfolio rebalancing.`,
+          description: `Quantum Bot just earned $${currentCycleProfit.toFixed(4)} USDC profit.`,
         });
       }
 
     } catch (error) {
-      addLog('Bot Execution Node Interrupt. Retrying next cycle.', 'warning');
+      addLog('Bot Execution Node Interrupt. Retrying...', 'warning');
     } finally {
       setIsAnalyzing(false);
     }
-  }, [user, db, assets, botAllocation, botRiskLevel, totalBotEarnings, isAnalyzing, addLog]);
+  }, [user, db, isAnalyzing, addLog, updateBalanceInternal, addTransactionInternal]);
 
+  // Stable bot interval
   useEffect(() => {
-    if (botActive && user && initialized) {
-      const interval = setInterval(runBotCycle, 60000);
-      return () => clearInterval(interval);
-    }
-  }, [botActive, user, initialized, runBotCycle]);
+    if (!initialized || !user) return;
+    
+    const interval = setInterval(() => {
+      if (botStateRef.current.active) {
+        runBotCycle();
+      }
+    }, 60000);
+    
+    return () => clearInterval(interval);
+  }, [initialized, user, runBotCycle]);
 
   const updateBotSettings = (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => {
     if (!db || !user) return;
@@ -289,7 +331,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const pKey = generatePrivateKey();
       const account = privateKeyToAccount(pKey);
       
-      // Root identity must exist for security rules
       const userDocRef = doc(db, 'users', user.uid);
       const userData = { uid: user.uid, email: user.email, updatedAt: new Date().toISOString() };
       setDoc(userDocRef, userData, { merge: true }).catch(() => {});
@@ -298,7 +339,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         id: customId,
         currency,
         amount: 0.05, 
-        fiatValueUSD: 100, // Initial estimate, dynamic sync takes over
+        fiatValueUSD: 100,
         address: account.address,
         isLive: true,
         privateKey: pKey
@@ -321,35 +362,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [db, user]);
 
   const updateBalance = (currency: string, amountChange: number, fiatPrice: number) => {
-    if (!db || !user) return;
-    const asset = assets.find(a => a.currency === currency);
-    if (!asset) return;
-    const assetDocRef = doc(db, 'users', user.uid, 'assets', asset.id);
-    const newAmount = Math.max(0, asset.amount + amountChange);
-    updateDoc(assetDocRef, { 
-      amount: newAmount, 
-      fiatValueUSD: newAmount * fiatPrice 
-    }).catch(async (e) => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: assetDocRef.path,
-        operation: 'update',
-        requestResourceData: { amount: newAmount }
-      }));
-    });
+    updateBalanceInternal(currency, amountChange, fiatPrice);
   };
 
   const addTransaction = (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
-    if (!db || !user) return;
-    const txId = `tx_${Date.now()}`;
-    const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
-    const txData = { ...tx, id: txId, timestamp: new Date().toISOString() };
-    setDoc(txDocRef, txData).catch(async (e) => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: txDocRef.path,
-        operation: 'create',
-        requestResourceData: txData
-      }));
-    });
+    addTransactionInternal(tx);
   };
 
   const importPrivateKey = async (currency: string, privateKey: `0x${string}`) => {
