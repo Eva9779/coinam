@@ -64,7 +64,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUserHook();
   const db = useFirestore();
 
-  // Primary Assets Listener
+  // Primary Assets Listener - Hardened for persistence
   useEffect(() => {
     if (!db || !user) {
       setInitialized(false);
@@ -76,6 +76,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setIsSyncing(true);
     const assetsRef = collection(db, 'users', user.uid, 'assets');
     
+    // We listen to the collection. We only mark initialized when we get a non-cache result
+    // or when data actually arrives.
     const unsubscribe = onSnapshot(assetsRef, (snapshot) => {
       const assetsData = snapshot.docs.map(doc => ({
         ...doc.data(),
@@ -84,19 +86,19 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       
       setAssets(assetsData);
       
-      // Mark as initialized when we have definitive server sync
-      if (!snapshot.metadata.fromCache || assetsData.length > 0 || snapshot.size === 0) {
+      // CRITICAL: Only set initialized to true if we've successfully contacted the server
+      // or if we have data (even from cache). This prevents "guessing" the vault is empty.
+      if (!snapshot.metadata.fromCache || snapshot.size > 0) {
         setInitialized(true);
         setIsSyncing(false);
       }
     }, (error) => {
       setIsSyncing(false);
-      if (error.code !== 'unavailable') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: assetsRef.path,
-          operation: 'list'
-        }));
-      }
+      // We don't mark as initialized on error to prevent accidental overwrites
+      errorEmitter.emit('permission-error', new FirestorePermissionError({
+        path: assetsRef.path,
+        operation: 'list'
+      }));
     });
 
     return () => unsubscribe();
@@ -128,37 +130,41 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [db, user]);
 
   const generateNewWallet = useCallback(async (currency: string, customId?: string) => {
-    if (!db || !user || !initialized) return null;
+    // SAFETY CHECK: Never allow generation if we haven't confirmed current state with the server
+    if (!db || !user || isSyncing || !initialized) {
+      toast({ title: "Synchronizing with cloud... Please wait." });
+      return null;
+    }
 
     const finalId = customId || 'primary-vault';
     
-    // 1. Check if it already exists in our verified synced state
+    // 1. Double-check if it already exists in our verified synced state
     const existing = assets.find(a => a.id === finalId);
     if (existing) {
+      toast({ title: "Vault already exists. Retrieving address..." });
       return existing.address;
     }
 
     setProvisioning(true);
     
     try {
-      // 2. Provision User Profile - Always set to ensure parent exists
+      // 2. Establish User Profile (Root Document)
       const userDocRef = doc(db, 'users', user.uid);
       const profileData = {
         uid: user.uid,
         email: user.email,
-        displayName: user.displayName || user.email?.split('@')[0]
+        updatedAt: new Date().toISOString()
       };
       
-      // We set the profile first to ensure hierarchy integrity
+      // Non-blocking write for profile
       setDoc(userDocRef, profileData, { merge: true }).catch((e) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: userDocRef.path,
-          operation: 'write',
-          requestResourceData: profileData
+          operation: 'write'
         }));
       });
 
-      // 3. Generate and Persist the new key
+      // 3. Generate NEW Cryptographic Material
       const pKey = generatePrivateKey();
       const account = privateKeyToAccount(pKey);
       
@@ -174,34 +180,35 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       
       const assetDocRef = doc(db, 'users', user.uid, 'assets', finalId);
       
-      // Non-blocking mutation with asynchronous error handling
+      // CRITICAL: We initiatize the write but do NOT block. 
+      // This ensures the local state updates optimistically.
       setDoc(assetDocRef, newAsset).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
           path: assetDocRef.path,
           operation: 'create',
-          requestResourceData: newAsset,
+          requestResourceData: { currency },
         } satisfies SecurityRuleContext);
         errorEmitter.emit('permission-error', permissionError);
       });
       
       return account.address;
     } catch (e: any) {
-      toast({ title: "Internal provisioning error", variant: "destructive" });
+      toast({ title: "Internal vault error", variant: "destructive" });
       return null;
     } finally {
       setProvisioning(false);
     }
-  }, [db, user, assets, initialized]);
+  }, [db, user, assets, initialized, isSyncing]);
 
   const importPrivateKey = async (currency: string, privateKey: `0x${string}`) => {
-    if (!db || !user) return;
+    if (!db || !user || isSyncing) return;
 
     try {
       const account = privateKeyToAccount(privateKey);
       const existing = assets.find(a => a.address.toLowerCase() === account.address.toLowerCase());
       
       if (existing) {
-        toast({ title: "Address already in vault" });
+        toast({ title: "Address already verified in vault." });
         return;
       }
 
@@ -220,17 +227,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setDoc(assetDocRef, importedAsset).catch(async (e) => {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: assetDocRef.path,
-          operation: 'create',
-          requestResourceData: importedAsset
+          operation: 'create'
         }));
       });
       
       toast({
         title: "Vault Restored",
-        description: `Imported key: ${account.address.slice(0, 10)}...`,
+        description: `Imported address: ${account.address.slice(0, 10)}...`,
       });
     } catch (error: any) {
-      toast({ title: "Import Failed", variant: "destructive" });
+      toast({ title: "Import failed. Check key format.", variant: "destructive" });
     }
   };
 
@@ -246,8 +252,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setDoc(txDocRef, newTx).catch((e) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: txDocRef.path,
-        operation: 'create',
-        requestResourceData: newTx
+        operation: 'create'
       }));
     });
   };
@@ -265,8 +270,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     updateDoc(assetDocRef, updateData).catch((e) => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({
         path: assetDocRef.path,
-        operation: 'update',
-        requestResourceData: updateData
+        operation: 'update'
       }));
     });
   };

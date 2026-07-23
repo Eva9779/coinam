@@ -11,7 +11,6 @@ import {
   ShieldCheck, 
   RefreshCw, 
   CreditCard, 
-  ShieldAlert,
   Zap,
   Lock,
   Cpu,
@@ -62,15 +61,12 @@ export default function WalletPage() {
   };
 
   const handleInitializeVault = async () => {
-    const address = await generateNewWallet('ETH', 'primary-vault');
-    if (address) {
-      toast({
-        title: "Vault Initialized",
-        description: "Your secure cryptographic identity is now live.",
-      });
-    }
+    // Calling the deterministic provisioner
+    await generateNewWallet('ETH', 'primary-vault');
   };
 
+  // FULL SCREEN LOADING GUARD:
+  // We only show this if we are still waiting for the FIRST sync from Firebase
   if (!initialized && isSyncing) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
@@ -208,7 +204,12 @@ export default function WalletPage() {
                           <h4 className="text-xl font-black uppercase tracking-tight">Vault Not Initialized</h4>
                           <p className="text-sm text-muted-foreground max-w-xs mx-auto">To begin securing your digital legacy, you must first provision a unique cryptographic identity.</p>
                         </div>
-                        <Button size="lg" className="h-16 px-10 text-lg font-black rounded-2xl shadow-2xl gap-3" onClick={handleInitializeVault}>
+                        <Button 
+                          size="lg" 
+                          className="h-16 px-10 text-lg font-black rounded-2xl shadow-2xl gap-3" 
+                          onClick={handleInitializeVault}
+                          disabled={isSyncing}
+                        >
                           <PlusCircle className="h-6 w-6" />
                           Initialize Secure Vault
                         </Button>
@@ -269,16 +270,6 @@ export default function WalletPage() {
                 </Link>
               </Button>
             </CardContent>
-          </Card>
-
-          <Card className="rounded-[2rem] p-8 border-dashed border-2 bg-muted/20 space-y-4 shadow-sm">
-             <h4 className="font-black text-sm uppercase tracking-tight flex items-center gap-2">
-                <Lock className="h-4 w-4 text-primary" />
-                Security Note
-             </h4>
-             <p className="text-[11px] font-medium text-muted-foreground leading-relaxed">
-                Coin A,M is a 100% non-custodial solution. Your keys never leave your cloud-isolated enclave. Overwriting is strictly prohibited by our **Deterministic Safety Protocol**.
-             </p>
           </Card>
         </div>
       </div>
