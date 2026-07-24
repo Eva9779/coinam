@@ -328,7 +328,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [initialized, user]);
 
-  const updateBotSettings = (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => {
+  const updateBotSettings = useCallback((active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => {
     if (!db || !user) return;
     const userRef = doc(db, 'users', user.uid);
     updateDoc(userRef, {
@@ -340,8 +340,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     
     if (active) {
       addLog(`Neural Network Link Established. Bot is LIVE.`, 'success');
+      // Trigger an immediate run instead of waiting 10 minutes
+      setTimeout(() => {
+        runBotCycleRef.current();
+      }, 500);
     }
-  };
+  }, [db, user, addLog]);
 
   const clearBotLogs = () => setBotLogs([]);
 
