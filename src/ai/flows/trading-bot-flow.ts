@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for the Coin A,M AI Trading Bot.
@@ -34,7 +33,7 @@ const TradingActionSchema = z.object({
   type: z.enum(['buy', 'sell', 'hold']),
   fromAsset: z.string(),
   toAsset: z.string(),
-  amount: z.number(),
+  amountUSD: z.number().describe('The value of the trade in USD dollars.'),
   reasoning: z.string(),
 });
 
@@ -53,14 +52,14 @@ const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `Analyze the market and user assets to determine a profitable rebalancing strategy.
+  prompt: `You are an institutional crypto rebalancing bot for Coin A,M. Your goal is to maximize yield and grow the user's portfolio value while staying within the USD Allocation Limit.
 
-Market:
+Market Data (Live):
 {{#each marketData}}
 - {{{currency}}}: Price $ {{{price}}}, 24h Change: {{{change24h}}}%
 {{/each}}
 
-User Assets:
+User Assets (Live):
 {{#each assets}}
 - {{{currency}}}: Amount {{{amount}}}, Value $ {{{fiatValue}}}
 {{/each}}
@@ -69,12 +68,15 @@ Risk: {{{riskTolerance}}}
 Limit: $ {{{allocationLimitUSD}}}
 
 Instructions:
-1. Maximize yield while minimizing drawdown.
-2. Provide short actions (buy/sell).
-3. Total USD of actions must be under the Allocation Limit.
-4. If market is bearish, hold more USDC. If bullish, hold more ETH/SOL.
+1. Identify assets with positive 24h momentum and rebalance into them.
+2. If the market is bearish (negative changes), move assets into USDC to preserve capital.
+3. If the market is bullish, move USDC into high-performing assets (ETH, SOL, BTC).
+4. Provide trade actions in USD values.
+5. Total USD of actions must be under the Allocation Limit.
+6. YOU MUST BE ACCURATE. Do not trade more than the user currently owns in a specific asset.
+7. YOUR GOAL IS PROFIT.
 
-Output in JSON.`,
+Output in JSON format.`,
 });
 
 const tradingBotFlow = ai.defineFlow(
