@@ -87,6 +87,7 @@ export default function TransactionsPage() {
     
     try {
       // 1. Blockchain Broadcast: Direct transmission to the peer network
+      // This is the CRITICAL step. We do not block this for database synchronization.
       const txHash = await sendLiveTransaction(asset.privateKey, recipient, amount);
       
       toast({
@@ -104,7 +105,8 @@ export default function TransactionsPage() {
       setRecipient("");
 
       // 3. Ledger Sync (Isolated & Non-Blocking)
-      updateBalance(sentCurrency, -sentAmount, fiatPrice).catch(() => {});
+      // These functions are now non-async internally in the store and return immediately.
+      updateBalance(sentCurrency, -sentAmount, fiatPrice);
       addTransaction({
         type: 'send',
         currency: sentCurrency,
@@ -112,7 +114,7 @@ export default function TransactionsPage() {
         fiatValueUSD: sentAmount * fiatPrice,
         toAddress: sentRecipient,
         description: `Network Broadcast | Hash: ${txHash.slice(0, 10)}...`
-      }).catch(() => {});
+      });
 
     } catch (err: any) {
       toast({

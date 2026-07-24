@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -60,8 +59,8 @@ interface VaultContextType {
   botRiskLevel: 'low' | 'medium' | 'high';
   botLogs: BotLog[];
   isAnalyzing: boolean;
-  addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => Promise<void>;
-  updateBalance: (currency: string, amountChange: number, fiatPrice: number) => Promise<void>;
+  addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
+  updateBalance: (currency: string, amountChange: number, fiatPrice: number) => void;
   generateNewWallet: (currency: string, customId?: string) => Promise<string | null>;
   importPrivateKey: (currency: string, privateKey: `0x${string}`) => Promise<void>;
   updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => void;
@@ -176,7 +175,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [db, user]);
 
-  const updateBalanceInternal = useCallback((currency: string, amountChange: number, fiatPrice: number) => {
+  // NON-BLOCKING MUTATION: Initiates background sync and returns immediately.
+  const updateBalance = useCallback((currency: string, amountChange: number, fiatPrice: number) => {
     if (!db || !user) return;
     const currentAssets = assetsRef.current;
     const asset = currentAssets.find(a => a.currency === currency);
@@ -189,7 +189,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       fiatValueUSD: newAmount * fiatPrice 
     };
 
-    // NON-BLOCKING MUTATION: We don't 'await' here to ensure local UX is fast.
     updateDoc(assetDocRef, data).catch(async (e) => {
       const pError = new FirestorePermissionError({
         path: assetDocRef.path,
@@ -200,13 +199,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     });
   }, [db, user]);
 
-  const addTransactionInternal = useCallback((tx: Omit<Transaction, 'id' | 'timestamp'>) => {
+  // NON-BLOCKING MUTATION: Initiates background sync and returns immediately.
+  const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'timestamp'>) => {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
     const txData = { ...tx, id: txId, timestamp: new Date().toISOString() };
     
-    // NON-BLOCKING MUTATION
     setDoc(txDocRef, txData).catch(async (e) => {
       const pError = new FirestorePermissionError({
         path: txDocRef.path,
@@ -257,10 +256,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
               const toPrice = toMarket?.price || 1;
               const receiveAmount = action.amount * (fromPrice / toPrice);
               
-              updateBalanceInternal(action.fromAsset, -action.amount, fromPrice);
-              updateBalanceInternal(action.toAsset, receiveAmount, toPrice);
+              updateBalance(action.fromAsset, -action.amount, fromPrice);
+              updateBalance(action.toAsset, receiveAmount, toPrice);
               
-              addTransactionInternal({
+              addTransaction({
                 type: 'trade',
                 currency: `${action.fromAsset} → ${action.toAsset}`,
                 amount: action.amount,
@@ -278,7 +277,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [user, db, isAnalyzing, addLog, updateBalanceInternal, addTransactionInternal]);
+  }, [user, db, isAnalyzing, addLog, updateBalance, addTransaction]);
 
   useEffect(() => {
     if (!initialized || !user) return;
@@ -331,14 +330,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setProvisioning(false);
     }
   }, [db, user]);
-
-  const updateBalance = async (currency: string, amountChange: number, fiatPrice: number) => {
-    updateBalanceInternal(currency, amountChange, fiatPrice);
-  };
-
-  const addTransaction = async (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
-    addTransactionInternal(tx);
-  };
 
   const importPrivateKey = async (currency: string, privateKey: `0x${string}`) => {
     if (!db || !user) return;
