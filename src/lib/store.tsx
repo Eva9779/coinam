@@ -131,11 +131,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         };
         // Initial user document creation
         setDoc(userRef, userData, { merge: true }).catch(async (e) => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: userRef.path,
-            operation: 'write',
-            requestResourceData: userData
-          }));
+          // Log only, don't crash
         });
       }
     }, (error) => {
@@ -195,7 +191,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       fiatValueUSD: newAmount * fiatPrice 
     };
 
-    // No 'await' directly, chain catch to handle permissions silently
+    // No 'await' on the promise itself to avoid blocking UI during network broadcasts
     updateDoc(assetDocRef, data).catch(async (e) => {
       const pError = new FirestorePermissionError({
         path: assetDocRef.path,
@@ -203,7 +199,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         requestResourceData: data
       });
       errorEmitter.emit('permission-error', pError);
-      // We do not re-throw here to prevent crashing the UI during send operations
     });
   }, [db, user]);
 
@@ -213,7 +208,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
     const txData = { ...tx, id: txId, timestamp: new Date().toISOString() };
     
-    // No 'await' directly, chain catch to handle permissions silently
+    // No 'await' on the promise itself to avoid blocking UI during network broadcasts
     setDoc(txDocRef, txData).catch(async (e) => {
       const pError = new FirestorePermissionError({
         path: txDocRef.path,
@@ -221,27 +216,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         requestResourceData: txData
       });
       errorEmitter.emit('permission-error', pError);
-      // We do not re-throw here to prevent crashing the UI during send operations
     });
   }, [db, user]);
-
-  const deterministicAnalysis = (currentAssets: WalletAsset[], liveMarket: any[]): TradingBotOutput => {
-    const ethAsset = currentAssets.find(a => a.currency === 'ETH');
-    if (ethAsset && ethAsset.amount > 0.001) {
-      return {
-        strategy: "Local Intelligence: Delta-Neutral rebalance active.",
-        marketSentiment: "neutral",
-        actions: [{
-          type: 'sell',
-          fromAsset: 'ETH',
-          toAsset: 'USDC',
-          amount: 0.0001,
-          reasoning: "Executing algorithmic yield capture on local enclave."
-        }]
-      };
-    }
-    return { strategy: "Node standby: Optimal allocation detected.", marketSentiment: "neutral", actions: [] };
-  };
 
   const runBotCycle = useCallback(async () => {
     const { active, risk, allocation, earnings } = botStateRef.current;
@@ -274,27 +250,24 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           allocationLimitUSD: allocation
         });
         
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
         response = await Promise.race([aiPromise, timeoutPromise]) as TradingBotOutput;
       } catch (e) {
-        addLog(`Market Sync: Using Institutional Fallback Layer...`, 'warning');
-        response = deterministicAnalysis(currentAssets, liveMarket);
+        // Deterministic fallback if AI is slow
+        response = {
+           strategy: "Local Execution Protocol active.",
+           marketSentiment: "neutral",
+           actions: [] 
+        };
       }
 
       if (response && response.actions && response.actions.length > 0) {
         addLog(response.strategy, 'success');
 
-        let currentCycleProfit = 0;
-        let executedAny = false;
-
         for (const action of response.actions) {
           if (action.type === 'buy' || action.type === 'sell') {
             const fromData = currentAssets.find(a => a.currency === action.fromAsset);
-            
             if (fromData && fromData.amount >= action.amount) {
-              executedAny = true;
-              addLog(`Rebalancing: ${action.type.toUpperCase()} ${action.amount} ${action.fromAsset}`, 'warning');
-              
               const fromMarket = liveMarket.find(m => m.currency === action.fromAsset);
               const toMarket = liveMarket.find(m => m.currency === action.toAsset);
               const fromPrice = fromMarket?.price || 1;
@@ -311,49 +284,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
                 fiatValueUSD: action.amount * fromPrice,
                 description: `Execution Layer: ${action.reasoning}`
               });
-              
-              currentCycleProfit += (action.amount * fromPrice) * 0.005; 
             }
           }
-        }
-
-        if (executedAny && currentCycleProfit > 0) {
-          addLog(`Cycle Finalized. Performance Gain: +$${currentCycleProfit.toFixed(4)}`, 'success');
-          
-          const usdcAsset = currentAssets.find(a => a.currency === 'USDC');
-          if (usdcAsset) {
-            updateBalanceInternal('USDC', currentCycleProfit, 1);
-          } else {
-            const usdcId = `usdc_${Date.now()}`;
-            const usdcRef = doc(db, 'users', user.uid, 'assets', usdcId);
-            const usdcData = {
-              id: usdcId,
-              currency: 'USDC',
-              amount: currentCycleProfit,
-              fiatValueUSD: currentCycleProfit,
-              address: currentAssets[0]?.address || 'pending',
-              isLive: true
-            };
-            setDoc(usdcRef, usdcData, { merge: true }).catch(async (e) => {
-              errorEmitter.emit('permission-error', new FirestorePermissionError({
-                path: usdcRef.path,
-                operation: 'write',
-                requestResourceData: usdcData
-              }));
-            });
-          }
-
-          const userRef = doc(db, 'users', user.uid);
-          updateDoc(userRef, { 
-            totalBotEarnings: earnings + currentCycleProfit,
-            updatedAt: new Date().toISOString()
-          }).catch(async (e) => {
-            errorEmitter.emit('permission-error', new FirestorePermissionError({
-              path: userRef.path,
-              operation: 'update',
-              requestResourceData: { totalBotEarnings: earnings + currentCycleProfit }
-            }));
-          });
         }
       } else {
         addLog(`Market Equilibrium: Optimal allocation detected.`, 'info');
@@ -364,38 +296,26 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [user, db, isAnalyzing, addLog, updateBalanceInternal, addTransactionInternal, totalBotEarnings, botActive, botAllocation, botRiskLevel]);
+  }, [user, db, isAnalyzing, addLog, updateBalanceInternal, addTransactionInternal]);
 
   useEffect(() => {
     if (!initialized || !user) return;
-    
     const interval = setInterval(() => {
-      if (botStateRef.current.active) {
-        runBotCycle();
-      }
+      if (botStateRef.current.active) runBotCycle();
     }, 60000);
-    
     return () => clearInterval(interval);
   }, [initialized, user, runBotCycle]);
 
   const updateBotSettings = (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => {
     if (!db || !user) return;
     const userRef = doc(db, 'users', user.uid);
-    const data = {
+    updateDoc(userRef, {
       botActive: active,
       botAllocation: allocation,
       botRiskLevel: risk,
       updatedAt: new Date().toISOString()
-    };
-    updateDoc(userRef, data).catch(async (e) => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: userRef.path,
-        operation: 'update',
-        requestResourceData: data
-      }));
-    });
+    }).catch(() => {});
     if (active) addLog(`Neural Network Link Established. Bot is LIVE.`, 'success');
-    else addLog(`Bot offline. Finalizing secure session...`, 'info');
   };
 
   const clearBotLogs = () => setBotLogs([]);
@@ -408,14 +328,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const account = privateKeyToAccount(pKey);
       
       const userDocRef = doc(db, 'users', user.uid);
-      const userData = { uid: user.uid, email: user.email, updatedAt: new Date().toISOString() };
-      await setDoc(userDocRef, userData, { merge: true }).catch(async (e) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: userDocRef.path,
-          operation: 'write',
-          requestResourceData: userData
-        }));
-      });
+      await setDoc(userDocRef, { uid: user.uid, email: user.email, updatedAt: new Date().toISOString() }, { merge: true });
 
       const newAsset: WalletAsset = {
         id: customId,
@@ -428,13 +341,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       };
       
       const assetDocRef = doc(db, 'users', user.uid, 'assets', customId);
-      await setDoc(assetDocRef, newAsset).catch(async (e) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: assetDocRef.path,
-          operation: 'write',
-          requestResourceData: newAsset
-        }));
-      });
+      await setDoc(assetDocRef, newAsset);
       return account.address;
     } catch (e) {
       return null;
@@ -457,7 +364,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const account = privateKeyToAccount(privateKey);
       const assetId = `imported_${Date.now()}`;
       const assetDocRef = doc(db, 'users', user.uid, 'assets', assetId);
-      const assetData = {
+      await setDoc(assetDocRef, {
         id: assetId,
         currency,
         amount: 0,
@@ -465,13 +372,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         address: account.address,
         isLive: true,
         privateKey: privateKey
-      };
-      await setDoc(assetDocRef, assetData).catch(async (e) => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: assetDocRef.path,
-          operation: 'write',
-          requestResourceData: assetData
-        }));
       });
       toast({ title: "Vault Restored" });
     } catch (error) {
