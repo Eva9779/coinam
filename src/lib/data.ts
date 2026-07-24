@@ -1,3 +1,4 @@
+
 /**
  * Global Market Registry
  * baseline for initial sync before live API data takes over.

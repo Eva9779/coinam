@@ -11,14 +11,14 @@ import {
   onSnapshot, 
   query, 
   orderBy, 
-  updateDoc,
-  increment
+  updateDoc
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { toast } from '@/hooks/use-toast';
 import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
 import { INITIAL_MARKET_DATA } from '@/lib/data';
+import { getLiveBalance } from '@/lib/blockchain';
 
 export interface WalletAsset {
   id: string;
@@ -62,7 +62,6 @@ interface VaultContextType {
   botLogs: BotLog[];
   isAnalyzing: boolean;
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
-  updateBalance: (currency: string, amountChange: number, fiatPrice: number) => void;
   generateNewWallet: (currency: string, customId?: string) => Promise<string | null>;
   importPrivateKey: (currency: string, privateKey: `0x${string}`) => Promise<void>;
   updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => void;
@@ -85,7 +84,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [provisioning, setProvisioning] = useState(false);
   
   const assetsRef = useRef<WalletAsset[]>([]);
-  const botStateRef = useRef({ active: false, risk: 'medium', allocation: 1000, earnings: 0 });
+  const botStateRef = useRef({ active: false, risk: 'medium', allocation: 1000 });
   const autoProvisionAttempted = useRef(false);
 
   const { user } = useUserHook();
@@ -99,15 +98,15 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     botStateRef.current = { 
       active: botActive, 
       risk: botRiskLevel, 
-      allocation: botAllocation, 
-      earnings: totalBotEarnings 
+      allocation: botAllocation 
     };
-  }, [botActive, botRiskLevel, botAllocation, totalBotEarnings]);
+  }, [botActive, botRiskLevel, botAllocation]);
 
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
+  // Listen for root user document updates
   useEffect(() => {
     if (!db || !user) return;
 
@@ -119,23 +118,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         setBotActive(!!data.botActive);
         setBotAllocation(data.botAllocation || 1000);
         setBotRiskLevel(data.botRiskLevel || 'medium');
-      } else {
-        const userData = {
-          uid: user.uid,
-          email: user.email,
-          totalBotEarnings: 0,
-          botActive: false,
-          botAllocation: 1000,
-          botRiskLevel: 'medium',
-          updatedAt: new Date().toISOString()
-        };
-        setDoc(userRef, userData, { merge: true }).catch(() => {});
       }
-    }, (error) => {});
+    });
 
     return () => unsubscribe();
   }, [db, user]);
 
+  // Sync Assets from Firestore (Registry)
   useEffect(() => {
     if (!db || !user) {
       setAssets([]);
@@ -156,6 +145,37 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [db, user]);
 
+  // Mainnet Balance Poller (REAL DATA SOURCE)
+  useEffect(() => {
+    if (!initialized || assets.length === 0) return;
+
+    const pollBalances = async () => {
+      const updatedAssets = await Promise.all(assetsRef.current.map(async (asset) => {
+        try {
+          const liveBalance = await getLiveBalance(asset.address);
+          const balanceNum = parseFloat(liveBalance);
+          
+          // Get current fiat price from initial registry for fallback
+          const registryPrice = INITIAL_MARKET_DATA.find(m => m.currency === asset.currency)?.currentPriceUSD || 2500;
+          
+          return {
+            ...asset,
+            amount: balanceNum,
+            fiatValueUSD: balanceNum * registryPrice
+          };
+        } catch (e) {
+          return asset;
+        }
+      }));
+      setAssets(updatedAssets);
+    };
+
+    pollBalances();
+    const interval = setInterval(pollBalances, 15000); // Poll every 15s for high accuracy
+    return () => clearInterval(interval);
+  }, [initialized, assets.length]);
+
+  // Listen for Transactions
   useEffect(() => {
     if (!db || !user) {
       setTransactions([]);
@@ -168,29 +188,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       setTransactions(txData);
     }, (error) => {});
     return () => unsubscribe();
-  }, [db, user]);
-
-  const updateBalance = useCallback((currency: string, amountChange: number, fiatPrice: number) => {
-    if (!db || !user) return;
-    const currentAssets = assetsRef.current;
-    const asset = currentAssets.find(a => a.currency === currency);
-    if (!asset) return;
-    
-    const assetDocRef = doc(db, 'users', user.uid, 'assets', asset.id);
-    const newAmount = Math.max(0, asset.amount + amountChange);
-    const data = { 
-      amount: newAmount, 
-      fiatValueUSD: newAmount * fiatPrice 
-    };
-
-    updateDoc(assetDocRef, data).catch((e) => {
-      const pError = new FirestorePermissionError({
-        path: assetDocRef.path,
-        operation: 'update',
-        requestResourceData: data
-      } satisfies SecurityRuleContext);
-      errorEmitter.emit('permission-error', pError);
-    });
   }, [db, user]);
 
   const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'timestamp'>) => {
@@ -214,159 +211,63 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     if (!active || !user || !db || isAnalyzing) return;
     
     setIsAnalyzing(true);
-    addLog(`Syncing Network Vision...`, 'info');
+    addLog(`Scanning Decentralized Market Signals...`, 'info');
     
-    let liveMarket;
     try {
+      // 1. Get Live Market Data
+      let liveMarket;
       try {
         const marketRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,usd-coin&vs_currencies=usd&include_24hr_change=true');
-        if (!marketRes.ok) throw new Error('Market API Throttled');
         const marketJson = await marketRes.json();
-        
         liveMarket = [
           { currency: 'BTC', price: marketJson.bitcoin.usd, change24h: marketJson.bitcoin.usd_24h_change },
           { currency: 'ETH', price: marketJson.ethereum.usd, change24h: marketJson.ethereum.usd_24h_change },
           { currency: 'SOL', price: marketJson.solana.usd, change24h: marketJson.solana.usd_24h_change },
           { currency: 'USDC', price: 1, change24h: 0 },
         ];
-      } catch (marketErr) {
-        addLog('Market API Throttled. Using cached registry.', 'info');
+      } catch {
         liveMarket = INITIAL_MARKET_DATA.map(m => ({ 
-          currency: m.currency, 
-          price: m.currentPriceUSD, 
-          change24h: m.dailyChangePercent 
+          currency: m.currency, price: m.currentPriceUSD, change24h: m.dailyChangePercent 
         }));
       }
 
-      const currentAssets = assetsRef.current;
-      
-      let response;
-      try {
-        // Attempt Cloud AI Rebalancing
-        response = await analyzeMarketAndTrade({
-          userId: user.uid,
-          assets: currentAssets.map(a => ({
-            currency: a.currency,
-            amount: a.amount,
-            fiatValue: a.fiatValueUSD
-          })),
-          marketData: liveMarket,
-          riskTolerance: risk as any,
-          allocationLimitUSD: allocation
+      // 2. Perform AI Strategy Analysis
+      const strategy = await analyzeMarketAndTrade({
+        userId: user.uid,
+        assets: assetsRef.current.map(a => ({
+          currency: a.currency,
+          amount: a.amount,
+          fiatValue: a.fiatValueUSD
+        })),
+        marketData: liveMarket,
+        riskTolerance: risk as any,
+        allocationLimitUSD: allocation
+      });
+
+      // 3. Output Strategy (Production Bot is an Advisor/Signal bot)
+      if (strategy && strategy.actions.length > 0) {
+        addLog(`STRATEGY: ${strategy.strategy}`, 'success');
+        strategy.actions.forEach(action => {
+          addLog(`SIGNAL: ${action.type.toUpperCase()} ${action.amountUSD} USD of ${action.toAsset}`, 'info');
         });
-      } catch (aiError: any) {
-        // FAIL-SAFE: Switch to Local Intelligence Layer
-        addLog('Cloud AI Throttled. Switching to Local Intelligence Layer...', 'warning');
-        
-        // Deterministic Fail-Safe Logic: Mean Reversion / Trend Following
-        const sortedPerformance = [...liveMarket].sort((a, b) => b.change24h - a.change24h);
-        const topPerformer = sortedPerformance[0];
-        const worstPerformer = sortedPerformance[sortedPerformance.length - 1];
-        
-        const actions = [];
-        
-        // 1. If we have USDC, buy the top performer
-        const usdcAsset = currentAssets.find(a => a.currency === 'USDC');
-        if (usdcAsset && usdcAsset.amount > 0) {
-          actions.push({
-            type: 'buy',
-            fromAsset: 'USDC',
-            toAsset: topPerformer.currency,
-            amountUSD: Math.min(usdcAsset.amount, allocation * 0.1),
-            reasoning: `Fail-Safe: Buying momentum in ${topPerformer.currency}.`
-          });
-        }
-        
-        // 2. If an asset is crashing, move a portion to USDC
-        if (worstPerformer.change24h < -3) {
-          const worstAsset = currentAssets.find(a => a.currency === worstPerformer.currency);
-          if (worstAsset && worstAsset.amount > 0) {
-             actions.push({
-              type: 'sell',
-              fromAsset: worstPerformer.currency,
-              toAsset: 'USDC',
-              amountUSD: Math.min(worstAsset.fiatValueUSD, allocation * 0.1),
-              reasoning: `Fail-Safe: Preserving capital from ${worstPerformer.currency} drawdown.`
-            });
-          }
-        }
-
-        response = {
-          strategy: "Local Node Settlement: Volatility-adjusted rebalancing.",
-          actions: actions as any[],
-          marketSentiment: topPerformer.change24h > 0 ? 'bullish' : 'bearish'
-        };
-      }
-
-      if (response && response.actions && response.actions.length > 0) {
-        addLog(response.strategy, 'success');
-        
-        let totalProfitThisCycle = 0;
-
-        for (const action of response.actions) {
-          if (action.type === 'buy' || action.type === 'sell') {
-            const fromData = currentAssets.find(a => a.currency === action.fromAsset);
-            const fromMarket = liveMarket.find(m => m.currency === action.fromAsset);
-            const toMarket = liveMarket.find(m => m.currency === action.toAsset);
-            const fromPrice = fromMarket?.price || 1;
-            const toPrice = toMarket?.price || 1;
-
-            const unitsToSell = action.amountUSD / fromPrice;
-
-            if (fromData && fromData.amount >= unitsToSell) {
-              const receiveUnits = action.amountUSD / toPrice;
-              
-              updateBalance(action.fromAsset, -unitsToSell, fromPrice);
-              updateBalance(action.toAsset, receiveUnits, toPrice);
-
-              const tradeProfit = action.amountUSD * 0.001; 
-              totalProfitThisCycle += tradeProfit;
-              
-              addTransaction({
-                type: 'trade',
-                currency: `${action.fromAsset} → ${action.toAsset}`,
-                amount: unitsToSell,
-                fiatValueUSD: action.amountUSD,
-                description: `Execution Layer: ${action.reasoning}`
-              });
-            }
-          }
-        }
-
-        if (totalProfitThisCycle > 0) {
-          const userRef = doc(db, 'users', user.uid);
-          await updateDoc(userRef, {
-            totalBotEarnings: increment(totalProfitThisCycle)
-          });
-          addLog(`Yield Captured: +$${totalProfitThisCycle.toFixed(4)}`, 'success');
-        }
       } else {
-        addLog(`Market Equilibrium: Optimal allocation detected.`, 'info');
+        addLog(`Holding: Current allocation matches institutional momentum.`, 'info');
       }
+
     } catch (error: any) {
-      console.error('Final Fail-Safe Crash:', error);
-      addLog('Neural Link Interrupted. Retrying in 10m...', 'warning');
+      addLog(`Neural Link Interrupted. Retrying in 10m...`, 'warning');
     } finally {
       setIsAnalyzing(false);
     }
-  }, [user, db, isAnalyzing, addLog, updateBalance, addTransaction]);
-
-  const runBotCycleRef = useRef(runBotCycle);
-  useEffect(() => {
-    runBotCycleRef.current = runBotCycle;
-  }, [runBotCycle]);
+  }, [user, db, isAnalyzing, addLog]);
 
   useEffect(() => {
     if (!initialized || !user) return;
-    
     const interval = setInterval(() => {
-      if (botStateRef.current.active) {
-        runBotCycleRef.current();
-      }
+      if (botStateRef.current.active) runBotCycle();
     }, 600000); 
-    
     return () => clearInterval(interval);
-  }, [initialized, user]);
+  }, [initialized, user, runBotCycle]);
 
   const updateBotSettings = useCallback((active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => {
     if (!db || !user) return;
@@ -379,12 +280,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }).catch(() => {});
     
     if (active) {
-      addLog(`Neural Network Link Established. Bot is LIVE.`, 'success');
-      setTimeout(() => {
-        runBotCycleRef.current();
-      }, 500);
+      addLog(`Mainnet Intelligence Link Established. Bot is LIVE.`, 'success');
+      runBotCycle();
     }
-  }, [db, user, addLog]);
+  }, [db, user, addLog, runBotCycle]);
 
   const clearBotLogs = () => setBotLogs([]);
 
@@ -398,8 +297,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const userDocRef = doc(db, 'users', user.uid);
       await setDoc(userDocRef, { uid: user.uid, email: user.email, updatedAt: new Date().toISOString() }, { merge: true });
 
-      const newAsset: WalletAsset = {
-        id: customId,
+      const newAsset: Omit<WalletAsset, 'id'> = {
         currency,
         amount: 0, 
         fiatValueUSD: 0,
@@ -450,7 +348,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     <VaultContext.Provider value={{ 
       assets, transactions, initialized, isSyncing, isProvisioning: provisioning, user,
       totalBotEarnings, botActive, botAllocation, botRiskLevel, botLogs, isAnalyzing,
-      addTransaction, updateBalance, generateNewWallet, importPrivateKey, updateBotSettings, clearBotLogs
+      addTransaction, generateNewWallet, importPrivateKey, updateBotSettings, clearBotLogs
     }}>
       {children}
     </VaultContext.Provider>
