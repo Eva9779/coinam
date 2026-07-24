@@ -3,7 +3,7 @@
   "entities": {
     "UserProfile": {
       "title": "User Profile",
-      "description": "Root identity document for all account sub-collections. Access is strictly controlled to the authenticated owner (UID match). Owners have full read, create, and update permissions. v1.1.0",
+      "description": "Root identity document for all account sub-collections. Access is strictly controlled to the authenticated owner (UID match). Owners have full read, create, and update permissions. v1.1.1",
       "type": "object",
       "properties": {
         "uid": { "type": "string" },
@@ -19,7 +19,7 @@
     },
     "WalletAsset": {
       "title": "Wallet Asset",
-      "description": "Cryptographic vault document. Owners have full read/write access to their own assets sub-collection. v1.1.0",
+      "description": "Cryptographic vault document. Owners have full read/write access to their own assets sub-collection. v1.1.1",
       "type": "object",
       "properties": {
         "currency": { "type": "string" },
@@ -33,7 +33,7 @@
     },
     "Transaction": {
       "title": "Transaction",
-      "description": "Private financial ledger for the authenticated user. Owners have full read and create access. v1.1.0",
+      "description": "Private financial ledger for the authenticated user. Owners have full read and create access. v1.1.1",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -55,15 +55,15 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "Root user document. Authorizes owner-only access. v1.1.0"
+      "description": "Root user document. Authorizes owner-only access based on path userId matching auth.uid. v1.1.1"
     },
     "/users/{userId}/assets/{assetId}": {
       "schema": "WalletAsset",
-      "description": "Owner-only access to vault endpoints. v1.1.0"
+      "description": "Sub-collection document. Access restricted to the parent userId matching auth.uid. v1.1.1"
     },
     "/users/{userId}/transactions/{txId}": {
       "schema": "Transaction",
-      "description": "Owner-only financial ledger. v1.1.0"
+      "description": "Financial ledger sub-collection. Access restricted to the parent userId matching auth.uid. v1.1.1"
     }
   }
 }

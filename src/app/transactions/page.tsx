@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowUpRight, ArrowDownLeft, Send, CheckCircle2, History, AlertCircle, Zap, ShieldCheck, Database, Copy } from "lucide-react";
+import { ArrowUpRight, ArrowDownLeft, Send, CheckCircle2, History, AlertCircle, Zap, ShieldCheck, Database, Copy, Loader2 } from "lucide-react";
 import { useVaultStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -87,24 +87,34 @@ export default function TransactionsPage() {
     setIsSending(true);
     
     try {
+      // 1. Blockchain Broadcast
       const txHash = await sendLiveTransaction(asset.privateKey, recipient, amount);
-
-      updateBalance(currency, -val, asset.fiatValueUSD / Math.max(asset.amount, 1));
-      addTransaction({
-        type: 'send',
-        currency,
-        amount: val,
-        fiatValueUSD: val * (asset.fiatValueUSD / Math.max(asset.amount, 1)),
-        toAddress: recipient,
-        description: `Network Broadcast | Hash: ${txHash.slice(0, 10)}...`
+      
+      toast({
+        title: "Broadcast Finalized",
+        description: `Network Signature: ${txHash.slice(0, 16)}...`,
       });
+
+      // 2. Ledger Update (Handled separately to avoid masking broadcast success)
+      try {
+        await updateBalance(currency, -val, asset.fiatValueUSD / Math.max(asset.amount, 1));
+        await addTransaction({
+          type: 'send',
+          currency,
+          amount: val,
+          fiatValueUSD: val * (asset.fiatValueUSD / Math.max(asset.amount, 1)),
+          toAddress: recipient,
+          description: `Network Broadcast | Hash: ${txHash.slice(0, 10)}...`
+        });
+      } catch (ledgerError) {
+        toast({
+          title: "Ledger Update Delayed",
+          description: "Transaction confirmed on-chain. Syncing local ledger records...",
+        });
+      }
 
       setAmount("");
       setRecipient("");
-      toast({
-        title: "Broadcast Successful",
-        description: `Transaction hash: ${txHash.slice(0, 12)}...`,
-      });
     } catch (err: any) {
       toast({
         title: "Broadcast Failed",
@@ -260,7 +270,7 @@ export default function TransactionsPage() {
                 </div>
 
                 <Button type="submit" className="w-full py-8 text-xl font-bold gap-3 shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-transform rounded-2xl bg-primary text-primary-foreground" disabled={isSending}>
-                  {isSending ? "Authorizing Broadcast..." : <><Send className="h-6 w-6" /> Finalize Broadcast</>}
+                  {isSending ? <Loader2 className="h-6 w-6 animate-spin" /> : <><Send className="h-6 w-6" /> Finalize Broadcast</>}
                 </Button>
               </form>
             </CardContent>
