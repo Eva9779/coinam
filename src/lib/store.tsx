@@ -295,7 +295,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         addLog(`Market Equilibrium: Optimal allocation detected.`, 'info');
       }
     } catch (error: any) {
-      if (error.message?.includes('429') || error.message?.includes('Quota')) {
+      const errorStr = error.toString();
+      if (errorStr.includes('429') || errorStr.includes('RESOURCE_EXHAUSTED') || errorStr.includes('quota')) {
         addLog('AI Node Quota Reached. Throttling...', 'warning');
       } else {
         addLog('Node Synchronization Delayed. Retrying...', 'info');
@@ -315,12 +316,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized || !user) return;
     
-    // Increased interval to 120 seconds to stay within AI quota limits
+    // Increased interval to 300 seconds (5 minutes) to respect Gemini free tier limits
     const interval = setInterval(() => {
       if (botStateRef.current.active) {
         runBotCycleRef.current();
       }
-    }, 120000); 
+    }, 300000); 
     
     return () => clearInterval(interval);
   }, [initialized, user]);
