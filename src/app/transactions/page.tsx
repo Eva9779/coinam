@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowUpRight, ArrowDownLeft, Send, CheckCircle2, History, AlertCircle, Zap, ShieldCheck, Database, Copy, Loader2 } from "lucide-react";
 import { useVaultStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
@@ -88,7 +88,6 @@ export default function TransactionsPage() {
     
     try {
       // 1. Blockchain Broadcast: Direct transmission to the peer network
-      // This is the CRITICAL step. If this succeeds, the ETH is GONE to the recipient.
       const txHash = await sendLiveTransaction(asset.privateKey, recipient, amount);
       
       toast({
@@ -103,10 +102,9 @@ export default function TransactionsPage() {
       setAmount("");
       setRecipient("");
 
-      // 2. Ledger Update (Background): We do NOT 'await' this in a way that can block the UI
-      // If Firestore has a permission lag, it will log the error but not break the 'Success' state.
+      // 2. Ledger Update (Background): No await to avoid blocking UI
       updateBalance(sentCurrency, -sentAmount, asset.fiatValueUSD / Math.max(asset.amount, 0.00001))
-        .catch(() => { /* Silent background fail - ledger will sync later */ });
+        .catch(() => { /* Background fail - ledger will sync later */ });
 
       addTransaction({
         type: 'send',
@@ -115,10 +113,9 @@ export default function TransactionsPage() {
         fiatValueUSD: sentAmount * (asset.fiatValueUSD / Math.max(asset.amount, 0.00001)),
         toAddress: sentRecipient,
         description: `Network Broadcast | Hash: ${txHash.slice(0, 10)}...`
-      }).catch(() => { /* Silent background fail */ });
+      }).catch(() => { /* Background fail */ });
 
     } catch (err: any) {
-      // ONLY blockchain failures (e.g. invalid key, no gas) get here
       toast({
         title: "Broadcast Failed",
         description: err.message || "Failed to transmit transaction to the peer network.",
