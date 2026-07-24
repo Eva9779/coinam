@@ -354,7 +354,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [user, db, isAnalyzing, addLog, updateBalanceInternal, addTransactionInternal]);
+  }, [user, db, isAnalyzing, addLog, updateBalanceInternal, addTransactionInternal, totalBotEarnings, botActive, botAllocation, botRiskLevel]);
 
   useEffect(() => {
     if (!initialized || !user) return;
