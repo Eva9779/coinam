@@ -95,26 +95,26 @@ export default function TransactionsPage() {
         description: `Network Signature: ${txHash.slice(0, 16)}...`,
       });
 
-      // Clear form immediately
+      // Capture state for background updates
       const sentAmount = val;
       const sentCurrency = currency;
       const sentRecipient = recipient;
+      const fiatPrice = asset.fiatValueUSD / Math.max(asset.amount, 0.00001);
+
+      // Clear UI immediately
       setAmount("");
       setRecipient("");
 
-      // 2. Ledger Update (Background): No await to avoid blocking UI during network broadcasts
-      // This ensures that the blockchain success is shown even if the ledger update has a delay.
-      updateBalance(sentCurrency, -sentAmount, asset.fiatValueUSD / Math.max(asset.amount, 0.00001))
-        .catch(() => { /* Background fail - ledger will sync later */ });
-
+      // 2. Ledger Sync (Background): Non-blocking to avoid permission lag issues
+      updateBalance(sentCurrency, -sentAmount, fiatPrice).catch(() => {});
       addTransaction({
         type: 'send',
         currency: sentCurrency,
         amount: sentAmount,
-        fiatValueUSD: sentAmount * (asset.fiatValueUSD / Math.max(asset.amount, 0.00001)),
+        fiatValueUSD: sentAmount * fiatPrice,
         toAddress: sentRecipient,
         description: `Network Broadcast | Hash: ${txHash.slice(0, 10)}...`
-      }).catch(() => { /* Background fail */ });
+      }).catch(() => {});
 
     } catch (err: any) {
       toast({

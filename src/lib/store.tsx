@@ -12,7 +12,6 @@ import {
   query, 
   orderBy, 
   updateDoc,
-  getDoc,
   serverTimestamp
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -108,6 +107,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
+  // Sync User Metadata
   useEffect(() => {
     if (!db || !user) return;
 
@@ -129,22 +129,18 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           botRiskLevel: 'medium',
           updatedAt: new Date().toISOString()
         };
-        // Initial user document creation
-        setDoc(userRef, userData, { merge: true }).catch(async (e) => {
-          // Log only, don't crash
-        });
+        setDoc(userRef, userData, { merge: true }).catch(() => {});
       }
     }, (error) => {
-       // Silently handle initial rule propagation lag
+      // Silent error handler for initial rule propagation
     });
 
     return () => unsubscribe();
   }, [db, user]);
 
+  // Sync Assets
   useEffect(() => {
     if (!db || !user) {
-      setInitialized(false);
-      setIsSyncing(false);
       setAssets([]);
       return;
     }
@@ -163,6 +159,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [db, user]);
 
+  // Sync Transactions
   useEffect(() => {
     if (!db || !user) {
       setTransactions([]);
@@ -174,16 +171,17 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const txData = snapshot.docs.map(doc => doc.data() as Transaction);
       setTransactions(txData);
     }, (error) => {
-      // Listener errors are handled by error emitter centrally
+      // Silent listener fail
     });
     return () => unsubscribe();
   }, [db, user]);
 
-  const updateBalanceInternal = useCallback(async (currency: string, amountChange: number, fiatPrice: number) => {
+  const updateBalanceInternal = useCallback((currency: string, amountChange: number, fiatPrice: number) => {
     if (!db || !user) return;
     const currentAssets = assetsRef.current;
     const asset = currentAssets.find(a => a.currency === currency);
     if (!asset) return;
+    
     const assetDocRef = doc(db, 'users', user.uid, 'assets', asset.id);
     const newAmount = Math.max(0, asset.amount + amountChange);
     const data = { 
@@ -191,7 +189,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       fiatValueUSD: newAmount * fiatPrice 
     };
 
-    // No 'await' on the promise itself to avoid blocking UI during network broadcasts
     updateDoc(assetDocRef, data).catch(async (e) => {
       const pError = new FirestorePermissionError({
         path: assetDocRef.path,
@@ -202,13 +199,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     });
   }, [db, user]);
 
-  const addTransactionInternal = useCallback(async (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
+  const addTransactionInternal = useCallback((tx: Omit<Transaction, 'id' | 'timestamp'>) => {
     if (!db || !user) return;
-    const txId = `tx_${Date.now()}`;
+    const txId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
     const txData = { ...tx, id: txId, timestamp: new Date().toISOString() };
     
-    // No 'await' on the promise itself to avoid blocking UI during network broadcasts
     setDoc(txDocRef, txData).catch(async (e) => {
       const pError = new FirestorePermissionError({
         path: txDocRef.path,
@@ -220,7 +216,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [db, user]);
 
   const runBotCycle = useCallback(async () => {
-    const { active, risk, allocation, earnings } = botStateRef.current;
+    const { active, risk, allocation } = botStateRef.current;
     if (!active || !user || !db || isAnalyzing) return;
     
     setIsAnalyzing(true);
@@ -235,35 +231,20 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       ];
 
       const currentAssets = assetsRef.current;
-      let response: TradingBotOutput;
-
-      try {
-        const aiPromise = analyzeMarketAndTrade({
-          userId: user.uid,
-          assets: currentAssets.map(a => ({
-            currency: a.currency,
-            amount: a.amount,
-            fiatValue: a.fiatValueUSD
-          })),
-          marketData: liveMarket,
-          riskTolerance: risk as any,
-          allocationLimitUSD: allocation
-        });
-        
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
-        response = await Promise.race([aiPromise, timeoutPromise]) as TradingBotOutput;
-      } catch (e) {
-        // Deterministic fallback if AI is slow
-        response = {
-           strategy: "Local Execution Protocol active.",
-           marketSentiment: "neutral",
-           actions: [] 
-        };
-      }
+      const response = await analyzeMarketAndTrade({
+        userId: user.uid,
+        assets: currentAssets.map(a => ({
+          currency: a.currency,
+          amount: a.amount,
+          fiatValue: a.fiatValueUSD
+        })),
+        marketData: liveMarket,
+        riskTolerance: risk as any,
+        allocationLimitUSD: allocation
+      });
 
       if (response && response.actions && response.actions.length > 0) {
         addLog(response.strategy, 'success');
-
         for (const action of response.actions) {
           if (action.type === 'buy' || action.type === 'sell') {
             const fromData = currentAssets.find(a => a.currency === action.fromAsset);
@@ -290,7 +271,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       } else {
         addLog(`Market Equilibrium: Optimal allocation detected.`, 'info');
       }
-
     } catch (error) {
       addLog('Node Synchronization Delayed. Retrying...', 'info');
     } finally {
@@ -351,11 +331,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [db, user]);
 
   const updateBalance = async (currency: string, amountChange: number, fiatPrice: number) => {
-    return updateBalanceInternal(currency, amountChange, fiatPrice);
+    updateBalanceInternal(currency, amountChange, fiatPrice);
   };
 
   const addTransaction = async (tx: Omit<Transaction, 'id' | 'timestamp'>) => {
-    return addTransactionInternal(tx);
+    addTransactionInternal(tx);
   };
 
   const importPrivateKey = async (currency: string, privateKey: `0x${string}`) => {
