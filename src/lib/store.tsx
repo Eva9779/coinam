@@ -131,7 +131,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         setDoc(userRef, userData, { merge: true }).catch(() => {});
       }
     }, (error) => {
-      // Silent error handler for initial rule propagation
+      // Silent error callback for development session setup
     });
 
     return () => unsubscribe();
@@ -175,7 +175,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [db, user]);
 
-  // NON-BLOCKING MUTATION: Initiates background sync and returns immediately.
+  // SILENT BACKGROUND MUTATION: Initiates background sync and returns immediately.
+  // This prevents Firestore permission delays from blocking the main UI or re-throwing to the Dev Overlay.
   const updateBalance = useCallback((currency: string, amountChange: number, fiatPrice: number) => {
     if (!db || !user) return;
     const currentAssets = assetsRef.current;
@@ -189,7 +190,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       fiatValueUSD: newAmount * fiatPrice 
     };
 
-    updateDoc(assetDocRef, data).catch(async (e) => {
+    updateDoc(assetDocRef, data).catch((e) => {
       const pError = new FirestorePermissionError({
         path: assetDocRef.path,
         operation: 'update',
@@ -199,14 +200,14 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     });
   }, [db, user]);
 
-  // NON-BLOCKING MUTATION: Initiates background sync and returns immediately.
+  // SILENT BACKGROUND MUTATION: Initiates background sync and returns immediately.
   const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'timestamp'>) => {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
     const txData = { ...tx, id: txId, timestamp: new Date().toISOString() };
     
-    setDoc(txDocRef, txData).catch(async (e) => {
+    setDoc(txDocRef, txData).catch((e) => {
       const pError = new FirestorePermissionError({
         path: txDocRef.path,
         operation: 'create',

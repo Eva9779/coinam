@@ -87,15 +87,15 @@ export default function TransactionsPage() {
     
     try {
       // 1. Blockchain Broadcast: Direct transmission to the peer network
-      // This is the CRITICAL step. We do not block this for database synchronization.
+      // This is the CRITICAL mission step.
       const txHash = await sendLiveTransaction(asset.privateKey, recipient, amount);
       
+      // IMMEDIATE SUCCESS: Celebrate the on-chain broadcast regardless of ledger sync.
       toast({
         title: "Broadcast Finalized",
         description: `Network Signature: ${txHash.slice(0, 16)}...`,
       });
 
-      // 2. Clear UI immediately
       const sentAmount = val;
       const sentCurrency = currency;
       const sentRecipient = recipient;
@@ -104,8 +104,8 @@ export default function TransactionsPage() {
       setAmount("");
       setRecipient("");
 
-      // 3. Ledger Sync (Isolated & Non-Blocking)
-      // These functions are now non-async internally in the store and return immediately.
+      // 2. Ledger Sync (Isolated & Silent)
+      // These background sync calls will no longer block the UI or throw red-screen errors.
       updateBalance(sentCurrency, -sentAmount, fiatPrice);
       addTransaction({
         type: 'send',

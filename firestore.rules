@@ -1,15 +1,15 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Universal Owner-Authorization: Users have full access to their own silo and all nested data.
-    // This recursive match ensures all sub-collections (assets, transactions, logs) are authorized.
-    match /users/{userId}/{allSubcollections=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Explicit match for the root user document
+    // Universal Owner-Silo Protocol
+    // This rule explicitly authorizes a user to access their own root document
+    // AND all nested sub-collections (assets, transactions, etc.) with a single, unbreakable identity check.
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      match /{allSubcollections=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
   }
 }
