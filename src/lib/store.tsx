@@ -18,6 +18,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { toast } from '@/hooks/use-toast';
 import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
+import { INITIAL_MARKET_DATA } from '@/lib/data';
 
 export interface WalletAsset {
   id: string;
@@ -107,7 +108,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
-  // Sync User Metadata
   useEffect(() => {
     if (!db || !user) return;
 
@@ -131,14 +131,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         };
         setDoc(userRef, userData, { merge: true }).catch(() => {});
       }
-    }, (error) => {
-      // Silent error callback
-    });
+    }, (error) => {});
 
     return () => unsubscribe();
   }, [db, user]);
 
-  // Sync Assets
   useEffect(() => {
     if (!db || !user) {
       setAssets([]);
@@ -159,7 +156,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [db, user]);
 
-  // Sync Transactions
   useEffect(() => {
     if (!db || !user) {
       setTransactions([]);
@@ -170,9 +166,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const txData = snapshot.docs.map(doc => doc.data() as Transaction);
       setTransactions(txData);
-    }, (error) => {
-      // Silent listener fail
-    });
+    }, (error) => {});
     return () => unsubscribe();
   }, [db, user]);
 
@@ -223,16 +217,26 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     addLog(`Syncing Network Vision...`, 'info');
     
     try {
-      // Fetch Real-World Prices from Coingecko
-      const marketRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,usd-coin&vs_currencies=usd&include_24hr_change=true');
-      const marketJson = await marketRes.json();
-      
-      const liveMarket = [
-        { currency: 'BTC', price: marketJson.bitcoin.usd, change24h: marketJson.bitcoin.usd_24h_change },
-        { currency: 'ETH', price: marketJson.ethereum.usd, change24h: marketJson.ethereum.usd_24h_change },
-        { currency: 'SOL', price: marketJson.solana.usd, change24h: marketJson.solana.usd_24h_change },
-        { currency: 'USDC', price: 1, change24h: 0 },
-      ];
+      let liveMarket;
+      try {
+        const marketRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,usd-coin&vs_currencies=usd&include_24hr_change=true');
+        if (!marketRes.ok) throw new Error('Market API Throttled');
+        const marketJson = await marketRes.json();
+        
+        liveMarket = [
+          { currency: 'BTC', price: marketJson.bitcoin.usd, change24h: marketJson.bitcoin.usd_24h_change },
+          { currency: 'ETH', price: marketJson.ethereum.usd, change24h: marketJson.ethereum.usd_24h_change },
+          { currency: 'SOL', price: marketJson.solana.usd, change24h: marketJson.solana.usd_24h_change },
+          { currency: 'USDC', price: 1, change24h: 0 },
+        ];
+      } catch (marketErr) {
+        addLog('Market API Throttled. Using cached registry.', 'info');
+        liveMarket = INITIAL_MARKET_DATA.map(m => ({ 
+          currency: m.currency, 
+          price: m.currentPriceUSD, 
+          change24h: m.dailyChangePercent 
+        }));
+      }
 
       const currentAssets = assetsRef.current;
       const response = await analyzeMarketAndTrade({
@@ -278,7 +282,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
                 fiatValueUSD: action.amountUSD,
                 description: `Execution Layer: ${action.reasoning}`
               });
-            } else {
+            } else if (action.type === 'sell' && fromData) {
               addLog(`Insufficent ${action.fromAsset} for planned rebalance.`, 'warning');
             }
           }
@@ -296,18 +300,17 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error: any) {
       const errorStr = error.toString();
-      if (errorStr.includes('429') || errorStr.includes('RESOURCE_EXHAUSTED') || errorStr.includes('quota')) {
-        addLog('AI Node Quota Reached. Throttling...', 'warning');
+      if (errorStr.includes('429') || errorStr.includes('RESOURCE_EXHAUSTED') || error.status === 429) {
+        addLog('AI Quota Reached. Throttling neural node...', 'warning');
       } else {
-        addLog('Node Synchronization Delayed. Retrying...', 'info');
+        addLog('Neural Link Interrupted. Retrying in 10m...', 'warning');
       }
-      console.error(error);
+      console.error('Bot Cycle Error:', error);
     } finally {
       setIsAnalyzing(false);
     }
   }, [user, db, isAnalyzing, addLog, updateBalance, addTransaction]);
 
-  // Use a ref for runBotCycle to avoid re-triggering the interval effect every time state changes
   const runBotCycleRef = useRef(runBotCycle);
   useEffect(() => {
     runBotCycleRef.current = runBotCycle;
@@ -316,12 +319,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized || !user) return;
     
-    // Increased interval to 300 seconds (5 minutes) to respect Gemini free tier limits
     const interval = setInterval(() => {
       if (botStateRef.current.active) {
         runBotCycleRef.current();
       }
-    }, 300000); 
+    }, 600000); 
     
     return () => clearInterval(interval);
   }, [initialized, user]);
@@ -335,10 +337,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       botRiskLevel: risk,
       updatedAt: new Date().toISOString()
     }).catch(() => {});
+    
     if (active) {
       addLog(`Neural Network Link Established. Bot is LIVE.`, 'success');
-      // Trigger initial run
-      setTimeout(() => runBotCycle(), 1000);
     }
   };
 

@@ -47,9 +47,9 @@ export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
 /**
  * Utility function to handle rate limiting with exponential backoff.
- * Increased initial delay to 25s to respect Gemini free tier restrictions.
+ * Uses 30s initial delay to respect Gemini free tier restrictions.
  */
-async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 25000): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): Promise<T> {
   try {
     return await fn();
   } catch (error: any) {
@@ -63,7 +63,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 25000): P
     if (retries > 0 && isRateLimit) {
       console.warn(`AI Rate Limit hit (Trading Bot). Retrying in ${delay / 1000}s...`);
       await new Promise(resolve => setTimeout(resolve, delay));
-      return withRetry(fn, retries - 1, delay * 1.5);
+      return withRetry(fn, retries - 1, delay * 2);
     }
     throw error;
   }
