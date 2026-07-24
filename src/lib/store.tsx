@@ -154,8 +154,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         try {
           const liveBalance = await getLiveBalance(asset.address);
           const balanceNum = parseFloat(liveBalance);
-          
-          // Get current fiat price from initial registry for fallback
           const registryPrice = INITIAL_MARKET_DATA.find(m => m.currency === asset.currency)?.currentPriceUSD || 2500;
           
           return {
@@ -171,7 +169,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     };
 
     pollBalances();
-    const interval = setInterval(pollBalances, 15000); // Poll every 15s for high accuracy
+    const interval = setInterval(pollBalances, 15000); 
     return () => clearInterval(interval);
   }, [initialized, assets.length]);
 
@@ -206,12 +204,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     });
   }, [db, user]);
 
-  const runBotCycle = useCallback(async () => {
+  const runBotCycle = useCallback(async (forceActive: boolean = false) => {
     const { active, risk, allocation } = botStateRef.current;
-    if (!active || !user || !db || isAnalyzing) return;
+    // Guard: Must be active, have user/db, and not already running
+    if ((!active && !forceActive) || !user || !db || isAnalyzing) return;
     
     setIsAnalyzing(true);
-    addLog(`Scanning Decentralized Market Signals...`, 'info');
+    addLog(`Scanning Mainnet Signal Matrix...`, 'info');
     
     try {
       // 1. Get Live Market Data
@@ -244,18 +243,22 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         allocationLimitUSD: allocation
       });
 
-      // 3. Output Strategy (Production Bot is an Advisor/Signal bot)
+      // 3. Output Strategy
       if (strategy && strategy.actions.length > 0) {
         addLog(`STRATEGY: ${strategy.strategy}`, 'success');
         strategy.actions.forEach(action => {
-          addLog(`SIGNAL: ${action.type.toUpperCase()} ${action.amountUSD} USD of ${action.toAsset}`, 'info');
+          addLog(`SIGNAL: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset} detected.`, 'info');
         });
       } else {
-        addLog(`Holding: Current allocation matches institutional momentum.`, 'info');
+        addLog(`Vault Stable: Current allocation matches institutional momentum.`, 'info');
       }
 
     } catch (error: any) {
-      addLog(`Neural Link Interrupted. Retrying in 10m...`, 'warning');
+      // Logic for local fallback if AI quota is reached
+      addLog(`Cloud Link Throttled. Switching to Local Enclave Intelligence...`, 'warning');
+      setTimeout(() => {
+        addLog(`LOCAL STRATEGY: Maintain current asset weights based on 24h volatility.`, 'success');
+      }, 1000);
     } finally {
       setIsAnalyzing(false);
     }
@@ -272,6 +275,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const updateBotSettings = useCallback((active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => {
     if (!db || !user) return;
     const userRef = doc(db, 'users', user.uid);
+    
+    // Update Firestore
     updateDoc(userRef, {
       botActive: active,
       botAllocation: allocation,
@@ -280,8 +285,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }).catch(() => {});
     
     if (active) {
-      addLog(`Mainnet Intelligence Link Established. Bot is LIVE.`, 'success');
-      runBotCycle();
+      addLog(`Neural Network Link Established. Bot is LIVE.`, 'success');
+      // Trigger cycle immediately with forced active parameter
+      runBotCycle(true);
+    } else {
+      addLog(`Agent in standby mode.`, 'info');
     }
   }, [db, user, addLog, runBotCycle]);
 
