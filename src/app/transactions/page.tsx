@@ -87,7 +87,7 @@ export default function TransactionsPage() {
     setIsSending(true);
     
     try {
-      // 1. Blockchain Broadcast
+      // 1. Blockchain Broadcast: Direct transmission to the peer network
       const txHash = await sendLiveTransaction(asset.privateKey, recipient, amount);
       
       toast({
@@ -95,26 +95,32 @@ export default function TransactionsPage() {
         description: `Network Signature: ${txHash.slice(0, 16)}...`,
       });
 
-      // 2. Ledger Update (Handled separately to avoid masking broadcast success)
+      // Reset UI immediately after successful broadcast
+      const sentAmount = val;
+      const sentCurrency = currency;
+      const sentRecipient = recipient;
+      setAmount("");
+      setRecipient("");
+
+      // 2. Ledger Update: Attempt to sync local history (isolated to prevent broadcast failure UI)
       try {
-        await updateBalance(currency, -val, asset.fiatValueUSD / Math.max(asset.amount, 1));
+        await updateBalance(sentCurrency, -sentAmount, asset.fiatValueUSD / Math.max(asset.amount, 1));
         await addTransaction({
           type: 'send',
-          currency,
-          amount: val,
-          fiatValueUSD: val * (asset.fiatValueUSD / Math.max(asset.amount, 1)),
-          toAddress: recipient,
+          currency: sentCurrency,
+          amount: sentAmount,
+          fiatValueUSD: sentAmount * (asset.fiatValueUSD / Math.max(asset.amount, 1)),
+          toAddress: sentRecipient,
           description: `Network Broadcast | Hash: ${txHash.slice(0, 10)}...`
         });
-      } catch (ledgerError) {
+      } catch (ledgerError: any) {
+        console.warn("Ledger Sync Delayed:", ledgerError.message);
         toast({
           title: "Ledger Update Delayed",
-          description: "Transaction confirmed on-chain. Syncing local ledger records...",
+          description: "Transaction confirmed on-chain. Syncing local records...",
         });
       }
 
-      setAmount("");
-      setRecipient("");
     } catch (err: any) {
       toast({
         title: "Broadcast Failed",
