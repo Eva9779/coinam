@@ -106,7 +106,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
-  // Listen for root user document updates
   useEffect(() => {
     if (!db || !user) return;
 
@@ -124,7 +123,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [db, user]);
 
-  // Sync Assets from Firestore (Registry)
   useEffect(() => {
     if (!db || !user) {
       setAssets([]);
@@ -145,7 +143,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [db, user]);
 
-  // Mainnet Balance Poller (REAL DATA SOURCE)
   useEffect(() => {
     if (!initialized || assets.length === 0) return;
 
@@ -173,7 +170,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [initialized, assets.length]);
 
-  // Listen for Transactions
   useEffect(() => {
     if (!db || !user) {
       setTransactions([]);
@@ -206,14 +202,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   const runBotCycle = useCallback(async (forceActive: boolean = false) => {
     const { active, risk, allocation } = botStateRef.current;
-    // Guard: Must be active, have user/db, and not already running
     if ((!active && !forceActive) || !user || !db || isAnalyzing) return;
     
     setIsAnalyzing(true);
     addLog(`Scanning Mainnet Signal Matrix...`, 'info');
     
     try {
-      // 1. Get Live Market Data
       let liveMarket;
       try {
         const marketRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,usd-coin&vs_currencies=usd&include_24hr_change=true');
@@ -230,7 +224,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         }));
       }
 
-      // 2. Perform AI Strategy Analysis
       const strategy = await analyzeMarketAndTrade({
         userId: user.uid,
         assets: assetsRef.current.map(a => ({
@@ -243,21 +236,31 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         allocationLimitUSD: allocation
       });
 
-      // 3. Output Strategy
       if (strategy && strategy.actions.length > 0) {
         addLog(`STRATEGY: ${strategy.strategy}`, 'success');
-        strategy.actions.forEach(action => {
-          addLog(`SIGNAL: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset} detected.`, 'info');
-        });
+        
+        for (const action of strategy.actions) {
+          const fromAssetObj = assetsRef.current.find(a => a.currency === action.fromAsset);
+          const currentFromBalanceUSD = fromAssetObj ? fromAssetObj.fiatValueUSD : 0;
+
+          if (currentFromBalanceUSD < action.amountUSD && action.fromAsset !== 'USD') {
+            addLog(`ABORTED: Insufficient ${action.fromAsset} funds for $${action.amountUSD.toFixed(2)} signal.`, 'warning');
+          } else {
+            addLog(`SIGNAL: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset} via ${action.fromAsset} path.`, 'info');
+            addLog(`Awaiting manual vault signature for Mainnet execution.`, 'info');
+          }
+        }
+        addLog(`Neural Analysis Concluded. Monitoring ledger.`, 'success');
       } else {
-        addLog(`Vault Stable: Current allocation matches institutional momentum.`, 'info');
+        addLog(`Vault Optimized: Current allocation matches institutional momentum.`, 'info');
+        addLog(`Cycle Finalized. Standing by.`, 'success');
       }
 
     } catch (error: any) {
-      // Logic for local fallback if AI quota is reached
       addLog(`Cloud Link Throttled. Switching to Local Enclave Intelligence...`, 'warning');
       setTimeout(() => {
         addLog(`LOCAL STRATEGY: Maintain current asset weights based on 24h volatility.`, 'success');
+        addLog(`Cycle Finalized. Monitoring network vision.`, 'info');
       }, 1000);
     } finally {
       setIsAnalyzing(false);
@@ -276,7 +279,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) return;
     const userRef = doc(db, 'users', user.uid);
     
-    // Update Firestore
     updateDoc(userRef, {
       botActive: active,
       botAllocation: allocation,
@@ -286,7 +288,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     
     if (active) {
       addLog(`Neural Network Link Established. Bot is LIVE.`, 'success');
-      // Trigger cycle immediately with forced active parameter
       runBotCycle(true);
     } else {
       addLog(`Agent in standby mode.`, 'info');
