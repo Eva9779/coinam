@@ -19,7 +19,7 @@
     },
     "WalletAsset": {
       "title": "Wallet Asset",
-      "description": "Cryptographic vault document. Owners have full read/write access to their silo.",
+      "description": "Cryptographic vault document stored in /users/{userId}/assets/{assetId}.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -34,7 +34,7 @@
     },
     "Transaction": {
       "title": "Transaction",
-      "description": "Private financial ledger. Owners have full read and create access to their sub-collections.",
+      "description": "Private financial ledger stored in /users/{userId}/transactions/{transactionId}.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -56,7 +56,15 @@
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
-      "description": "Root user identity. Authorized owner-only access via recursive sub-collection rules."
+      "description": "Root user identity."
+    },
+    "/users/{userId}/assets/{assetId}": {
+      "schema": "WalletAsset",
+      "description": "Individual vault endpoints."
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Private financial ledger."
     }
   }
 }

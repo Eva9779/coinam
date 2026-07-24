@@ -129,6 +129,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           botRiskLevel: 'medium',
           updatedAt: new Date().toISOString()
         };
+        // Initial user document creation
         setDoc(userRef, userData, { merge: true }).catch(async (e) => {
           errorEmitter.emit('permission-error', new FirestorePermissionError({
             path: userRef.path,
@@ -177,7 +178,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const txData = snapshot.docs.map(doc => doc.data() as Transaction);
       setTransactions(txData);
     }, (error) => {
-      // Permission delay handled by central emitter
+      // Listener errors are handled by error emitter centrally
     });
     return () => unsubscribe();
   }, [db, user]);
@@ -194,14 +195,15 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       fiatValueUSD: newAmount * fiatPrice 
     };
 
-    return updateDoc(assetDocRef, data).catch(async (e) => {
+    // No 'await' directly, chain catch to handle permissions silently
+    updateDoc(assetDocRef, data).catch(async (e) => {
       const pError = new FirestorePermissionError({
         path: assetDocRef.path,
         operation: 'update',
         requestResourceData: data
       });
       errorEmitter.emit('permission-error', pError);
-      throw pError;
+      // We do not re-throw here to prevent crashing the UI during send operations
     });
   }, [db, user]);
 
@@ -210,14 +212,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const txId = `tx_${Date.now()}`;
     const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
     const txData = { ...tx, id: txId, timestamp: new Date().toISOString() };
-    return setDoc(txDocRef, txData).catch(async (e) => {
+    
+    // No 'await' directly, chain catch to handle permissions silently
+    setDoc(txDocRef, txData).catch(async (e) => {
       const pError = new FirestorePermissionError({
         path: txDocRef.path,
         operation: 'create',
         requestResourceData: txData
       });
       errorEmitter.emit('permission-error', pError);
-      throw pError;
+      // We do not re-throw here to prevent crashing the UI during send operations
     });
   }, [db, user]);
 
@@ -258,7 +262,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       let response: TradingBotOutput;
 
       try {
-        // Reduced timeout for primary AI brain to trigger fallback faster
         const aiPromise = analyzeMarketAndTrade({
           userId: user.uid,
           assets: currentAssets.map(a => ({
@@ -271,7 +274,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           allocationLimitUSD: allocation
         });
         
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
         response = await Promise.race([aiPromise, timeoutPromise]) as TradingBotOutput;
       } catch (e) {
         addLog(`Market Sync: Using Institutional Fallback Layer...`, 'warning');
@@ -298,10 +301,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
               const toPrice = toMarket?.price || 1;
               const receiveAmount = action.amount * (fromPrice / toPrice);
               
-              await updateBalanceInternal(action.fromAsset, -action.amount, fromPrice);
-              await updateBalanceInternal(action.toAsset, receiveAmount, toPrice);
+              updateBalanceInternal(action.fromAsset, -action.amount, fromPrice);
+              updateBalanceInternal(action.toAsset, receiveAmount, toPrice);
               
-              await addTransactionInternal({
+              addTransactionInternal({
                 type: 'trade',
                 currency: `${action.fromAsset} → ${action.toAsset}`,
                 amount: action.amount,
@@ -319,7 +322,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           
           const usdcAsset = currentAssets.find(a => a.currency === 'USDC');
           if (usdcAsset) {
-            await updateBalanceInternal('USDC', currentCycleProfit, 1);
+            updateBalanceInternal('USDC', currentCycleProfit, 1);
           } else {
             const usdcId = `usdc_${Date.now()}`;
             const usdcRef = doc(db, 'users', user.uid, 'assets', usdcId);
@@ -331,7 +334,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
               address: currentAssets[0]?.address || 'pending',
               isLive: true
             };
-            await setDoc(usdcRef, usdcData, { merge: true }).catch(async (e) => {
+            setDoc(usdcRef, usdcData, { merge: true }).catch(async (e) => {
               errorEmitter.emit('permission-error', new FirestorePermissionError({
                 path: usdcRef.path,
                 operation: 'write',
@@ -341,7 +344,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           }
 
           const userRef = doc(db, 'users', user.uid);
-          await updateDoc(userRef, { 
+          updateDoc(userRef, { 
             totalBotEarnings: earnings + currentCycleProfit,
             updatedAt: new Date().toISOString()
           }).catch(async (e) => {
