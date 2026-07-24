@@ -240,27 +240,28 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         addLog(`STRATEGY: ${strategy.strategy}`, 'success');
         
         for (const action of strategy.actions) {
-          const fromAssetObj = assetsRef.current.find(a => a.currency === action.fromAsset);
+          const fromAssetObj = assetsRef.current.find(a => a.currency === (action.fromAsset === 'USD' ? 'USDC' : action.fromAsset));
           const currentFromBalanceUSD = fromAssetObj ? fromAssetObj.fiatValueUSD : 0;
 
-          if (currentFromBalanceUSD < action.amountUSD && action.fromAsset !== 'USD') {
-            addLog(`ABORTED: Insufficient ${action.fromAsset} funds for $${action.amountUSD.toFixed(2)} signal.`, 'warning');
+          if (currentFromBalanceUSD < action.amountUSD) {
+            addLog(`ABORTED: Insufficient ${action.fromAsset} funds in Mainnet Vault for $${action.amountUSD.toFixed(2)} signal.`, 'warning');
           } else {
-            addLog(`SIGNAL: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset} via ${action.fromAsset} path.`, 'info');
+            addLog(`SIGNAL: Recommended ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset} via ${action.fromAsset} path.`, 'info');
             addLog(`Awaiting manual vault signature for Mainnet execution.`, 'info');
           }
         }
-        addLog(`Neural Analysis Concluded. Monitoring ledger.`, 'success');
+        addLog(`Analysis Finalized. Monitoring network for changes.`, 'success');
       } else {
         addLog(`Vault Optimized: Current allocation matches institutional momentum.`, 'info');
         addLog(`Cycle Finalized. Standing by.`, 'success');
       }
+      addLog(`Next Neural Scan scheduled in 10 minutes.`, 'info');
 
     } catch (error: any) {
       addLog(`Cloud Link Throttled. Switching to Local Enclave Intelligence...`, 'warning');
       setTimeout(() => {
         addLog(`LOCAL STRATEGY: Maintain current asset weights based on 24h volatility.`, 'success');
-        addLog(`Cycle Finalized. Monitoring network vision.`, 'info');
+        addLog(`Cycle Finalized. Next Scan in 10 minutes.`, 'info');
       }, 1000);
     } finally {
       setIsAnalyzing(false);
@@ -288,7 +289,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     
     if (active) {
       addLog(`Neural Network Link Established. Bot is LIVE.`, 'success');
-      runBotCycle(true);
+      // Trigger immediate cycle override
+      setTimeout(() => runBotCycle(true), 100);
     } else {
       addLog(`Agent in standby mode.`, 'info');
     }
