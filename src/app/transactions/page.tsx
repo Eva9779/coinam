@@ -88,6 +88,7 @@ export default function TransactionsPage() {
     
     try {
       // 1. Blockchain Broadcast: Direct transmission to the peer network
+      // This is the critical real-time step.
       const txHash = await sendLiveTransaction(asset.privateKey, recipient, amount);
       
       toast({
@@ -95,17 +96,18 @@ export default function TransactionsPage() {
         description: `Network Signature: ${txHash.slice(0, 16)}...`,
       });
 
-      // Capture state for background updates
+      // 2. Clear UI immediately for optimal UX
       const sentAmount = val;
       const sentCurrency = currency;
       const sentRecipient = recipient;
       const fiatPrice = asset.fiatValueUSD / Math.max(asset.amount, 0.00001);
 
-      // Clear UI immediately
       setAmount("");
       setRecipient("");
 
-      // 2. Ledger Sync (Background): Non-blocking to avoid permission lag issues
+      // 3. Ledger Sync (Isolated & Non-Blocking)
+      // We call these WITHOUT 'await' so that any Firestore permission lag 
+      // does not block the successful broadcast confirmation.
       updateBalance(sentCurrency, -sentAmount, fiatPrice).catch(() => {});
       addTransaction({
         type: 'send',

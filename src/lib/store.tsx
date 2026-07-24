@@ -189,12 +189,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       fiatValueUSD: newAmount * fiatPrice 
     };
 
+    // NON-BLOCKING MUTATION: We don't 'await' here to ensure local UX is fast.
     updateDoc(assetDocRef, data).catch(async (e) => {
       const pError = new FirestorePermissionError({
         path: assetDocRef.path,
         operation: 'update',
         requestResourceData: data
-      });
+      } satisfies SecurityRuleContext);
       errorEmitter.emit('permission-error', pError);
     });
   }, [db, user]);
@@ -205,12 +206,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
     const txData = { ...tx, id: txId, timestamp: new Date().toISOString() };
     
+    // NON-BLOCKING MUTATION
     setDoc(txDocRef, txData).catch(async (e) => {
       const pError = new FirestorePermissionError({
         path: txDocRef.path,
         operation: 'create',
         requestResourceData: txData
-      });
+      } satisfies SecurityRuleContext);
       errorEmitter.emit('permission-error', pError);
     });
   }, [db, user]);
