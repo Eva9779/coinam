@@ -64,8 +64,25 @@ const SmartAlertsOutputSchema = z.object({
 });
 export type SmartAlertsOutput = z.infer<typeof SmartAlertsOutputSchema>;
 
+/**
+ * Utility function to handle rate limiting with exponential backoff.
+ */
+async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 5000): Promise<T> {
+  try {
+    return await fn();
+  } catch (error: any) {
+    const isRateLimit = error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED') || error.status === 429;
+    if (retries > 0 && isRateLimit) {
+      console.warn(`AI Rate Limit hit (Alerts). Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return withRetry(fn, retries - 1, delay * 2);
+    }
+    throw error;
+  }
+}
+
 export async function generateSmartAlerts(input: SmartAlertsInput): Promise<SmartAlertsOutput> {
-  return smartAlertsFlow(input);
+  return withRetry(() => smartAlertsFlow(input));
 }
 
 const smartAlertsPrompt = ai.definePrompt({

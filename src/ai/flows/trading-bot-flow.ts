@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for the Coin A,M AI Trading Bot.
@@ -44,8 +45,25 @@ const TradingBotOutputSchema = z.object({
 });
 export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
+/**
+ * Utility function to handle rate limiting with exponential backoff.
+ */
+async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 5000): Promise<T> {
+  try {
+    return await fn();
+  } catch (error: any) {
+    const isRateLimit = error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED') || error.status === 429;
+    if (retries > 0 && isRateLimit) {
+      console.warn(`AI Rate Limit hit. Retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return withRetry(fn, retries - 1, delay * 2);
+    }
+    throw error;
+  }
+}
+
 export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<TradingBotOutput> {
-  return tradingBotFlow(input);
+  return withRetry(() => tradingBotFlow(input));
 }
 
 const tradingBotPrompt = ai.definePrompt({

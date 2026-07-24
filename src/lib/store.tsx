@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -259,7 +260,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
             const fromPrice = fromMarket?.price || 1;
             const toPrice = toMarket?.price || 1;
 
-            // CORRECT UNIT MATH: amountUSD / price = units
             const unitsToSell = action.amountUSD / fromPrice;
 
             if (fromData && fromData.amount >= unitsToSell) {
@@ -268,7 +268,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
               updateBalance(action.fromAsset, -unitsToSell, fromPrice);
               updateBalance(action.toAsset, receiveUnits, toPrice);
 
-              // Simulate a successful rebalancing "yield" of 0.1% for the profit field
               const tradeProfit = action.amountUSD * 0.001; 
               totalProfitThisCycle += tradeProfit;
               
@@ -295,21 +294,36 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       } else {
         addLog(`Market Equilibrium: Optimal allocation detected.`, 'info');
       }
-    } catch (error) {
-      addLog('Node Synchronization Delayed. Retrying...', 'info');
+    } catch (error: any) {
+      if (error.message?.includes('429') || error.message?.includes('Quota')) {
+        addLog('AI Node Quota Reached. Throttling...', 'warning');
+      } else {
+        addLog('Node Synchronization Delayed. Retrying...', 'info');
+      }
       console.error(error);
     } finally {
       setIsAnalyzing(false);
     }
   }, [user, db, isAnalyzing, addLog, updateBalance, addTransaction]);
 
+  // Use a ref for runBotCycle to avoid re-triggering the interval effect every time state changes
+  const runBotCycleRef = useRef(runBotCycle);
+  useEffect(() => {
+    runBotCycleRef.current = runBotCycle;
+  }, [runBotCycle]);
+
   useEffect(() => {
     if (!initialized || !user) return;
+    
+    // Increased interval to 120 seconds to stay within AI quota limits
     const interval = setInterval(() => {
-      if (botStateRef.current.active) runBotCycle();
-    }, 60000);
+      if (botStateRef.current.active) {
+        runBotCycleRef.current();
+      }
+    }, 120000); 
+    
     return () => clearInterval(interval);
-  }, [initialized, user, runBotCycle]);
+  }, [initialized, user]);
 
   const updateBotSettings = (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => {
     if (!db || !user) return;
@@ -320,7 +334,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       botRiskLevel: risk,
       updatedAt: new Date().toISOString()
     }).catch(() => {});
-    if (active) addLog(`Neural Network Link Established. Bot is LIVE.`, 'success');
+    if (active) {
+      addLog(`Neural Network Link Established. Bot is LIVE.`, 'success');
+      // Trigger initial run
+      setTimeout(() => runBotCycle(), 1000);
+    }
   };
 
   const clearBotLogs = () => setBotLogs([]);
@@ -335,7 +353,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const userDocRef = doc(db, 'users', user.uid);
       await setDoc(userDocRef, { uid: user.uid, email: user.email, updatedAt: new Date().toISOString() }, { merge: true });
 
-      // PRODUCTION START: New wallets start with 0 balance.
       const newAsset: WalletAsset = {
         id: customId,
         currency,
