@@ -102,7 +102,8 @@ export default function TransactionsPage() {
       setAmount("");
       setRecipient("");
 
-      // 2. Ledger Update (Background): No await to avoid blocking UI
+      // 2. Ledger Update (Background): No await to avoid blocking UI during network broadcasts
+      // This ensures that the blockchain success is shown even if the ledger update has a delay.
       updateBalance(sentCurrency, -sentAmount, asset.fiatValueUSD / Math.max(asset.amount, 0.00001))
         .catch(() => { /* Background fail - ledger will sync later */ });
 
