@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -88,7 +87,6 @@ export default function TransactionsPage() {
     
     try {
       // 1. Blockchain Broadcast: Direct transmission to the peer network
-      // This is the critical real-time step.
       const txHash = await sendLiveTransaction(asset.privateKey, recipient, amount);
       
       toast({
@@ -96,7 +94,7 @@ export default function TransactionsPage() {
         description: `Network Signature: ${txHash.slice(0, 16)}...`,
       });
 
-      // 2. Clear UI immediately for optimal UX
+      // 2. Clear UI immediately
       const sentAmount = val;
       const sentCurrency = currency;
       const sentRecipient = recipient;
@@ -106,8 +104,6 @@ export default function TransactionsPage() {
       setRecipient("");
 
       // 3. Ledger Sync (Isolated & Non-Blocking)
-      // We call these WITHOUT 'await' so that any Firestore permission lag 
-      // does not block the successful broadcast confirmation.
       updateBalance(sentCurrency, -sentAmount, fiatPrice).catch(() => {});
       addTransaction({
         type: 'send',
