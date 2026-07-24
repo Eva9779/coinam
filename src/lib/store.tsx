@@ -216,8 +216,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setIsAnalyzing(true);
     addLog(`Syncing Network Vision...`, 'info');
     
+    let liveMarket;
     try {
-      let liveMarket;
       try {
         const marketRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,usd-coin&vs_currencies=usd&include_24hr_change=true');
         if (!marketRes.ok) throw new Error('Market API Throttled');
@@ -239,17 +239,64 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       }
 
       const currentAssets = assetsRef.current;
-      const response = await analyzeMarketAndTrade({
-        userId: user.uid,
-        assets: currentAssets.map(a => ({
-          currency: a.currency,
-          amount: a.amount,
-          fiatValue: a.fiatValueUSD
-        })),
-        marketData: liveMarket,
-        riskTolerance: risk as any,
-        allocationLimitUSD: allocation
-      });
+      
+      let response;
+      try {
+        // Attempt Cloud AI Rebalancing
+        response = await analyzeMarketAndTrade({
+          userId: user.uid,
+          assets: currentAssets.map(a => ({
+            currency: a.currency,
+            amount: a.amount,
+            fiatValue: a.fiatValueUSD
+          })),
+          marketData: liveMarket,
+          riskTolerance: risk as any,
+          allocationLimitUSD: allocation
+        });
+      } catch (aiError: any) {
+        // FAIL-SAFE: Switch to Local Intelligence Layer
+        addLog('Cloud AI Throttled. Switching to Local Intelligence Layer...', 'warning');
+        
+        // Deterministic Fail-Safe Logic: Mean Reversion / Trend Following
+        const sortedPerformance = [...liveMarket].sort((a, b) => b.change24h - a.change24h);
+        const topPerformer = sortedPerformance[0];
+        const worstPerformer = sortedPerformance[sortedPerformance.length - 1];
+        
+        const actions = [];
+        
+        // 1. If we have USDC, buy the top performer
+        const usdcAsset = currentAssets.find(a => a.currency === 'USDC');
+        if (usdcAsset && usdcAsset.amount > 0) {
+          actions.push({
+            type: 'buy',
+            fromAsset: 'USDC',
+            toAsset: topPerformer.currency,
+            amountUSD: Math.min(usdcAsset.amount, allocation * 0.1),
+            reasoning: `Fail-Safe: Buying momentum in ${topPerformer.currency}.`
+          });
+        }
+        
+        // 2. If an asset is crashing, move a portion to USDC
+        if (worstPerformer.change24h < -3) {
+          const worstAsset = currentAssets.find(a => a.currency === worstPerformer.currency);
+          if (worstAsset && worstAsset.amount > 0) {
+             actions.push({
+              type: 'sell',
+              fromAsset: worstPerformer.currency,
+              toAsset: 'USDC',
+              amountUSD: Math.min(worstAsset.fiatValueUSD, allocation * 0.1),
+              reasoning: `Fail-Safe: Preserving capital from ${worstPerformer.currency} drawdown.`
+            });
+          }
+        }
+
+        response = {
+          strategy: "Local Node Settlement: Volatility-adjusted rebalancing.",
+          actions: actions as any[],
+          marketSentiment: topPerformer.change24h > 0 ? 'bullish' : 'bearish'
+        };
+      }
 
       if (response && response.actions && response.actions.length > 0) {
         addLog(response.strategy, 'success');
@@ -282,8 +329,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
                 fiatValueUSD: action.amountUSD,
                 description: `Execution Layer: ${action.reasoning}`
               });
-            } else if (action.type === 'sell' && fromData) {
-              addLog(`Insufficent ${action.fromAsset} for planned rebalance.`, 'warning');
             }
           }
         }
@@ -293,19 +338,14 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
           await updateDoc(userRef, {
             totalBotEarnings: increment(totalProfitThisCycle)
           });
-          addLog(`Arbitrage Yield Captured: +$${totalProfitThisCycle.toFixed(4)}`, 'success');
+          addLog(`Yield Captured: +$${totalProfitThisCycle.toFixed(4)}`, 'success');
         }
       } else {
         addLog(`Market Equilibrium: Optimal allocation detected.`, 'info');
       }
     } catch (error: any) {
-      const errorStr = error.toString();
-      if (errorStr.includes('429') || errorStr.includes('RESOURCE_EXHAUSTED') || error.status === 429) {
-        addLog('AI Quota Reached. Throttling neural node...', 'warning');
-      } else {
-        addLog('Neural Link Interrupted. Retrying in 10m...', 'warning');
-      }
-      console.error('Bot Cycle Error:', error);
+      console.error('Final Fail-Safe Crash:', error);
+      addLog('Neural Link Interrupted. Retrying in 10m...', 'warning');
     } finally {
       setIsAnalyzing(false);
     }
@@ -340,7 +380,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     
     if (active) {
       addLog(`Neural Network Link Established. Bot is LIVE.`, 'success');
-      // Trigger an immediate run instead of waiting 10 minutes
       setTimeout(() => {
         runBotCycleRef.current();
       }, 500);
