@@ -101,8 +101,10 @@ export default function BuyCryptoPage() {
   }
 
   const currentAsset = assets.find(a => a.currency === selectedAsset);
-  // MoonPay Link Generation
-  const moonPayUrl = `https://buy.moonpay.com/?apiKey=pk_live_R1E1J1J1J1J1J1J1J1J1&walletAddress=${currentAsset?.address}&currencyCode=${selectedAsset.toLowerCase()}&paymentMethod=ach_bank_transfer`;
+  
+  // Transak Link Generation
+  // Using a production-ready URL structure for Transak ACH funding
+  const transakUrl = `https://global.transak.com?apiKey=77d7045c-2051-4191-88f5-938928c0b852&walletAddress=${currentAsset?.address}&defaultCryptoCurrency=${selectedAsset}&cryptoCurrencyList=${selectedAsset}&networks=ethereum&paymentMethod=ach_bank_transfer`;
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
@@ -167,9 +169,9 @@ export default function BuyCryptoPage() {
                     <CreditCard className="h-4 w-4" />
                     Stripe (Card / Mobile)
                   </TabsTrigger>
-                  <TabsTrigger value="moonpay" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
+                  <TabsTrigger value="transak" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <Building2 className="h-4 w-4" />
-                    MoonPay (Bank / ACH)
+                    Transak (Bank / ACH)
                   </TabsTrigger>
                 </TabsList>
 
@@ -228,39 +230,39 @@ export default function BuyCryptoPage() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="moonpay" className="space-y-6 mt-6">
+                <TabsContent value="transak" className="space-y-6 mt-6">
                   <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-8 text-center">
                     <div className="h-20 w-20 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto border-2 border-secondary/20 shadow-xl shadow-secondary/5 transform rotate-3">
                       <Building2 className="h-10 w-10 text-secondary" />
                     </div>
                     
                     <div className="space-y-2 max-w-xs mx-auto">
-                      <h4 className="text-2xl font-black text-primary tracking-tight">Bank Account (ACH)</h4>
+                      <h4 className="text-2xl font-black text-primary tracking-tight">Transak Bank (ACH)</h4>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        Fund your vault using MoonPay's institutional rails. Use your **routing and account numbers** for high-limit transfers.
+                        Fund your vault via Transak's global banking network. Supports **ACH transfers, Bank Wires, and SEPA** for institutional limits.
                       </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 text-left">
                       <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
-                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Settlement</span>
-                        <p className="text-xs font-bold">Standard ACH (3-5d)</p>
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Methods</span>
+                        <p className="text-xs font-bold">ACH / Wire / SEPA</p>
                       </div>
                       <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
-                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Limits</span>
-                        <p className="text-xs font-bold">Up to $50,000/day</p>
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Global</span>
+                        <p className="text-xs font-bold">150+ Countries</p>
                       </div>
                     </div>
 
                     <Button className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all bg-secondary text-secondary-foreground" asChild>
-                      <a href={moonPayUrl} target="_blank" rel="noopener noreferrer">
+                      <a href={transakUrl} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-6 w-6" />
-                        Initialize MoonPay Bridge
+                        Initialize Transak Bridge
                       </a>
                     </Button>
                     
                     <p className="text-[10px] text-muted-foreground font-medium max-w-xs mx-auto">
-                      MoonPay supports linking 2,000+ banks including Chase, Wells Fargo, and Bank of America.
+                      Transak provides institutional-grade security and compliance for all bank-to-crypto transactions.
                     </p>
                   </div>
                 </TabsContent>
@@ -290,7 +292,7 @@ export default function BuyCryptoPage() {
                    <div className="h-6 w-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
                      <Building2 className="h-3.5 w-3.5" />
                    </div>
-                   <p className="text-[10px] font-medium leading-relaxed">Use MoonPay for institutional funding via your Routing & Account numbers.</p>
+                   <p className="text-[10px] font-medium leading-relaxed">Use Transak for high-limit bank transfers via ACH or Institutional Wires.</p>
                 </div>
               </div>
               
@@ -309,7 +311,7 @@ export default function BuyCryptoPage() {
               <h4 className="text-xs font-black uppercase tracking-tight">Security Note</h4>
             </div>
             <p className="text-[10px] font-medium text-muted-foreground leading-relaxed">
-              Always verify the domain in your browser bar when linking your bank account. Coin A,M only routes through verified Stripe and MoonPay domains.
+              Always verify the domain in your browser bar when linking your bank account. Coin A,M only routes through verified Stripe and Transak domains.
             </p>
           </Card>
         </div>
