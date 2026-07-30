@@ -103,8 +103,7 @@ export default function BuyCryptoPage() {
   const currentAsset = assets.find(a => a.currency === selectedAsset);
   
   // Transak Institutional URL Construction
-  // Research indicates 'ethereum' network is required for 0x addresses.
-  // We map native symbols to their Ethereum counterparts (e.g. BTC -> WBTC) to avoid Transak parameter errors.
+  // Optimized for production reliability
   const getTransakUrl = () => {
     if (!currentAsset?.address) return "#";
     
@@ -113,7 +112,7 @@ export default function BuyCryptoPage() {
     
     // Map symbols to Ethereum-compatible versions for Transak
     if (cryptoCode === 'BTC') cryptoCode = 'WBTC';
-    if (cryptoCode === 'SOL') cryptoCode = 'ETH'; // Or another high-liquidity asset if SOL isn't bridged
+    if (cryptoCode === 'SOL') cryptoCode = 'ETH'; 
 
     const params = new URLSearchParams({
       apiKey: transakApiKey,
@@ -122,9 +121,8 @@ export default function BuyCryptoPage() {
       network: 'ethereum',
       fiatCurrency: 'USD',
       defaultPaymentMethod: 'ach_bank_transfer',
-      paymentMethod: 'ach_bank_transfer',
       isReadOnly: 'true',
-      themeColor: '3F51B5' // Matching primary theme color
+      themeColor: '3F51B5' 
     });
 
     return `https://global.transak.com/?${params.toString()}`;
@@ -355,4 +353,3 @@ export default function BuyCryptoPage() {
     </div>
   );
 }
-
