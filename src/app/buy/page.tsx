@@ -14,7 +14,7 @@ import {
   Zap, 
   ShieldAlert, 
   ExternalLink, 
-  Building2,
+  Landmark,
   Smartphone,
   Globe
 } from 'lucide-react';
@@ -102,33 +102,30 @@ export default function BuyCryptoPage() {
 
   const currentAsset = assets.find(a => a.currency === selectedAsset);
   
-  // Transak Institutional URL Construction
-  // Optimized for production reliability
-  const getTransakUrl = () => {
+  /**
+   * Sardine Institutional URL Construction
+   * Optimized for high-limit ACH bank transfers
+   */
+  const getSardineUrl = () => {
     if (!currentAsset?.address) return "#";
     
-    const transakApiKey = "77d7045c-2051-4191-88f5-938928c0b852";
     let cryptoCode = selectedAsset;
     
-    // Map symbols to Ethereum-compatible versions for Transak
+    // Map symbols to Ethereum-compatible versions for Sardine
     if (cryptoCode === 'BTC') cryptoCode = 'WBTC';
     if (cryptoCode === 'SOL') cryptoCode = 'ETH'; 
 
     const params = new URLSearchParams({
-      apiKey: transakApiKey,
-      walletAddress: currentAsset.address,
-      cryptoCurrencyCode: cryptoCode,
+      address: currentAsset.address,
+      asset: cryptoCode,
       network: 'ethereum',
       fiatCurrency: 'USD',
-      defaultPaymentMethod: 'ach_bank_transfer',
-      isReadOnly: 'true',
-      themeColor: '3F51B5' 
     });
 
-    return `https://global.transak.com/?${params.toString()}`;
+    return `https://crypto.sardine.ai/?${params.toString()}`;
   };
 
-  const transakUrl = getTransakUrl();
+  const sardineUrl = getSardineUrl();
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
@@ -193,9 +190,9 @@ export default function BuyCryptoPage() {
                     <CreditCard className="h-4 w-4" />
                     Stripe (Card / Mobile)
                   </TabsTrigger>
-                  <TabsTrigger value="transak" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
-                    <Building2 className="h-4 w-4" />
-                    Transak (Bank / ACH)
+                  <TabsTrigger value="sardine" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
+                    <Landmark className="h-4 w-4" />
+                    Sardine (Bank / ACH)
                   </TabsTrigger>
                 </TabsList>
 
@@ -254,27 +251,27 @@ export default function BuyCryptoPage() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="transak" className="space-y-6 mt-6">
+                <TabsContent value="sardine" className="space-y-6 mt-6">
                   <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-8 text-center">
                     <div className="h-20 w-20 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto border-2 border-secondary/20 shadow-xl shadow-secondary/5 transform rotate-3">
-                      <Building2 className="h-10 w-10 text-secondary" />
+                      <Landmark className="h-10 w-10 text-secondary" />
                     </div>
                     
                     <div className="space-y-2 max-w-xs mx-auto">
-                      <h4 className="text-2xl font-black text-primary tracking-tight">Transak Bank (ACH)</h4>
+                      <h4 className="text-2xl font-black text-primary tracking-tight">Sardine Instant ACH</h4>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        Fund your vault via Transak's global banking network. Supports **ACH transfers, Bank Wires, and SEPA** for institutional limits.
+                        Fund your vault via Sardine's global banking network. Supports **Instant ACH transfers** using your bank account and routing numbers.
                       </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 text-left">
                       <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
                         <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Methods</span>
-                        <p className="text-xs font-bold">ACH / Wire / SEPA</p>
+                        <p className="text-xs font-bold">ACH / Wire</p>
                       </div>
                       <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
-                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Global</span>
-                        <p className="text-xs font-bold">150+ Countries</p>
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Speed</span>
+                        <p className="text-xs font-bold">Instant Payout</p>
                       </div>
                     </div>
 
@@ -283,9 +280,9 @@ export default function BuyCryptoPage() {
                       disabled={!currentAsset?.address}
                       asChild
                     >
-                      <a href={transakUrl} target="_blank" rel="noopener noreferrer">
+                      <a href={sardineUrl} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-6 w-6" />
-                        Initialize Transak Bridge
+                        Initialize Sardine Bridge
                       </a>
                     </Button>
                     
@@ -296,7 +293,7 @@ export default function BuyCryptoPage() {
                     )}
                     
                     <p className="text-[10px] text-muted-foreground font-medium max-w-xs mx-auto">
-                      Transak provides institutional-grade security and compliance for all bank-to-crypto transactions.
+                      Sardine provides institutional-grade fraud protection and instant settlement for all bank-to-crypto transactions.
                     </p>
                   </div>
                 </TabsContent>
@@ -324,9 +321,9 @@ export default function BuyCryptoPage() {
                 </div>
                 <div className="flex items-start gap-3">
                    <div className="h-6 w-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-                     <Building2 className="h-3.5 w-3.5" />
+                     <Landmark className="h-3.5 w-3.5" />
                    </div>
-                   <p className="text-[10px] font-medium leading-relaxed">Use Transak for high-limit bank transfers via ACH or Institutional Wires.</p>
+                   <p className="text-[10px] font-medium leading-relaxed">Use Sardine for high-limit bank transfers via ACH with instant delivery.</p>
                 </div>
               </div>
               
@@ -345,7 +342,7 @@ export default function BuyCryptoPage() {
               <h4 className="text-xs font-black uppercase tracking-tight">Security Note</h4>
             </div>
             <p className="text-[10px] font-medium text-muted-foreground leading-relaxed">
-              Always verify the domain in your browser bar when linking your bank account. Coin A,M only routes through verified Stripe and Transak domains.
+              Always verify the domain in your browser bar when linking your bank account. Coin A,M only routes through verified Stripe and Sardine domains.
             </p>
           </Card>
         </div>
