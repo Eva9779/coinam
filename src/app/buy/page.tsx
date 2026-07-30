@@ -102,9 +102,12 @@ export default function BuyCryptoPage() {
 
   const currentAsset = assets.find(a => a.currency === selectedAsset);
   
-  // Transak Link Generation
-  // Using a production-ready URL structure for Transak ACH funding
-  const transakUrl = `https://global.transak.com?apiKey=77d7045c-2051-4191-88f5-938928c0b852&walletAddress=${currentAsset?.address}&defaultCryptoCurrency=${selectedAsset}&cryptoCurrencyList=${selectedAsset}&networks=ethereum&paymentMethod=ach_bank_transfer`;
+  // Refined Transak URL Construction for Institutional ACH
+  // Using production query params: apiKey, cryptoCurrencyCode, network, walletAddress, paymentMethod
+  const transakApiKey = "77d7045c-2051-4191-88f5-938928c0b852";
+  const transakUrl = currentAsset?.address 
+    ? `https://global.transak.com/?apiKey=${transakApiKey}&walletAddress=${currentAsset.address}&cryptoCurrencyCode=${selectedAsset}&network=ethereum&paymentMethod=ach_bank_transfer&defaultPaymentMethod=ach_bank_transfer`
+    : "#";
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
@@ -254,12 +257,22 @@ export default function BuyCryptoPage() {
                       </div>
                     </div>
 
-                    <Button className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all bg-secondary text-secondary-foreground" asChild>
+                    <Button 
+                      className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all bg-secondary text-secondary-foreground" 
+                      disabled={!currentAsset?.address}
+                      asChild
+                    >
                       <a href={transakUrl} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-6 w-6" />
                         Initialize Transak Bridge
                       </a>
                     </Button>
+                    
+                    {!currentAsset?.address && (
+                      <p className="text-[10px] text-destructive font-bold uppercase animate-pulse">
+                        Awaiting Vault Synchronization...
+                      </p>
+                    )}
                     
                     <p className="text-[10px] text-muted-foreground font-medium max-w-xs mx-auto">
                       Transak provides institutional-grade security and compliance for all bank-to-crypto transactions.
