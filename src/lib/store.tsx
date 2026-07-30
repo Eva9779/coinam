@@ -205,7 +205,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     if ((!active && !forceActive) || !user || !db || isAnalyzing) return;
     
     setIsAnalyzing(true);
-    addLog(`Scanning Mainnet Signal Matrix...`, 'info');
+    addLog(risk === 'high' ? `Quantum Surge Analysis Initialized...` : `Scanning Mainnet Signal Matrix...`, 'info');
     
     try {
       let liveMarket;
@@ -247,6 +247,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
             addLog(`ABORTED: Insufficient ${action.fromAsset} funds in Mainnet Vault for $${action.amountUSD.toFixed(2)} signal.`, 'warning');
           } else {
             addLog(`SIGNAL: Recommended ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset} via ${action.fromAsset} path.`, 'info');
+            if (risk === 'high') {
+              addLog(`HIGH CONVICTION: Significant yield opportunity identified.`, 'success');
+            }
             addLog(`Awaiting manual vault signature for Mainnet execution.`, 'info');
           }
         }
@@ -288,7 +291,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }).catch(() => {});
     
     if (active) {
-      addLog(`Neural Network Link Established. Bot is LIVE.`, 'success');
+      addLog(risk === 'high' ? `Aggressive Yield Mode Activated. Bot is LIVE.` : `Neural Network Link Established. Bot is LIVE.`, 'success');
       // Trigger immediate cycle override
       setTimeout(() => runBotCycle(true), 100);
     } else {

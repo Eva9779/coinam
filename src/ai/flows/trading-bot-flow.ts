@@ -77,7 +77,7 @@ const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `You are an institutional crypto rebalancing bot for Coin A,M. Your goal is to maximize yield and grow the user's portfolio value while staying within the USD Allocation Limit.
+  prompt: `You are an institutional crypto rebalancing bot for Coin A,M. Your goal is to maximize yield and aggressively grow the user's portfolio value while staying within the USD Allocation Limit.
 
 Market Data (Live):
 {{#each marketData}}
@@ -93,13 +93,14 @@ Risk: {{{riskTolerance}}}
 Limit: $ {{{allocationLimitUSD}}}
 
 Instructions:
-1. Identify assets with positive 24h momentum and rebalance into them.
-2. If the market is bearish (negative changes), move assets into USDC to preserve capital.
-3. If the market is bullish, move USDC into high-performing assets (ETH, SOL, BTC).
-4. Provide trade actions in USD values.
-5. Total USD of actions must be under the Allocation Limit.
-6. YOU MUST BE ACCURATE. Do not trade more than the user currently owns in a specific asset.
-7. YOUR GOAL IS PROFIT.
+1. If Risk is 'high', prioritize identifying assets with extreme upward momentum (above 5% change) to maximize profit potential. Search for opportunities that could lead to significant capital growth.
+2. Identify assets with positive 24h momentum and rebalance into them.
+3. If the market is bearish (negative changes), move assets into USDC to preserve capital, unless the strategy is 'high' risk, in which case look for 'dip' buying opportunities.
+4. If the market is bullish, move USDC into high-performing assets (ETH, SOL, BTC).
+5. Provide trade actions in USD values.
+6. Total USD of actions must be under the Allocation Limit.
+7. YOU MUST BE ACCURATE. Do not trade more than the user currently owns in a specific asset.
+8. YOUR GOAL IS PROFIT MAXIMIZATION.
 
 Output in JSON format.`,
 });

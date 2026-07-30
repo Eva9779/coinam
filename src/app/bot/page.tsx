@@ -27,7 +27,8 @@ import {
   Eye,
   Trophy,
   Trash2,
-  BrainCircuit
+  BrainCircuit,
+  Rocket
 } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -266,7 +267,7 @@ export default function TradingBotPage() {
                     <SelectContent className="rounded-xl">
                       <SelectItem value="low">Conservative (Delta Neutral)</SelectItem>
                       <SelectItem value="medium">Balanced (Standard AI)</SelectItem>
-                      <SelectItem value="high">Aggressive (High Volatility)</SelectItem>
+                      <SelectItem value="high">Aggressive Growth (Yield Focused)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -275,13 +276,16 @@ export default function TradingBotPage() {
               <div className="h-px bg-primary/10 w-full" />
 
               <div className="p-6 rounded-[1.5rem] bg-slate-900 text-white space-y-4 relative overflow-hidden">
-                <Zap className="absolute -right-6 -bottom-6 h-28 w-28 opacity-10 text-secondary" />
+                <Rocket className={cn("absolute -right-6 -bottom-6 h-28 w-28 opacity-10 text-secondary transition-all", localRisk === 'high' && "animate-bounce")} />
                 <h4 className="text-sm font-black flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-secondary" />
-                  Real-World Execution
+                  {localRisk === 'high' ? 'High-Performance Rail' : 'Real-World Execution'}
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  The AI Agent provides real-time strategy signals. Swaps and transfers are settled directly against the decentralized ledger.
+                  {localRisk === 'high' 
+                    ? "The AI Agent is optimized for high-conviction growth opportunities. Assets will be rebalanced more frequently based on market momentum." 
+                    : "The AI Agent provides real-time strategy signals. Swaps and transfers are settled directly against the decentralized ledger."
+                  }
                 </p>
               </div>
 
