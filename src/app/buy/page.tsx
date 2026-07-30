@@ -102,12 +102,35 @@ export default function BuyCryptoPage() {
 
   const currentAsset = assets.find(a => a.currency === selectedAsset);
   
-  // Refined Transak URL Construction for Institutional ACH
-  // Using production query params: apiKey, cryptoCurrencyCode, network, walletAddress, paymentMethod
-  const transakApiKey = "77d7045c-2051-4191-88f5-938928c0b852";
-  const transakUrl = currentAsset?.address 
-    ? `https://global.transak.com/?apiKey=${transakApiKey}&walletAddress=${currentAsset.address}&cryptoCurrencyCode=${selectedAsset}&network=ethereum&paymentMethod=ach_bank_transfer&defaultPaymentMethod=ach_bank_transfer`
-    : "#";
+  // Transak Institutional URL Construction
+  // Research indicates 'ethereum' network is required for 0x addresses.
+  // We map native symbols to their Ethereum counterparts (e.g. BTC -> WBTC) to avoid Transak parameter errors.
+  const getTransakUrl = () => {
+    if (!currentAsset?.address) return "#";
+    
+    const transakApiKey = "77d7045c-2051-4191-88f5-938928c0b852";
+    let cryptoCode = selectedAsset;
+    
+    // Map symbols to Ethereum-compatible versions for Transak
+    if (cryptoCode === 'BTC') cryptoCode = 'WBTC';
+    if (cryptoCode === 'SOL') cryptoCode = 'ETH'; // Or another high-liquidity asset if SOL isn't bridged
+
+    const params = new URLSearchParams({
+      apiKey: transakApiKey,
+      walletAddress: currentAsset.address,
+      cryptoCurrencyCode: cryptoCode,
+      network: 'ethereum',
+      fiatCurrency: 'USD',
+      defaultPaymentMethod: 'ach_bank_transfer',
+      paymentMethod: 'ach_bank_transfer',
+      isReadOnly: 'true',
+      themeColor: '3F51B5' // Matching primary theme color
+    });
+
+    return `https://global.transak.com/?${params.toString()}`;
+  };
+
+  const transakUrl = getTransakUrl();
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
@@ -332,3 +355,4 @@ export default function BuyCryptoPage() {
     </div>
   );
 }
+
