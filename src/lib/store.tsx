@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -58,12 +59,13 @@ interface VaultContextType {
   botActive: boolean;
   botAllocation: number;
   botRiskLevel: 'low' | 'medium' | 'high';
+  botStrategy: 'standard' | 'bitcoin_multiplier';
   botLogs: BotLog[];
   isAnalyzing: boolean;
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
   generateNewWallet: (currency: string, customId?: string) => Promise<string | null>;
   importPrivateKey: (currency: string, privateKey: `0x${string}`) => Promise<void>;
-  updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => void;
+  updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: 'standard' | 'bitcoin_multiplier') => void;
   clearBotLogs: () => void;
 }
 
@@ -76,6 +78,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [botActive, setBotActive] = useState(false);
   const [botAllocation, setBotAllocation] = useState(1000);
   const [botRiskLevel, setBotRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
+  const [botStrategy, setBotStrategy] = useState<'standard' | 'bitcoin_multiplier'>('standard');
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -83,7 +86,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [provisioning, setProvisioning] = useState(false);
   
   const assetsRef = useRef<WalletAsset[]>([]);
-  const botStateRef = useRef({ active: false, risk: 'medium', allocation: 1000 });
+  const botStateRef = useRef({ active: false, risk: 'medium', allocation: 1000, strategy: 'standard' });
   const autoProvisionAttempted = useRef(false);
 
   const { user } = useUserHook();
@@ -97,9 +100,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     botStateRef.current = { 
       active: botActive, 
       risk: botRiskLevel, 
-      allocation: botAllocation 
+      allocation: botAllocation,
+      strategy: botStrategy
     };
-  }, [botActive, botRiskLevel, botAllocation]);
+  }, [botActive, botRiskLevel, botAllocation, botStrategy]);
 
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
@@ -116,6 +120,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         setBotActive(!!data.botActive);
         setBotAllocation(data.botAllocation || 1000);
         setBotRiskLevel(data.botRiskLevel || 'medium');
+        setBotStrategy(data.botStrategy || 'standard');
       }
     });
 
@@ -200,12 +205,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   }, [db, user]);
 
   const runBotCycle = useCallback(async (forceActive: boolean = false) => {
-    const { active, risk, allocation } = botStateRef.current;
+    const { active, risk, allocation, strategy: strategyType } = botStateRef.current;
     if ((!active && !forceActive) || !user || !db || isAnalyzing) return;
     
     setIsAnalyzing(true);
-    const startMsg = risk === 'high' 
-      ? `INITIALIZING QUANTUM GROWTH SEQUENCE: SCANNING FOR MULTIBAGGER ALPHA...` 
+    const startMsg = strategyType === 'bitcoin_multiplier'
+      ? `INITIALIZING BITCOIN AGGREGATOR: FOCUSING ON 2x-4x BTC MULTIPLIER...` 
       : `Neural Network Analysis: Scanning Mainnet signals...`;
     
     addLog(startMsg, 'info');
@@ -227,8 +232,9 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         }));
       }
 
-      const strategy = await analyzeMarketAndTrade({
+      const strategyResult = await analyzeMarketAndTrade({
         userId: user.uid,
+        strategyType: strategyType as 'standard' | 'bitcoin_multiplier',
         assets: assetsRef.current.map(a => ({
           currency: a.currency,
           amount: a.amount,
@@ -239,23 +245,23 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         allocationLimitUSD: allocation
       });
 
-      if (strategy && strategy.actions.length > 0) {
-        addLog(`STRATEGY IDENTIFIED: ${strategy.strategy}`, 'success');
+      if (strategyResult && strategyResult.actions.length > 0) {
+        addLog(`STRATEGY IDENTIFIED: ${strategyResult.strategy}`, 'success');
         
-        for (const action of strategy.actions) {
+        for (const action of strategyResult.actions) {
           const fromAssetObj = assetsRef.current.find(a => a.currency === (action.fromAsset === 'USD' ? 'USDC' : action.fromAsset));
           const currentFromBalanceUSD = fromAssetObj ? fromAssetObj.fiatValueUSD : 0;
 
           if (currentFromBalanceUSD < action.amountUSD) {
             addLog(`SIGNAL ABORTED: Insufficient ${action.fromAsset} depth for $${action.amountUSD.toFixed(2)} execution.`, 'warning');
           } else {
-            const actionMsg = risk === 'high' 
-              ? `HIGH-CONVICTION SIGNAL: Recommended ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset} to capture growth.`
+            const actionMsg = strategyType === 'bitcoin_multiplier'
+              ? `BTC MULTIPLIER SIGNAL: Recommended ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} into ${action.toAsset} for aggregation.`
               : `Bot Recommendation: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}.`;
             
             addLog(actionMsg, 'info');
-            if (risk === 'high') {
-              addLog(`ANALYSIS: Identifying 2x-4x profit potential in high-momentum ${action.toAsset} rail.`, 'success');
+            if (strategyType === 'bitcoin_multiplier') {
+              addLog(`ANALYSIS: Identifying 2x-4x BTC profit potential in current momentum rail.`, 'success');
             }
             addLog(`Awaiting vault signature for Mainnet execution.`, 'info');
           }
@@ -286,7 +292,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [initialized, user, runBotCycle]);
 
-  const updateBotSettings = useCallback((active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => {
+  const updateBotSettings = useCallback((active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: 'standard' | 'bitcoin_multiplier') => {
     if (!db || !user) return;
     const userRef = doc(db, 'users', user.uid);
     
@@ -294,12 +300,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       botActive: active,
       botAllocation: allocation,
       botRiskLevel: risk,
+      botStrategy: strategy,
       updatedAt: new Date().toISOString()
     }).catch(() => {});
     
     if (active) {
-      const activateMsg = risk === 'high' 
-        ? `QUANTUM GROWTH MODE ENGAGED. AGGRESSIVE PROFIT SCANNING INITIATED.` 
+      const activateMsg = strategy === 'bitcoin_multiplier' 
+        ? `BITCOIN AGGREGATOR MODE ENGAGED. SCANNING FOR 2x-4x PROFIT OPPORTUNITIES.` 
         : `AI Neural Link Established. Agent is now monitoring markets.`;
       addLog(activateMsg, 'success');
       setTimeout(() => runBotCycle(true), 100);
@@ -370,7 +377,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   return (
     <VaultContext.Provider value={{ 
       assets, transactions, initialized, isSyncing, isProvisioning: provisioning, user,
-      totalBotEarnings, botActive, botAllocation, botRiskLevel, botLogs, isAnalyzing,
+      totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs, isAnalyzing,
       addTransaction, generateNewWallet, importPrivateKey, updateBotSettings, clearBotLogs
     }}>
       {children}

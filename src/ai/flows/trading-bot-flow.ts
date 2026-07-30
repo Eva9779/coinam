@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for the Coin A,M AI Trading Bot.
@@ -18,6 +19,7 @@ const MarketEntrySchema = z.object({
 
 const TradingBotInputSchema = z.object({
   userId: z.string(),
+  strategyType: z.enum(['standard', 'bitcoin_multiplier']).default('standard').describe('The type of AI bot strategy to employ.'),
   assets: z.array(z.object({
     currency: z.string(),
     amount: z.number(),
@@ -76,7 +78,11 @@ const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `You are an institutional crypto rebalancing bot for Coin A,M. Your primary goal is aggressive capital appreciation. You must identify opportunities to double, triple, or quadruple portfolio value by leveraging high-momentum assets.
+  prompt: `You are an institutional crypto rebalancing bot for Coin A,M. Your goal is aggressive capital appreciation. 
+
+Strategy Type: {{{strategyType}}}
+Risk Profile: {{{riskTolerance}}}
+Allocation Limit: $ {{{allocationLimitUSD}}}
 
 Market Data (Live):
 {{#each marketData}}
@@ -88,21 +94,24 @@ User Assets (Live):
 - {{{currency}}}: Amount {{{amount}}}, Value $ {{{fiatValue}}}
 {{/each}}
 
-Risk: {{{riskTolerance}}}
-Limit: $ {{{allocationLimitUSD}}}
+Instructions for Strategy Type 'standard':
+1. Rebalance the portfolio to maintain a healthy risk/reward ratio.
+2. If Risk is 'high', focus on high-momentum assets (gains above 5% in 24h).
+3. Identify rebalancing opportunities to capture alpha.
 
-Instructions:
-1. If Risk is 'high', you are in AGGRESSIVE GROWTH mode. Focus exclusively on assets with extreme upward momentum (gains above 5% in 24h). 
-2. Identify "Multibagger" potential: Look for assets that are outperforming the market and suggest rebalancing into them immediately to capture exponential returns.
-3. If Risk is 'high', do not hold excess stablecoins (USDC) during a bull trend. Force allocations into high-alpha growth assets (ETH, SOL, BTC).
-4. For 'low' or 'medium' risk, focus on capital preservation and steady yield.
-5. If the market is bearish (negative changes across board), and risk is 'high', look for "Buy the Dip" opportunities where price has dropped but recovery is predicted. Otherwise, move to USDC.
-6. Provide trade actions in USD values.
-7. Total USD of actions must be under the Allocation Limit.
-8. YOU MUST BE ACCURATE. Do not trade more than the user currently owns in a specific asset.
-9. YOUR GOAL IS PROFIT MAXIMIZATION AND EXPONENTIAL GROWTH.
+Instructions for Strategy Type 'bitcoin_multiplier':
+1. YOUR SOLE FOCUS IS BITCOIN (BTC) ACCUMULATION AND PROFIT MAXIMIZATION.
+2. You must identify opportunities to DOUBLE, TRIPLE, or QUADRUPLE the value of the portfolio by leveraging Bitcoin market momentum.
+3. If BTC is bullish, prioritize rebalancing other assets INTO Bitcoin to capture explosive growth.
+4. If BTC is bearish, move to USDC and look for the exact bottom to "Buy the Dip" for a 2x-4x recovery play.
+5. In 'high' risk mode, do not hold excess stablecoins; force allocations into BTC during upward trends.
+6. YOUR TARGET IS EXPONENTIAL GROWTH (2x-4x) THROUGH BITCOIN FOCUS.
 
-Output in JSON format.`,
+General Constraints:
+- Provide trade actions in USD values.
+- Total USD of actions must be under the Allocation Limit.
+- Do not trade more than the user currently owns in a specific asset.
+- Output in JSON format.`,
 });
 
 const tradingBotFlow = ai.defineFlow(

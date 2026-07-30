@@ -13,7 +13,8 @@
         "totalBotEarnings": { "type": "number" },
         "botActive": { "type": "boolean" },
         "botAllocation": { "type": "number" },
-        "botRiskLevel": { "type": "string", "enum": ["low", "medium", "high"] }
+        "botRiskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
+        "botStrategy": { "type": "string", "enum": ["standard", "bitcoin_multiplier"] }
       },
       "required": ["uid", "email"]
     },

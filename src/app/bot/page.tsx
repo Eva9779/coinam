@@ -28,7 +28,8 @@ import {
   Trophy,
   Trash2,
   BrainCircuit,
-  Rocket
+  Rocket,
+  Coins
 } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -91,6 +92,7 @@ export default function TradingBotPage() {
     botActive, 
     botAllocation, 
     botRiskLevel, 
+    botStrategy,
     botLogs, 
     isAnalyzing,
     updateBotSettings,
@@ -99,6 +101,7 @@ export default function TradingBotPage() {
 
   const [localAllocation, setLocalAllocation] = useState(botAllocation.toString());
   const [localRisk, setLocalRisk] = useState<'low' | 'medium' | 'high'>(botRiskLevel);
+  const [localStrategy, setLocalStrategy] = useState<'standard' | 'bitcoin_multiplier'>(botStrategy);
   const [chartSymbol, setChartSymbol] = useState("BTC");
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
@@ -109,7 +112,8 @@ export default function TradingBotPage() {
   useEffect(() => {
     setLocalAllocation(botAllocation.toString());
     setLocalRisk(botRiskLevel);
-  }, [botAllocation, botRiskLevel]);
+    setLocalStrategy(botStrategy);
+  }, [botAllocation, botRiskLevel, botStrategy]);
 
   const handleToggleBot = () => {
     const allocationNum = parseFloat(localAllocation);
@@ -121,7 +125,7 @@ export default function TradingBotPage() {
       });
       return;
     }
-    updateBotSettings(!botActive, allocationNum, localRisk);
+    updateBotSettings(!botActive, allocationNum, localRisk, localStrategy);
   };
 
   return (
@@ -134,7 +138,7 @@ export default function TradingBotPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            AI Strategy Analysis Active. Monitoring Mainnet rebalancing opportunities.
+            {localStrategy === 'bitcoin_multiplier' ? 'Bitcoin Aggregator Active. Focusing on 2x-4x BTC Multipliers.' : 'AI Strategy Analysis Active. Monitoring Mainnet rebalancing opportunities.'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -244,6 +248,19 @@ export default function TradingBotPage() {
             <CardContent className="pt-6 space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">AI Agent Core</Label>
+                  <Select value={localStrategy} onValueChange={(v: any) => setLocalStrategy(v)} disabled={botActive}>
+                    <SelectTrigger className="h-12 rounded-xl font-bold">
+                      <SelectValue placeholder="Select Bot Strategy" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="standard">Mainnet Alpha (Standard)</SelectItem>
+                      <SelectItem value="bitcoin_multiplier">Bitcoin Multiplier (2x-4x BTC)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-widest opacity-70">Capital Allocation Cap (USD)</Label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -276,22 +293,29 @@ export default function TradingBotPage() {
               <div className="h-px bg-primary/10 w-full" />
 
               <div className="p-6 rounded-[1.5rem] bg-slate-900 text-white space-y-4 relative overflow-hidden">
-                <Rocket className={cn("absolute -right-6 -bottom-6 h-28 w-28 opacity-10 text-secondary transition-all", localRisk === 'high' && "animate-bounce")} />
+                {localStrategy === 'bitcoin_multiplier' ? (
+                  <Coins className={cn("absolute -right-6 -bottom-6 h-28 w-28 opacity-10 text-secondary transition-all", botActive && "animate-pulse")} />
+                ) : (
+                  <Rocket className={cn("absolute -right-6 -bottom-6 h-28 w-28 opacity-10 text-secondary transition-all", localRisk === 'high' && "animate-bounce")} />
+                )}
+                
                 <h4 className="text-sm font-black flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-secondary" />
-                  {localRisk === 'high' ? 'High-Performance Rail' : 'Real-World Execution'}
+                  {localStrategy === 'bitcoin_multiplier' ? 'Bitcoin Aggregator Rail' : (localRisk === 'high' ? 'High-Performance Rail' : 'Real-World Execution')}
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  {localRisk === 'high' 
-                    ? "The AI Agent is optimized for high-conviction growth opportunities. Assets will be rebalanced more frequently based on market momentum." 
-                    : "The AI Agent provides real-time strategy signals. Swaps and transfers are settled directly against the decentralized ledger."
+                  {localStrategy === 'bitcoin_multiplier' 
+                    ? "The Bitcoin Multiplier agent is optimized for aggressive BTC accumulation. It ignores secondary market signals to focus purely on 2x-4x Bitcoin growth." 
+                    : (localRisk === 'high' 
+                      ? "The AI Agent is optimized for high-conviction growth opportunities. Assets will be rebalanced more frequently based on market momentum." 
+                      : "The AI Agent provides real-time strategy signals. Swaps and transfers are settled directly against the decentralized ledger.")
                   }
                 </p>
               </div>
 
               {botActive && (
                 <p className="text-center text-[10px] font-black text-green-600 uppercase animate-pulse">
-                  Signal Agent is currently monitoring markets.
+                  {localStrategy === 'bitcoin_multiplier' ? 'BTC Multiplier active' : 'Signal Agent active'}
                 </p>
               )}
             </CardContent>
