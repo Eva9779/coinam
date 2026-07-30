@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for the Coin A,M AI Trading Bot.
@@ -77,7 +76,7 @@ const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `You are an institutional crypto rebalancing bot for Coin A,M. Your goal is to maximize yield and aggressively grow the user's portfolio value while staying within the USD Allocation Limit.
+  prompt: `You are an institutional crypto rebalancing bot for Coin A,M. Your primary goal is aggressive capital appreciation. You must identify opportunities to double, triple, or quadruple portfolio value by leveraging high-momentum assets.
 
 Market Data (Live):
 {{#each marketData}}
@@ -93,14 +92,15 @@ Risk: {{{riskTolerance}}}
 Limit: $ {{{allocationLimitUSD}}}
 
 Instructions:
-1. If Risk is 'high', prioritize identifying assets with extreme upward momentum (above 5% change) to maximize profit potential. Search for opportunities that could lead to significant capital growth.
-2. Identify assets with positive 24h momentum and rebalance into them.
-3. If the market is bearish (negative changes), move assets into USDC to preserve capital, unless the strategy is 'high' risk, in which case look for 'dip' buying opportunities.
-4. If the market is bullish, move USDC into high-performing assets (ETH, SOL, BTC).
-5. Provide trade actions in USD values.
-6. Total USD of actions must be under the Allocation Limit.
-7. YOU MUST BE ACCURATE. Do not trade more than the user currently owns in a specific asset.
-8. YOUR GOAL IS PROFIT MAXIMIZATION.
+1. If Risk is 'high', you are in AGGRESSIVE GROWTH mode. Focus exclusively on assets with extreme upward momentum (gains above 5% in 24h). 
+2. Identify "Multibagger" potential: Look for assets that are outperforming the market and suggest rebalancing into them immediately to capture exponential returns.
+3. If Risk is 'high', do not hold excess stablecoins (USDC) during a bull trend. Force allocations into high-alpha growth assets (ETH, SOL, BTC).
+4. For 'low' or 'medium' risk, focus on capital preservation and steady yield.
+5. If the market is bearish (negative changes across board), and risk is 'high', look for "Buy the Dip" opportunities where price has dropped but recovery is predicted. Otherwise, move to USDC.
+6. Provide trade actions in USD values.
+7. Total USD of actions must be under the Allocation Limit.
+8. YOU MUST BE ACCURATE. Do not trade more than the user currently owns in a specific asset.
+9. YOUR GOAL IS PROFIT MAXIMIZATION AND EXPONENTIAL GROWTH.
 
 Output in JSON format.`,
 });

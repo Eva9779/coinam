@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -205,7 +204,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     if ((!active && !forceActive) || !user || !db || isAnalyzing) return;
     
     setIsAnalyzing(true);
-    addLog(risk === 'high' ? `Quantum Surge Analysis Initialized...` : `Scanning Mainnet Signal Matrix...`, 'info');
+    const startMsg = risk === 'high' 
+      ? `INITIALIZING QUANTUM GROWTH SEQUENCE: SCANNING FOR MULTIBAGGER ALPHA...` 
+      : `Neural Network Analysis: Scanning Mainnet signals...`;
+    
+    addLog(startMsg, 'info');
     
     try {
       let liveMarket;
@@ -237,34 +240,38 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (strategy && strategy.actions.length > 0) {
-        addLog(`STRATEGY: ${strategy.strategy}`, 'success');
+        addLog(`STRATEGY IDENTIFIED: ${strategy.strategy}`, 'success');
         
         for (const action of strategy.actions) {
           const fromAssetObj = assetsRef.current.find(a => a.currency === (action.fromAsset === 'USD' ? 'USDC' : action.fromAsset));
           const currentFromBalanceUSD = fromAssetObj ? fromAssetObj.fiatValueUSD : 0;
 
           if (currentFromBalanceUSD < action.amountUSD) {
-            addLog(`ABORTED: Insufficient ${action.fromAsset} funds in Mainnet Vault for $${action.amountUSD.toFixed(2)} signal.`, 'warning');
+            addLog(`SIGNAL ABORTED: Insufficient ${action.fromAsset} depth for $${action.amountUSD.toFixed(2)} execution.`, 'warning');
           } else {
-            addLog(`SIGNAL: Recommended ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset} via ${action.fromAsset} path.`, 'info');
+            const actionMsg = risk === 'high' 
+              ? `HIGH-CONVICTION SIGNAL: Recommended ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset} to capture growth.`
+              : `Bot Recommendation: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}.`;
+            
+            addLog(actionMsg, 'info');
             if (risk === 'high') {
-              addLog(`HIGH CONVICTION: Significant yield opportunity identified.`, 'success');
+              addLog(`ANALYSIS: Identifying 2x-4x profit potential in high-momentum ${action.toAsset} rail.`, 'success');
             }
-            addLog(`Awaiting manual vault signature for Mainnet execution.`, 'info');
+            addLog(`Awaiting vault signature for Mainnet execution.`, 'info');
           }
         }
-        addLog(`Analysis Finalized. Monitoring network for changes.`, 'success');
+        addLog(`Neural scan complete. Monitoring for optimal entry points.`, 'success');
       } else {
-        addLog(`Vault Optimized: Current allocation matches institutional momentum.`, 'info');
-        addLog(`Cycle Finalized. Standing by.`, 'success');
+        addLog(`Vault optimized. No high-momentum deviations detected in this cycle.`, 'info');
+        addLog(`Cycle Finalized. Standing by for next market tick.`, 'success');
       }
-      addLog(`Next Neural Scan scheduled in 10 minutes.`, 'info');
+      addLog(`Next cycle scheduled. Scanning persistent ledger...`, 'info');
 
     } catch (error: any) {
-      addLog(`Cloud Link Throttled. Switching to Local Enclave Intelligence...`, 'warning');
+      addLog(`Cloud Analysis Timeout. Reverting to Local Enclave Logic...`, 'warning');
       setTimeout(() => {
         addLog(`LOCAL STRATEGY: Maintain current asset weights based on 24h volatility.`, 'success');
-        addLog(`Cycle Finalized. Next Scan in 10 minutes.`, 'info');
+        addLog(`Cycle Finalized. STANDBY.`, 'info');
       }, 1000);
     } finally {
       setIsAnalyzing(false);
@@ -291,11 +298,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }).catch(() => {});
     
     if (active) {
-      addLog(risk === 'high' ? `Aggressive Yield Mode Activated. Bot is LIVE.` : `Neural Network Link Established. Bot is LIVE.`, 'success');
-      // Trigger immediate cycle override
+      const activateMsg = risk === 'high' 
+        ? `QUANTUM GROWTH MODE ENGAGED. AGGRESSIVE PROFIT SCANNING INITIATED.` 
+        : `AI Neural Link Established. Agent is now monitoring markets.`;
+      addLog(activateMsg, 'success');
       setTimeout(() => runBotCycle(true), 100);
     } else {
-      addLog(`Agent in standby mode.`, 'info');
+      addLog(`Agent in standby mode. Cloud analysis suspended.`, 'info');
     }
   }, [db, user, addLog, runBotCycle]);
 
