@@ -69,7 +69,7 @@ const BotTradingChart = memo(({ symbol }: { symbol: string }) => {
   }, [symbol]);
 
   return (
-    <div className="w-full h-full min-h-[400px] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl bg-[#020617]">
+    <div className="w-full h-[500px] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl bg-[#020617]">
       <div 
         id="tradingview_bot_chart"
         ref={containerRef} 
