@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo } from 'react';
@@ -61,7 +60,7 @@ const BotTradingChart = memo(({ symbol }: { symbol: string }) => {
       save_image: false,
       backgroundColor: "rgba(2, 6, 23, 1)",
       gridColor: "rgba(30, 41, 59, 0.5)",
-      container_id: "tradingview_bot_chart",
+      container_id: "bot_chart_inner",
     };
 
     script.innerHTML = JSON.stringify(config);
@@ -71,13 +70,11 @@ const BotTradingChart = memo(({ symbol }: { symbol: string }) => {
   return (
     <div className="w-full h-[500px] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl bg-[#020617]">
       <div 
-        id="tradingview_bot_chart"
+        id="bot_chart_inner"
         ref={containerRef} 
         className="tradingview-widget-container" 
-        style={{ height: "100%", width: "100%" }}
-      >
-        <div className="tradingview-widget-container__widget" style={{ height: "100%", width: "100%" }}></div>
-      </div>
+        style={{ height: "500px", width: "100%" }}
+      />
     </div>
   );
 });
@@ -138,7 +135,7 @@ export default function TradingBotPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            {localStrategy === 'bitcoin_multiplier' ? 'Bitcoin Aggregator Active. Focusing on 2x-4x BTC Multipliers.' : 'AI Strategy Analysis Active. Monitoring Mainnet rebalancing opportunities.'}
+            {localStrategy === 'bitcoin_multiplier' ? 'Bitcoin Aggregator Active. Focusing on BTC Multipliers.' : 'AI Strategy Analysis Active. Monitoring Mainnet rebalancing opportunities.'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -255,7 +252,7 @@ export default function TradingBotPage() {
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
                       <SelectItem value="standard">Mainnet Alpha (Standard)</SelectItem>
-                      <SelectItem value="bitcoin_multiplier">Bitcoin Multiplier (2x-4x BTC)</SelectItem>
+                      <SelectItem value="bitcoin_multiplier">Bitcoin Multiplier</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -305,7 +302,7 @@ export default function TradingBotPage() {
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
                   {localStrategy === 'bitcoin_multiplier' 
-                    ? "The Bitcoin Multiplier agent is optimized for aggressive BTC accumulation. It ignores secondary market signals to focus purely on 2x-4x Bitcoin growth." 
+                    ? "The Bitcoin Multiplier agent is optimized for BTC accumulation. It ignores secondary market signals to focus purely on growth." 
                     : (localRisk === 'high' 
                       ? "The AI Agent is optimized for high-conviction growth opportunities. Assets will be rebalanced more frequently based on market momentum." 
                       : "The AI Agent provides real-time strategy signals. Swaps and transfers are settled directly against the decentralized ledger.")

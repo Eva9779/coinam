@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -208,9 +207,17 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const { active, risk, allocation, strategy: strategyType } = botStateRef.current;
     if ((!active && !forceActive) || !user || !db || isAnalyzing) return;
     
+    const currentAssets = assetsRef.current;
+    const totalBalanceUSD = currentAssets.reduce((acc, a) => acc + a.fiatValueUSD, 0);
+
+    if (totalBalanceUSD <= 0) {
+      addLog(`SIGNAL HALTED: No active capital detected in vault. Please deposit USDC or ETH to enable autonomous rebalancing.`, 'warning');
+      return;
+    }
+
     setIsAnalyzing(true);
     const startMsg = strategyType === 'bitcoin_multiplier'
-      ? `INITIALIZING BITCOIN AGGREGATOR: FOCUSING ON 2x-4x BTC MULTIPLIER...` 
+      ? `INITIALIZING BITCOIN AGGREGATOR: SCANNING FOR ALPHA MULTIPLIERS...` 
       : `Neural Network Analysis: Scanning Mainnet signals...`;
     
     addLog(startMsg, 'info');
@@ -235,7 +242,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       const strategyResult = await analyzeMarketAndTrade({
         userId: user.uid,
         strategyType: strategyType as 'standard' | 'bitcoin_multiplier',
-        assets: assetsRef.current.map(a => ({
+        assets: currentAssets.map(a => ({
           currency: a.currency,
           amount: a.amount,
           fiatValue: a.fiatValueUSD
@@ -249,36 +256,27 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         addLog(`STRATEGY IDENTIFIED: ${strategyResult.strategy}`, 'success');
         
         for (const action of strategyResult.actions) {
-          const fromAssetObj = assetsRef.current.find(a => a.currency === (action.fromAsset === 'USD' ? 'USDC' : action.fromAsset));
+          const fromAssetObj = currentAssets.find(a => a.currency === (action.fromAsset === 'USD' ? 'USDC' : action.fromAsset));
           const currentFromBalanceUSD = fromAssetObj ? fromAssetObj.fiatValueUSD : 0;
 
           if (currentFromBalanceUSD < action.amountUSD) {
             addLog(`SIGNAL ABORTED: Insufficient ${action.fromAsset} depth for $${action.amountUSD.toFixed(2)} execution.`, 'warning');
           } else {
             const actionMsg = strategyType === 'bitcoin_multiplier'
-              ? `BTC MULTIPLIER SIGNAL: Recommended ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} into ${action.toAsset} for aggregation.`
+              ? `SIGNAL BROADCAST: Execute ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} for Aggregation.`
               : `Bot Recommendation: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}.`;
             
             addLog(actionMsg, 'info');
-            if (strategyType === 'bitcoin_multiplier') {
-              addLog(`ANALYSIS: Identifying 2x-4x BTC profit potential in current momentum rail.`, 'success');
-            }
             addLog(`Awaiting vault signature for Mainnet execution.`, 'info');
           }
         }
         addLog(`Neural scan complete. Monitoring for optimal entry points.`, 'success');
       } else {
         addLog(`Vault optimized. No high-momentum deviations detected in this cycle.`, 'info');
-        addLog(`Cycle Finalized. Standing by for next market tick.`, 'success');
       }
-      addLog(`Next cycle scheduled. Scanning persistent ledger...`, 'info');
 
     } catch (error: any) {
-      addLog(`Cloud Analysis Timeout. Reverting to Local Enclave Logic...`, 'warning');
-      setTimeout(() => {
-        addLog(`LOCAL STRATEGY: Maintain current asset weights based on 24h volatility.`, 'success');
-        addLog(`Cycle Finalized. STANDBY.`, 'info');
-      }, 1000);
+      addLog(`AI Logic Interrupted: ${error.message || 'An unexpected response was received from the server.'}`, 'warning');
     } finally {
       setIsAnalyzing(false);
     }
@@ -306,7 +304,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     
     if (active) {
       const activateMsg = strategy === 'bitcoin_multiplier' 
-        ? `BITCOIN AGGREGATOR MODE ENGAGED. SCANNING FOR 2x-4x PROFIT OPPORTUNITIES.` 
+        ? `BITCOIN AGGREGATOR MODE ENGAGED. SCANNING FOR ALPHA.` 
         : `AI Neural Link Established. Agent is now monitoring markets.`;
       addLog(activateMsg, 'success');
       setTimeout(() => runBotCycle(true), 100);

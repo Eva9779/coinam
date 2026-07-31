@@ -1,7 +1,6 @@
-
 'use server';
 /**
- * @fileOverview This file defines a Genkit flow for the Coin A,M AI Trading Bot.
+ * @fileOverview This file defines a Genkit flow for the Google Antigravity AI Strategy Agent.
  *
  * - analyzeMarketAndTrade - A function that handles market analysis and suggests trade actions.
  * - TradingBotInput - The input type for the analysis.
@@ -48,21 +47,12 @@ export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
 /**
  * Utility function to handle rate limiting with exponential backoff.
- * Uses 30s initial delay to respect Gemini free tier restrictions.
  */
-async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 2000): Promise<T> {
   try {
     return await fn();
   } catch (error: any) {
-    const errorStr = error.toString();
-    const isRateLimit = 
-      errorStr.includes('429') || 
-      errorStr.includes('RESOURCE_EXHAUSTED') || 
-      error.status === 429 || 
-      error.message?.includes('quota');
-      
-    if (retries > 0 && isRateLimit) {
-      console.warn(`AI Rate Limit hit (Trading Bot). Retrying in ${delay / 1000}s...`);
+    if (retries > 0 && (error.status === 429 || error.message?.includes('quota'))) {
       await new Promise(resolve => setTimeout(resolve, delay));
       return withRetry(fn, retries - 1, delay * 2);
     }
@@ -78,7 +68,7 @@ const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `You are an institutional crypto rebalancing bot for Coin A,M. Your goal is aggressive capital appreciation. 
+  prompt: `You are an institutional crypto strategy agent for Google Antigravity. Your goal is aggressive capital appreciation. 
 
 Strategy Type: {{{strategyType}}}
 Risk Profile: {{{riskTolerance}}}
@@ -90,28 +80,23 @@ Market Data (Live):
 {{/each}}
 
 User Assets (Live):
+{{#if assets}}
 {{#each assets}}
 - {{{currency}}}: Amount {{{amount}}}, Value $ {{{fiatValue}}}
 {{/each}}
+{{else}}
+CRITICAL: NO ASSETS DETECTED. If there are no assets, inform the user that funds are required for rebalancing.
+{{/if}}
 
-Instructions for Strategy Type 'standard':
+Instructions:
 1. Rebalance the portfolio to maintain a healthy risk/reward ratio.
-2. If Risk is 'high', focus on high-momentum assets (gains above 5% in 24h).
+2. If Risk is 'high', focus on high-momentum assets (gains above 3% in 24h).
 3. Identify rebalancing opportunities to capture alpha.
+4. If the Strategy Type is 'bitcoin_multiplier', prioritize rebalancing other assets INTO Bitcoin during bullish trends.
 
-Instructions for Strategy Type 'bitcoin_multiplier':
-1. YOUR SOLE FOCUS IS BITCOIN (BTC) ACCUMULATION AND PROFIT MAXIMIZATION.
-2. You must identify opportunities to DOUBLE, TRIPLE, or QUADRUPLE the value of the portfolio by leveraging Bitcoin market momentum.
-3. If BTC is bullish, prioritize rebalancing other assets INTO Bitcoin to capture explosive growth.
-4. If BTC is bearish, move to USDC and look for the exact bottom to "Buy the Dip" for a 2x-4x recovery play.
-5. In 'high' risk mode, do not hold excess stablecoins; force allocations into BTC during upward trends.
-6. YOUR TARGET IS EXPONENTIAL GROWTH (2x-4x) THROUGH BITCOIN FOCUS.
-
-General Constraints:
-- Provide trade actions in USD values.
-- Total USD of actions must be under the Allocation Limit.
-- Do not trade more than the user currently owns in a specific asset.
-- Output in JSON format.`,
+CRITICAL: If the user has funds, you MUST identify at least one rebalancing action if the market sentiment justifies it. Do not just hold if there is significant momentum identified.
+Total USD of actions must be under the Allocation Limit.
+Output in JSON format.`,
 });
 
 const tradingBotFlow = ai.defineFlow(
