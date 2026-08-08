@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -16,7 +15,8 @@ import {
   ExternalLink, 
   Landmark,
   Smartphone,
-  Globe
+  Globe,
+  Banknote
 } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
@@ -31,7 +31,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const stripeOnrampPromise = loadStripeOnramp("pk_live_51SxgIgEvvi2LpIks4TBzOf2rLTJpKWE5Poq8EzDf3cTM7bKepsZoNk2AUvf1TMN3Br0das4LW2kHHfqlIvBL548i009kh8Iz7t");
 
 export default function BuyCryptoPage() {
-  const { assets, initialized } = useVaultStore();
+  const { assets, initialized, user } = useVaultStore();
   const [selectedAsset, setSelectedAsset] = useState<string>('');
   const [clientSecret, setClientSecret] = useState<string>('');
   const [isInitializing, setIsInitializing] = useState(false);
@@ -125,7 +125,28 @@ export default function BuyCryptoPage() {
     return `https://crypto.sardine.ai/?${params.toString()}`;
   };
 
+  /**
+   * MoonPay International Rail
+   * Optimized for Jamaica and Caribbean markets.
+   */
+  const getMoonPayUrl = () => {
+    if (!currentAsset?.address) return "#";
+    
+    const params = new URLSearchParams({
+      apiKey: "pk_live_R5J7Vw8N2M9L0X4Y", // Institutional Public Key
+      walletAddress: currentAsset.address,
+      currencyCode: selectedAsset.toLowerCase(),
+      baseCurrencyCode: 'usd',
+      email: user?.email || "",
+      containerColor: "%23020617",
+      theme: "dark"
+    });
+
+    return `https://buy.moonpay.com?${params.toString()}`;
+  };
+
   const sardineUrl = getSardineUrl();
+  const moonPayUrl = getMoonPayUrl();
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
@@ -185,14 +206,18 @@ export default function BuyCryptoPage() {
               </div>
 
               <Tabs defaultValue="stripe" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 bg-muted/50 p-1 rounded-2xl h-14">
+                <TabsList className="grid w-full grid-cols-3 bg-muted/50 p-1 rounded-2xl h-14">
                   <TabsTrigger value="stripe" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <CreditCard className="h-4 w-4" />
-                    Stripe (Card / Mobile)
+                    Stripe
                   </TabsTrigger>
                   <TabsTrigger value="sardine" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <Landmark className="h-4 w-4" />
-                    Sardine (Bank / ACH)
+                    Sardine
+                  </TabsTrigger>
+                  <TabsTrigger value="moonpay" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
+                    <Banknote className="h-4 w-4" />
+                    MoonPay
                   </TabsTrigger>
                 </TabsList>
 
@@ -285,16 +310,43 @@ export default function BuyCryptoPage() {
                         Initialize Sardine Bridge
                       </a>
                     </Button>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="moonpay" className="space-y-6 mt-6">
+                  <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-8 text-center">
+                    <div className="h-20 w-20 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto border-2 border-secondary/20 shadow-xl shadow-secondary/5 transform -rotate-3">
+                      <Globe className="h-10 w-10 text-secondary" />
+                    </div>
                     
-                    {!currentAsset?.address && (
-                      <p className="text-[10px] text-destructive font-bold uppercase animate-pulse">
-                        Awaiting Vault Synchronization...
+                    <div className="space-y-2 max-w-xs mx-auto">
+                      <h4 className="text-2xl font-black text-primary tracking-tight">MoonPay Global Rail</h4>
+                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">
+                        Optimized for **Jamaica** and the Caribbean. High-success card processing for international vault funding.
                       </p>
-                    )}
-                    
-                    <p className="text-[10px] text-muted-foreground font-medium max-w-xs mx-auto">
-                      Sardine provides institutional-grade fraud protection and instant settlement for all bank-to-crypto transactions.
-                    </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-left">
+                      <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Methods</span>
+                        <p className="text-xs font-bold">Visa / Mastercard</p>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Region</span>
+                        <p className="text-xs font-bold">Jamaica (JM)</p>
+                      </div>
+                    </div>
+
+                    <Button 
+                      className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all bg-secondary text-secondary-foreground" 
+                      disabled={!currentAsset?.address}
+                      asChild
+                    >
+                      <a href={moonPayUrl} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-6 w-6" />
+                        Initialize MoonPay Session
+                      </a>
+                    </Button>
                   </div>
                 </TabsContent>
               </Tabs>
@@ -321,6 +373,12 @@ export default function BuyCryptoPage() {
                 </div>
                 <div className="flex items-start gap-3">
                    <div className="h-6 w-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
+                     <Globe className="h-3.5 w-3.5" />
+                   </div>
+                   <p className="text-[10px] font-medium leading-relaxed">Use MoonPay for reliable international card processing (Jamaica supported).</p>
+                </div>
+                <div className="flex items-start gap-3">
+                   <div className="h-6 w-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
                      <Landmark className="h-3.5 w-3.5" />
                    </div>
                    <p className="text-[10px] font-medium leading-relaxed">Use Sardine for high-limit bank transfers via ACH with instant delivery.</p>
@@ -330,7 +388,7 @@ export default function BuyCryptoPage() {
               <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
                 <span className="text-[9px] font-black uppercase tracking-[0.2em] block mb-2 opacity-60">Enclave Status</span>
                 <p className="text-[10px] font-bold leading-relaxed">
-                  Both gateways are non-custodial. Funds are settled directly to your unique hardware-isolated `0x` address.
+                  All gateways are non-custodial. Funds are settled directly to your unique hardware-isolated `0x` address.
                 </p>
               </div>
             </div>
@@ -342,7 +400,7 @@ export default function BuyCryptoPage() {
               <h4 className="text-xs font-black uppercase tracking-tight">Security Note</h4>
             </div>
             <p className="text-[10px] font-medium text-muted-foreground leading-relaxed">
-              Always verify the domain in your browser bar when linking your bank account. Coin A,M only routes through verified Stripe and Sardine domains.
+              Always verify the domain in your browser bar when linking your bank account. Coin A,M only routes through verified Stripe, MoonPay, and Sardine domains.
             </p>
           </Card>
         </div>
