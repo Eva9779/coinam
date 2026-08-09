@@ -131,11 +131,11 @@ export default function TradingBotPage() {
         <div>
           <h2 className="text-3xl font-bold text-primary flex items-center gap-3 tracking-tighter">
             <Bot className="h-8 w-8 text-secondary" />
-            Quantum Signal Agent
+            Strategy Agent
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            {localStrategy === 'bitcoin_multiplier' ? 'Bitcoin Aggregator Active. Focusing on BTC Multipliers.' : 'AI Strategy Analysis Active. Monitoring Mainnet rebalancing opportunities.'}
+            {localStrategy === 'bitcoin_multiplier' ? 'Bitcoin Multiplier Active. Monitoring growth trends.' : 'AI Analysis Active. Monitoring mainnet rebalancing opportunities.'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -251,7 +251,7 @@ export default function TradingBotPage() {
                       <SelectValue placeholder="Select Bot Strategy" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
-                      <SelectItem value="standard">Mainnet Alpha (Standard)</SelectItem>
+                      <SelectItem value="standard">Mainnet Rebalancing (Standard)</SelectItem>
                       <SelectItem value="bitcoin_multiplier">Bitcoin Multiplier</SelectItem>
                     </SelectContent>
                   </Select>
@@ -279,9 +279,9 @@ export default function TradingBotPage() {
                       <SelectValue placeholder="Select Strategy" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
-                      <SelectItem value="low">Conservative (Delta Neutral)</SelectItem>
-                      <SelectItem value="medium">Balanced (Standard AI)</SelectItem>
-                      <SelectItem value="high">Aggressive Growth (Yield Focused)</SelectItem>
+                      <SelectItem value="low">Conservative (Balanced)</SelectItem>
+                      <SelectItem value="medium">Standard (Growth)</SelectItem>
+                      <SelectItem value="high">Aggressive (Institutional)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -298,21 +298,19 @@ export default function TradingBotPage() {
                 
                 <h4 className="text-sm font-black flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-secondary" />
-                  {localStrategy === 'bitcoin_multiplier' ? 'Bitcoin Aggregator Rail' : (localRisk === 'high' ? 'High-Performance Rail' : 'Real-World Execution')}
+                  Execution Protection
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
                   {localStrategy === 'bitcoin_multiplier' 
-                    ? "The Bitcoin Multiplier agent is optimized for BTC accumulation. It ignores secondary market signals to focus purely on growth." 
-                    : (localRisk === 'high' 
-                      ? "The AI Agent is optimized for high-conviction growth opportunities. Assets will be rebalanced more frequently based on market momentum." 
-                      : "The AI Agent provides real-time strategy signals. Swaps and transfers are settled directly against the decentralized ledger.")
+                    ? "The Bitcoin Multiplier agent is optimized for BTC accumulation. It rebalances capital to capitalize on Bitcoin momentum." 
+                    : "The AI Strategy Agent provides institutional rebalancing signals. Swaps and transfers are settled directly against the decentralized ledger."
                   }
                 </p>
               </div>
 
               {botActive && (
                 <p className="text-center text-[10px] font-black text-green-600 uppercase animate-pulse">
-                  {localStrategy === 'bitcoin_multiplier' ? 'BTC Multiplier active' : 'Signal Agent active'}
+                  Agent is active
                 </p>
               )}
             </CardContent>

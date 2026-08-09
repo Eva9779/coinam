@@ -102,40 +102,18 @@ export default function BuyCryptoPage() {
   const currentAsset = assets.find(a => a.currency === selectedAsset);
   
   /**
-   * Onramper Aggregator (Optimized for Jamaica/International)
+   * Corrected Onramper Link for Jamaica
    */
-  const getOnramperUrl = () => {
-    if (!currentAsset?.address) return "#";
-    const params = new URLSearchParams({
-      apiKey: "pk_live_6R8N2M9L0X4Y", // Standard Aggregator Key
-      walletAddress: currentAsset.address,
-      defaultCrypto: selectedAsset.toLowerCase(),
-      themeName: "dark",
-      containerColor: "020617",
-      primaryColor: "3f51b5",
-      isFixed: "true"
-    });
-    return `https://buy.onramper.com/?${params.toString()}`;
-  };
+  const onramperUrl = currentAsset?.address 
+    ? `https://buy.onramper.com/?themeName=dark&containerColor=020617&primaryColor=3f51b5&walletAddress=${currentAsset.address}&defaultCrypto=${selectedAsset.toLowerCase()}`
+    : "#";
 
   /**
    * Sardine Institutional URL
    */
-  const getSardineUrl = () => {
-    if (!currentAsset?.address) return "#";
-    let cryptoCode = selectedAsset;
-    if (cryptoCode === 'BTC') cryptoCode = 'WBTC';
-    const params = new URLSearchParams({
-      address: currentAsset.address,
-      asset: cryptoCode,
-      network: 'ethereum',
-      fiatCurrency: 'USD',
-    });
-    return `https://crypto.sardine.ai/?${params.toString()}`;
-  };
-
-  const onramperUrl = getOnramperUrl();
-  const sardineUrl = getSardineUrl();
+  const sardineUrl = currentAsset?.address
+    ? `https://crypto.sardine.ai/?address=${currentAsset.address}&asset=${selectedAsset === 'BTC' ? 'WBTC' : selectedAsset}&network=ethereum&fiatCurrency=USD`
+    : "#";
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
@@ -219,7 +197,7 @@ export default function BuyCryptoPage() {
                     <div className="space-y-2 max-w-xs mx-auto">
                       <h4 className="text-2xl font-black text-primary tracking-tight">Onramper Global</h4>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        The most reliable path for users in **Jamaica** and the Caribbean. Automatically connects multiple providers to find the highest card success rate.
+                        The most reliable path for users in **Jamaica**. Pools multiple providers (Transak, Banxa, etc.) to ensure high card success rates.
                       </p>
                     </div>
 
