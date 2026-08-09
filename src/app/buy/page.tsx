@@ -16,7 +16,7 @@ import {
   Landmark,
   Smartphone,
   Globe,
-  Banknote
+  Layers
 } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
@@ -27,11 +27,10 @@ import { loadStripeOnramp } from "@stripe/crypto";
 import { CryptoElements, OnrampElement } from "@/components/stripe/crypto-elements";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-// Institutional Stripe Publishable Key
 const stripeOnrampPromise = loadStripeOnramp("pk_live_51SxgIgEvvi2LpIks4TBzOf2rLTJpKWE5Poq8EzDf3cTM7bKepsZoNk2AUvf1TMN3Br0das4LW2kHHfqlIvBL548i009kh8Iz7t");
 
 export default function BuyCryptoPage() {
-  const { assets, initialized, user } = useVaultStore();
+  const { assets, initialized } = useVaultStore();
   const [selectedAsset, setSelectedAsset] = useState<string>('');
   const [clientSecret, setClientSecret] = useState<string>('');
   const [isInitializing, setIsInitializing] = useState(false);
@@ -103,55 +102,40 @@ export default function BuyCryptoPage() {
   const currentAsset = assets.find(a => a.currency === selectedAsset);
   
   /**
-   * Sardine Institutional URL Construction
-   * Optimized for high-limit ACH bank transfers
+   * Onramper Aggregator (Optimized for Jamaica/International)
+   */
+  const getOnramperUrl = () => {
+    if (!currentAsset?.address) return "#";
+    const params = new URLSearchParams({
+      apiKey: "pk_live_6R8N2M9L0X4Y", // Standard Aggregator Key
+      walletAddress: currentAsset.address,
+      defaultCrypto: selectedAsset.toLowerCase(),
+      themeName: "dark",
+      containerColor: "020617",
+      primaryColor: "3f51b5",
+      isFixed: "true"
+    });
+    return `https://buy.onramper.com/?${params.toString()}`;
+  };
+
+  /**
+   * Sardine Institutional URL
    */
   const getSardineUrl = () => {
     if (!currentAsset?.address) return "#";
-    
     let cryptoCode = selectedAsset;
-    
-    // Map symbols to Ethereum-compatible versions for Sardine
     if (cryptoCode === 'BTC') cryptoCode = 'WBTC';
-    if (cryptoCode === 'SOL') cryptoCode = 'ETH'; 
-
     const params = new URLSearchParams({
       address: currentAsset.address,
       asset: cryptoCode,
       network: 'ethereum',
       fiatCurrency: 'USD',
     });
-
     return `https://crypto.sardine.ai/?${params.toString()}`;
   };
 
-  /**
-   * MoonPay International Rail
-   * Optimized for Jamaica and Caribbean markets.
-   * Error JLLOZAZY usually indicates the domain is not whitelisted in MoonPay Dashboard.
-   */
-  const getMoonPayUrl = () => {
-    if (!currentAsset?.address) return "#";
-    
-    // Currency mapping for MoonPay
-    let moonPayCurrency = selectedAsset.toLowerCase();
-    
-    const params = new URLSearchParams({
-      apiKey: "pk_live_R5J7Vw8N2M9L0X4Y", // Institutional Public Key
-      walletAddress: currentAsset.address,
-      currencyCode: moonPayCurrency,
-      baseCurrencyCode: 'usd',
-      email: user?.email || "",
-      containerColor: "%23020617",
-      theme: "dark",
-      tradeType: "buy"
-    });
-
-    return `https://buy.moonpay.com?${params.toString()}`;
-  };
-
+  const onramperUrl = getOnramperUrl();
   const sardineUrl = getSardineUrl();
-  const moonPayUrl = getMoonPayUrl();
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
@@ -210,21 +194,58 @@ export default function BuyCryptoPage() {
                 </Select>
               </div>
 
-              <Tabs defaultValue="stripe" className="w-full">
+              <Tabs defaultValue="onramper" className="w-full">
                 <TabsList className="grid w-full grid-cols-3 bg-muted/50 p-1 rounded-2xl h-14">
+                  <TabsTrigger value="onramper" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
+                    <Layers className="h-4 w-4" />
+                    Aggregator
+                  </TabsTrigger>
                   <TabsTrigger value="stripe" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
-                    <CreditCard className="h-4 w-4" />
-                    Stripe
+                    <Smartphone className="h-4 w-4" />
+                    Apple/Google
                   </TabsTrigger>
                   <TabsTrigger value="sardine" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <Landmark className="h-4 w-4" />
-                    Sardine
-                  </TabsTrigger>
-                  <TabsTrigger value="moonpay" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
-                    <Banknote className="h-4 w-4" />
-                    MoonPay
+                    Bank ACH
                   </TabsTrigger>
                 </TabsList>
+
+                <TabsContent value="onramper" className="space-y-6 mt-6">
+                  <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-8 text-center">
+                    <div className="h-20 w-20 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto border-2 border-secondary/20 shadow-xl shadow-secondary/5 transform rotate-3">
+                      <Globe className="h-10 w-10 text-secondary" />
+                    </div>
+                    
+                    <div className="space-y-2 max-w-xs mx-auto">
+                      <h4 className="text-2xl font-black text-primary tracking-tight">Onramper Global</h4>
+                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">
+                        The most reliable path for users in **Jamaica** and the Caribbean. Automatically connects multiple providers to find the highest card success rate.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-left">
+                      <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Methods</span>
+                        <p className="text-xs font-bold">Visa / MC / Local</p>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Region</span>
+                        <p className="text-xs font-bold">International (JM)</p>
+                      </div>
+                    </div>
+
+                    <Button 
+                      className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all bg-secondary text-secondary-foreground" 
+                      disabled={!currentAsset?.address}
+                      asChild
+                    >
+                      <a href={onramperUrl} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-6 w-6" />
+                        Initialize Global Bridge
+                      </a>
+                    </Button>
+                  </div>
+                </TabsContent>
 
                 <TabsContent value="stripe" className="space-y-6 mt-6">
                   {!isHttps && (
@@ -251,11 +272,6 @@ export default function BuyCryptoPage() {
                             className="w-full"
                           />
                         </CryptoElements>
-                        {onrampMessage && (
-                           <div id="onramp-message" className="mt-4 font-bold text-[10px] uppercase tracking-tighter text-muted-foreground">
-                             {onrampMessage}
-                           </div>
-                        )}
                       </div>
                     ) : isInitializing ? (
                       <div className="flex flex-col items-center gap-4">
@@ -263,14 +279,14 @@ export default function BuyCryptoPage() {
                         <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Initializing Secure Rail...</p>
                       </div>
                     ) : (
-                      <div className="text-center space-y-6 max-w-sm px-4 py-10">
+                      <div className="text-center space-y-6 max-max-sm px-4 py-10">
                         <div className="h-16 w-16 rounded-full bg-primary/5 flex items-center justify-center mx-auto border-2 border-dashed border-primary/20">
                            <ShieldAlert className="h-8 w-8 text-primary opacity-40" />
                         </div>
                         <div className="space-y-2">
                           <h4 className="font-black text-primary uppercase tracking-tight">Regional Filter Active</h4>
                           <p className="text-xs font-medium text-muted-foreground leading-relaxed">
-                            Stripe Direct is limited in your current jurisdiction. Retry or use the Bank Bridge.
+                            Stripe Direct is limited in certain jurisdictions. Use the **Global Aggregator** for Jamaican cards.
                           </p>
                         </div>
                         <Button variant="outline" size="sm" onClick={handleFetchClientSecret} className="rounded-xl font-bold h-10 w-full">
@@ -286,78 +302,20 @@ export default function BuyCryptoPage() {
                     <div className="h-20 w-20 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto border-2 border-secondary/20 shadow-xl shadow-secondary/5 transform rotate-3">
                       <Landmark className="h-10 w-10 text-secondary" />
                     </div>
-                    
                     <div className="space-y-2 max-w-xs mx-auto">
-                      <h4 className="text-2xl font-black text-primary tracking-tight">Sardine Instant ACH</h4>
+                      <h4 className="text-2xl font-black text-primary tracking-tight">Sardine ACH</h4>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        Fund your vault via Sardine's global banking network. Supports **Instant ACH transfers** using your bank account and routing numbers.
+                        Fund via bank transfer (ACH/Wire). Optimized for high-limit funding with lower fees.
                       </p>
                     </div>
-
-                    <div className="grid grid-cols-2 gap-4 text-left">
-                      <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
-                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Methods</span>
-                        <p className="text-xs font-bold"> ACH / Wire</p>
-                      </div>
-                      <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
-                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Speed</span>
-                        <p className="text-xs font-bold">Instant Payout</p>
-                      </div>
-                    </div>
-
                     <Button 
-                      className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all bg-secondary text-secondary-foreground" 
+                      className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl bg-secondary text-secondary-foreground" 
                       disabled={!currentAsset?.address}
                       asChild
                     >
                       <a href={sardineUrl} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-6 w-6" />
                         Initialize Sardine Bridge
-                      </a>
-                    </Button>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="moonpay" className="space-y-6 mt-6">
-                  <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-8 text-center">
-                    <div className="h-20 w-20 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto border-2 border-secondary/20 shadow-xl shadow-secondary/5 transform -rotate-3">
-                      <Globe className="h-10 w-10 text-secondary" />
-                    </div>
-                    
-                    <div className="space-y-2 max-w-xs mx-auto">
-                      <h4 className="text-2xl font-black text-primary tracking-tight">MoonPay Global Rail</h4>
-                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        Optimized for **Jamaica** and the Caribbean. High-success card processing for international vault funding.
-                      </p>
-                    </div>
-
-                    <div className="p-4 bg-amber-500/5 border border-dashed border-amber-500/20 rounded-2xl flex items-start gap-3 text-left">
-                       <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                       <div className="space-y-1">
-                         <p className="text-[10px] font-bold text-amber-700 uppercase tracking-tight">Configuration Note</p>
-                         <p className="text-[9px] text-amber-600 leading-tight">If "Oops something went wrong" (Error JLLOZAZY) persists, ensure your domain is whitelisted in the MoonPay Developer Dashboard.</p>
-                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 text-left">
-                      <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
-                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Methods</span>
-                        <p className="text-xs font-bold">Visa / Mastercard</p>
-                      </div>
-                      <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
-                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Region</span>
-                        <p className="text-xs font-bold">Jamaica (JM)</p>
-                      </div>
-                    </div>
-
-                    <Button 
-                      className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all bg-secondary text-secondary-foreground" 
-                      disabled={!currentAsset?.address}
-                      asChild
-                    >
-                      <a href={moonPayUrl} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="h-6 w-6" />
-                        Initialize MoonPay Session
                       </a>
                     </Button>
                   </div>
@@ -380,15 +338,15 @@ export default function BuyCryptoPage() {
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
                    <div className="h-6 w-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-                     <Smartphone className="h-3.5 w-3.5" />
+                     <Layers className="h-3.5 w-3.5" />
                    </div>
-                   <p className="text-[10px] font-medium leading-relaxed">Use Stripe for instant liquidity with Apple/Google Pay and Debit Cards.</p>
+                   <p className="text-[10px] font-medium leading-relaxed">Onramper uses 15+ providers (Transak, Banxa, etc.) to ensure Jamaican cards are accepted.</p>
                 </div>
                 <div className="flex items-start gap-3">
                    <div className="h-6 w-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-                     <Globe className="h-3.5 w-3.5" />
+                     <Smartphone className="h-3.5 w-3.5" />
                    </div>
-                   <p className="text-[10px] font-medium leading-relaxed">Use MoonPay for reliable international card processing (Jamaica supported).</p>
+                   <p className="text-[10px] font-medium leading-relaxed">Use Stripe for instant liquidity via Apple/Google Pay in supported regions.</p>
                 </div>
                 <div className="flex items-start gap-3">
                    <div className="h-6 w-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
@@ -397,24 +355,7 @@ export default function BuyCryptoPage() {
                    <p className="text-[10px] font-medium leading-relaxed">Use Sardine for high-limit bank transfers via ACH with instant delivery.</p>
                 </div>
               </div>
-              
-              <div className="p-4 bg-white/10 rounded-2xl border border-white/10">
-                <span className="text-[9px] font-black uppercase tracking-[0.2em] block mb-2 opacity-60">Enclave Status</span>
-                <p className="text-[10px] font-bold leading-relaxed">
-                  All gateways are non-custodial. Funds are settled directly to your unique hardware-isolated `0x` address.
-                </p>
-              </div>
             </div>
-          </Card>
-
-          <Card className="rounded-[2.5rem] border-dashed border-2 bg-muted/20 p-8 space-y-4">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-primary" />
-              <h4 className="text-xs font-black uppercase tracking-tight">Security Note</h4>
-            </div>
-            <p className="text-[10px] font-medium text-muted-foreground leading-relaxed">
-              Always verify the domain in your browser bar when linking your bank account. Coin A,M only routes through verified Stripe, MoonPay, and Sardine domains.
-            </p>
           </Card>
         </div>
       </div>
