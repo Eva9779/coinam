@@ -68,12 +68,12 @@ const BotTradingChart = memo(({ symbol }: { symbol: string }) => {
   }, [symbol]);
 
   return (
-    <div className="w-full h-[500px] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl bg-[#020617]">
+    <div className="w-full h-[500px] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl bg-[#020617] relative">
       <div 
         id="bot_chart_inner"
         ref={containerRef} 
         className="tradingview-widget-container" 
-        style={{ height: "500px", width: "100%" }}
+        style={{ height: "500px", width: "100%", position: "absolute", top: 0, left: 0 }}
       />
     </div>
   );
@@ -177,7 +177,7 @@ export default function TradingBotPage() {
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Mainnet Analysis</p>
                   <p className="text-4xl font-black tracking-tighter text-green-600">{botActive ? 'SYNCING' : 'IDLE'}</p>
                 </div>
-                <div className="h-14 w-14 rounded-2xl bg-green-500/10 flex items-center justify-center border border-green-500/20">
+                <div className="h-14 w-14 rounded-2xl bg-green-500/10 flex items-center justify-center border-green-500/20">
                   <Activity className="h-7 w-7 text-green-600" />
                 </div>
               </CardContent>

@@ -128,18 +128,23 @@ export default function BuyCryptoPage() {
   /**
    * MoonPay International Rail
    * Optimized for Jamaica and Caribbean markets.
+   * Error JLLOZAZY usually indicates the domain is not whitelisted in MoonPay Dashboard.
    */
   const getMoonPayUrl = () => {
     if (!currentAsset?.address) return "#";
     
+    // Currency mapping for MoonPay
+    let moonPayCurrency = selectedAsset.toLowerCase();
+    
     const params = new URLSearchParams({
       apiKey: "pk_live_R5J7Vw8N2M9L0X4Y", // Institutional Public Key
       walletAddress: currentAsset.address,
-      currencyCode: selectedAsset.toLowerCase(),
+      currencyCode: moonPayCurrency,
       baseCurrencyCode: 'usd',
       email: user?.email || "",
       containerColor: "%23020617",
-      theme: "dark"
+      theme: "dark",
+      tradeType: "buy"
     });
 
     return `https://buy.moonpay.com?${params.toString()}`;
@@ -292,7 +297,7 @@ export default function BuyCryptoPage() {
                     <div className="grid grid-cols-2 gap-4 text-left">
                       <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
                         <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Methods</span>
-                        <p className="text-xs font-bold">ACH / Wire</p>
+                        <p className="text-xs font-bold"> ACH / Wire</p>
                       </div>
                       <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
                         <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Speed</span>
@@ -324,6 +329,14 @@ export default function BuyCryptoPage() {
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
                         Optimized for **Jamaica** and the Caribbean. High-success card processing for international vault funding.
                       </p>
+                    </div>
+
+                    <div className="p-4 bg-amber-500/5 border border-dashed border-amber-500/20 rounded-2xl flex items-start gap-3 text-left">
+                       <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                       <div className="space-y-1">
+                         <p className="text-[10px] font-bold text-amber-700 uppercase tracking-tight">Configuration Note</p>
+                         <p className="text-[9px] text-amber-600 leading-tight">If "Oops something went wrong" (Error JLLOZAZY) persists, ensure your domain is whitelisted in the MoonPay Developer Dashboard.</p>
+                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 text-left">
