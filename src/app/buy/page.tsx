@@ -101,19 +101,10 @@ export default function BuyCryptoPage() {
 
   const currentAsset = assets.find(a => a.currency === selectedAsset);
   
-  /**
-   * Corrected Onramper Link for Jamaica
-   */
+  // Optimized Onramper Link for Jamaica
   const onramperUrl = currentAsset?.address 
     ? `https://buy.onramper.com/?themeName=dark&containerColor=020617&primaryColor=3f51b5&walletAddress=${currentAsset.address}&defaultCrypto=${selectedAsset.toLowerCase()}`
-    : "#";
-
-  /**
-   * Sardine Institutional URL
-   */
-  const sardineUrl = currentAsset?.address
-    ? `https://crypto.sardine.ai/?address=${currentAsset.address}&asset=${selectedAsset === 'BTC' ? 'WBTC' : selectedAsset}&network=ethereum&fiatCurrency=USD`
-    : "#";
+    : "https://buy.onramper.com/";
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
@@ -197,7 +188,7 @@ export default function BuyCryptoPage() {
                     <div className="space-y-2 max-w-xs mx-auto">
                       <h4 className="text-2xl font-black text-primary tracking-tight">Onramper Global</h4>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        The most reliable path for users in **Jamaica**. Pools multiple providers (Transak, Banxa, etc.) to ensure high card success rates.
+                        The primary path for users in **Jamaica**. Pools multiple providers to ensure international cards and local banks are supported.
                       </p>
                     </div>
 
@@ -214,7 +205,6 @@ export default function BuyCryptoPage() {
 
                     <Button 
                       className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all bg-secondary text-secondary-foreground" 
-                      disabled={!currentAsset?.address}
                       asChild
                     >
                       <a href={onramperUrl} target="_blank" rel="noopener noreferrer">
@@ -226,14 +216,12 @@ export default function BuyCryptoPage() {
                 </TabsContent>
 
                 <TabsContent value="stripe" className="space-y-6 mt-6">
-                  {!isHttps && (
-                    <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3 shadow-sm">
-                      <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                      <p className="text-[10px] font-bold text-amber-700 uppercase tracking-tight">
-                        Production HTTPS required for Stripe Mobile Pay.
-                      </p>
-                    </div>
-                  )}
+                  <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3 shadow-sm">
+                    <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-tight">
+                      Stripe Crypto (Apple/Google Pay) is currently restricted to US/EU regions. If you are in **Jamaica**, please use the **Global Aggregator** tab.
+                    </p>
+                  </div>
 
                   <div className="min-h-[400px] border-2 border-dashed border-primary/10 rounded-[2rem] p-4 bg-muted/5 flex flex-col items-center justify-center relative overflow-hidden">
                     {clientSecret ? (
@@ -264,11 +252,11 @@ export default function BuyCryptoPage() {
                         <div className="space-y-2">
                           <h4 className="font-black text-primary uppercase tracking-tight">Regional Filter Active</h4>
                           <p className="text-xs font-medium text-muted-foreground leading-relaxed">
-                            Stripe Direct is limited in certain jurisdictions. Use the **Global Aggregator** for Jamaican cards.
+                            Stripe Direct is unavailable in your jurisdiction.
                           </p>
                         </div>
                         <Button variant="outline" size="sm" onClick={handleFetchClientSecret} className="rounded-xl font-bold h-10 w-full">
-                          Retry High-Speed Connection
+                          Retry Connection
                         </Button>
                       </div>
                     )}
@@ -288,10 +276,9 @@ export default function BuyCryptoPage() {
                     </div>
                     <Button 
                       className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl bg-secondary text-secondary-foreground" 
-                      disabled={!currentAsset?.address}
                       asChild
                     >
-                      <a href={sardineUrl} target="_blank" rel="noopener noreferrer">
+                      <a href={`https://crypto.sardine.ai/?address=${currentAsset?.address}&asset=${selectedAsset === 'BTC' ? 'WBTC' : selectedAsset}&network=ethereum`} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-6 w-6" />
                         Initialize Sardine Bridge
                       </a>
@@ -316,15 +303,15 @@ export default function BuyCryptoPage() {
               <div className="space-y-4">
                 <div className="flex items-start gap-3">
                    <div className="h-6 w-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-                     <Layers className="h-3.5 w-3.5" />
+                     <Globe className="h-3.5 w-3.5" />
                    </div>
-                   <p className="text-[10px] font-medium leading-relaxed">Onramper uses 15+ providers (Transak, Banxa, etc.) to ensure Jamaican cards are accepted.</p>
+                   <p className="text-[10px] font-medium leading-relaxed">Users in **Jamaica** should use the Aggregator rail for highest card acceptance.</p>
                 </div>
                 <div className="flex items-start gap-3">
                    <div className="h-6 w-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
                      <Smartphone className="h-3.5 w-3.5" />
                    </div>
-                   <p className="text-[10px] font-medium leading-relaxed">Use Stripe for instant liquidity via Apple/Google Pay in supported regions.</p>
+                   <p className="text-[10px] font-medium leading-relaxed">Stripe Rail (Apple/Google Pay) is regional and primarily supports US/EU markets.</p>
                 </div>
                 <div className="flex items-start gap-3">
                    <div className="h-6 w-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">

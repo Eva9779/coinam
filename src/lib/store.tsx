@@ -86,7 +86,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   
   const assetsRef = useRef<WalletAsset[]>([]);
   const botStateRef = useRef({ active: false, risk: 'medium', allocation: 1000, strategy: 'standard' });
-  const autoProvisionAttempted = useRef(false);
 
   const { user } = useUserHook();
   const db = useFirestore();
@@ -211,16 +210,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const totalBalanceUSD = currentAssets.reduce((acc, a) => acc + a.fiatValueUSD, 0);
 
     if (totalBalanceUSD <= 0) {
-      addLog(`SIGNAL HALTED: No active capital detected in vault. Please deposit USDC or ETH to enable autonomous rebalancing.`, 'warning');
+      addLog(`SIGNAL HALTED: No active capital detected. Please fund your vault via the Global Aggregator to enable autonomous rebalancing.`, 'warning');
       return;
     }
 
     setIsAnalyzing(true);
-    const startMsg = strategyType === 'bitcoin_multiplier'
-      ? `INITIALIZING BITCOIN AGGREGATOR: SCANNING FOR ALPHA MULTIPLIERS...` 
-      : `Neural Network Analysis: Scanning Mainnet signals...`;
-    
-    addLog(startMsg, 'info');
+    addLog(`AI Analysis Active: Scanning Mainnet for alpha rebalancing opportunities...`, 'info');
     
     try {
       let liveMarket;
@@ -254,29 +249,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
       if (strategyResult && strategyResult.actions.length > 0) {
         addLog(`STRATEGY IDENTIFIED: ${strategyResult.strategy}`, 'success');
-        
         for (const action of strategyResult.actions) {
-          const fromAssetObj = currentAssets.find(a => a.currency === (action.fromAsset === 'USD' ? 'USDC' : action.fromAsset));
-          const currentFromBalanceUSD = fromAssetObj ? fromAssetObj.fiatValueUSD : 0;
-
-          if (currentFromBalanceUSD < action.amountUSD) {
-            addLog(`SIGNAL ABORTED: Insufficient ${action.fromAsset} depth for $${action.amountUSD.toFixed(2)} execution.`, 'warning');
-          } else {
-            const actionMsg = strategyType === 'bitcoin_multiplier'
-              ? `SIGNAL BROADCAST: Execute ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} for Aggregation.`
-              : `Bot Recommendation: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}.`;
-            
-            addLog(actionMsg, 'info');
-            addLog(`Awaiting vault signature for Mainnet execution.`, 'info');
-          }
+          addLog(`Bot Recommendation: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}.`, 'info');
+          addLog(`Awaiting vault signature for Mainnet execution.`, 'info');
         }
-        addLog(`Neural scan complete. Monitoring for optimal entry points.`, 'success');
       } else {
-        addLog(`Vault optimized. No high-momentum deviations detected in this cycle.`, 'info');
+        addLog(`Vault optimized. No deviations detected in this cycle.`, 'info');
       }
 
     } catch (error: any) {
-      addLog(`AI Logic Interrupted: ${error.message || 'An unexpected response was received from the server.'}`, 'warning');
+      addLog(`AI Logic Interrupted: ${error.message || 'Verification error.'}`, 'warning');
     } finally {
       setIsAnalyzing(false);
     }
@@ -303,10 +285,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }).catch(() => {});
     
     if (active) {
-      const activateMsg = strategy === 'bitcoin_multiplier' 
-        ? `BITCOIN AGGREGATOR MODE ENGAGED. SCANNING FOR ALPHA.` 
-        : `AI Neural Link Established. Agent is now monitoring markets.`;
-      addLog(activateMsg, 'success');
+      addLog(`AI Neural Link Established. Agent is now monitoring markets.`, 'success');
       setTimeout(() => runBotCycle(true), 100);
     } else {
       addLog(`Agent in standby mode. Cloud analysis suspended.`, 'info');
@@ -364,13 +343,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       toast({ title: "Import failed", variant: "destructive" });
     }
   };
-
-  useEffect(() => {
-    if (initialized && user && assets.length === 0 && !provisioning && !autoProvisionAttempted.current) {
-      autoProvisionAttempted.current = true;
-      generateNewWallet('ETH', 'primary-vault');
-    }
-  }, [initialized, user, assets.length, provisioning, generateNewWallet]);
 
   return (
     <VaultContext.Provider value={{ 
