@@ -73,8 +73,8 @@ const BotTradingChart = memo(({ symbol }: { symbol: string }) => {
       <div 
         id="bot_chart_inner"
         ref={containerRef} 
-        className="tradingview-widget-container" 
-        style={{ height: "100%", width: "100%", position: "absolute", top: 0, left: 0 }}
+        className="tradingview-widget-container w-full h-full absolute inset-0"
+        style={{ width: "100%", height: "100%" }}
       />
     </div>
   );

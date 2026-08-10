@@ -14,11 +14,10 @@ import {
   Zap, 
   ShieldAlert, 
   ExternalLink, 
-  Landmark,
-  Smartphone,
-  Globe,
+  Globe, 
   Layers,
-  Sparkles
+  Sparkles,
+  Smartphone
 } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
@@ -36,15 +35,7 @@ export default function BuyCryptoPage() {
   const [selectedAsset, setSelectedAsset] = useState<string>('');
   const [clientSecret, setClientSecret] = useState<string>('');
   const [isInitializing, setIsInitializing] = useState(false);
-  const [isHttps, setIsHttps] = useState(true);
-  const [onrampMessage, setOnrampMessage] = useState("");
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setIsHttps(window.location.protocol === 'https:');
-    }
-  }, []);
 
   useEffect(() => {
     if (initialized && assets.length > 0 && !selectedAsset) {
@@ -59,7 +50,6 @@ export default function BuyCryptoPage() {
     setIsInitializing(true);
     setClientSecret('');
     setError(null);
-    setOnrampMessage('');
     
     try {
       const result = await createOnrampSession(asset.address, '50.00', selectedAsset);
@@ -83,7 +73,6 @@ export default function BuyCryptoPage() {
   }, [selectedAsset, assets.length, handleFetchClientSecret]);
 
   const onOnrampSessionChange = useCallback(({ session }: any) => {
-    setOnrampMessage(`Gateway Status: ${session.status.replace('_', ' ')}`);
     if (session.status === 'fulfillment_complete') {
       toast({
         title: "Provisioning Successful",
@@ -108,10 +97,10 @@ export default function BuyCryptoPage() {
     ? `https://buy.onramper.com/?themeName=dark&containerColor=020617&primaryColor=3f51b5&walletAddress=${currentAsset.address}&defaultCrypto=${selectedAsset.toLowerCase()}`
     : "https://buy.onramper.com/";
 
-  // Transak URL for International Apple/Google Pay (Jamaica support)
-  const transakUrl = currentAsset?.address
-    ? `https://global.transak.com/?apiKey=7e7e8348-1b6c-4b5c-8b8b-8b8b8b8b8b8b&walletAddress=${currentAsset.address}&cryptoCurrencyCode=${selectedAsset.toUpperCase()}&networks=ethereum&paymentMethod=apple_pay,google_pay`
-    : "https://global.transak.com/";
+  // Coindisco URL for International Funding
+  const coindiscoUrl = currentAsset?.address
+    ? `https://coindisco.com/?address=${currentAsset.address}&symbol=${selectedAsset.toUpperCase()}`
+    : "https://coindisco.com/";
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
@@ -180,9 +169,9 @@ export default function BuyCryptoPage() {
                     <Smartphone className="h-4 w-4" />
                     Stripe (US/EU)
                   </TabsTrigger>
-                  <TabsTrigger value="transak" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
+                  <TabsTrigger value="coindisco" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <Sparkles className="h-4 w-4" />
-                    Global Pay
+                    Coindisco
                   </TabsTrigger>
                 </TabsList>
 
@@ -226,7 +215,7 @@ export default function BuyCryptoPage() {
                   <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3 shadow-sm">
                     <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                     <p className="text-[10px] font-bold text-amber-700 uppercase tracking-tight">
-                      Stripe Crypto (Apple/Google Pay) is restricted to US/EU regions. For **Jamaica**, use the **Global Pay** or **Aggregator** tabs.
+                      Stripe Crypto (Apple/Google Pay) is restricted to US/EU regions. For **Jamaica**, use the **Coindisco** or **Aggregator** tabs.
                     </p>
                   </div>
 
@@ -270,15 +259,15 @@ export default function BuyCryptoPage() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="transak" className="space-y-6 mt-6">
+                <TabsContent value="coindisco" className="space-y-6 mt-6">
                   <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-8 text-center">
                     <div className="h-20 w-20 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto border-2 border-secondary/20 shadow-xl shadow-secondary/5 transform rotate-3">
-                      <Smartphone className="h-10 w-10 text-secondary" />
+                      <Sparkles className="h-10 w-10 text-secondary" />
                     </div>
                     <div className="space-y-2 max-w-xs mx-auto">
-                      <h4 className="text-2xl font-black text-primary tracking-tight">Global Native Pay</h4>
+                      <h4 className="text-2xl font-black text-primary tracking-tight">Coindisco Global</h4>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        Dedicated path for **Apple Pay** and **Google Pay** in international regions, including **Jamaica**.
+                        Secure international rail for users in **Jamaica**. High-success cards and native wallet support.
                       </p>
                     </div>
                     <div className="grid grid-cols-2 gap-4 text-left">
@@ -288,16 +277,16 @@ export default function BuyCryptoPage() {
                       </div>
                       <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
                         <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Network</span>
-                        <p className="text-xs font-bold">Transak Global</p>
+                        <p className="text-xs font-bold">Coindisco Global</p>
                       </div>
                     </div>
                     <Button 
                       className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl bg-secondary text-secondary-foreground" 
                       asChild
                     >
-                      <a href={transakUrl} target="_blank" rel="noopener noreferrer">
+                      <a href={coindiscoUrl} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-6 w-6" />
-                        Initialize Global Pay
+                        Initialize Coindisco Rail
                       </a>
                     </Button>
                   </div>
@@ -322,7 +311,7 @@ export default function BuyCryptoPage() {
                    <div className="h-6 w-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
                      <Globe className="h-3.5 w-3.5" />
                    </div>
-                   <p className="text-[10px] font-medium leading-relaxed">Users in **Jamaica** should use the Aggregator or Global Pay rails for Apple/Google Pay support.</p>
+                   <p className="text-[10px] font-medium leading-relaxed">Users in **Jamaica** should use Coindisco or Aggregator rails for high card success rates.</p>
                 </div>
                 <div className="flex items-start gap-3">
                    <div className="h-6 w-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
