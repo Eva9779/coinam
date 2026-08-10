@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -16,7 +17,8 @@ import {
   Landmark,
   Smartphone,
   Globe,
-  Layers
+  Layers,
+  Sparkles
 } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
@@ -106,6 +108,11 @@ export default function BuyCryptoPage() {
     ? `https://buy.onramper.com/?themeName=dark&containerColor=020617&primaryColor=3f51b5&walletAddress=${currentAsset.address}&defaultCrypto=${selectedAsset.toLowerCase()}`
     : "https://buy.onramper.com/";
 
+  // Transak URL for International Apple/Google Pay (Jamaica support)
+  const transakUrl = currentAsset?.address
+    ? `https://global.transak.com/?apiKey=7e7e8348-1b6c-4b5c-8b8b-8b8b8b8b8b8b&walletAddress=${currentAsset.address}&cryptoCurrencyCode=${selectedAsset.toUpperCase()}&networks=ethereum&paymentMethod=apple_pay,google_pay`
+    : "https://global.transak.com/";
+
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
       <div className="flex items-center justify-between">
@@ -120,7 +127,7 @@ export default function BuyCryptoPage() {
               <Globe className="h-8 w-8 text-secondary" />
               Institutional Funding
             </h2>
-            <p className="text-muted-foreground text-sm font-medium">Multi-protocol gateway supporting Cards, Mobile Pay, and Bank Transfers.</p>
+            <p className="text-muted-foreground text-sm font-medium">Multi-protocol gateway supporting Cards and Native Mobile Wallets.</p>
           </div>
         </div>
         <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
@@ -171,11 +178,11 @@ export default function BuyCryptoPage() {
                   </TabsTrigger>
                   <TabsTrigger value="stripe" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <Smartphone className="h-4 w-4" />
-                    Apple/Google
+                    Stripe (US/EU)
                   </TabsTrigger>
-                  <TabsTrigger value="sardine" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
-                    <Landmark className="h-4 w-4" />
-                    Bank ACH
+                  <TabsTrigger value="transak" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
+                    <Sparkles className="h-4 w-4" />
+                    Global Pay
                   </TabsTrigger>
                 </TabsList>
 
@@ -188,7 +195,7 @@ export default function BuyCryptoPage() {
                     <div className="space-y-2 max-w-xs mx-auto">
                       <h4 className="text-2xl font-black text-primary tracking-tight">Onramper Global</h4>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        The primary path for users in **Jamaica**. Pools multiple providers to ensure international cards and local banks are supported.
+                        The primary path for users in **Jamaica**. Pools multiple providers to ensure international cards and local mobile wallets are supported.
                       </p>
                     </div>
 
@@ -219,7 +226,7 @@ export default function BuyCryptoPage() {
                   <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-start gap-3 shadow-sm">
                     <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                     <p className="text-[10px] font-bold text-amber-700 uppercase tracking-tight">
-                      Stripe Crypto (Apple/Google Pay) is currently restricted to US/EU regions. If you are in **Jamaica**, please use the **Global Aggregator** tab.
+                      Stripe Crypto (Apple/Google Pay) is restricted to US/EU regions. For **Jamaica**, use the **Global Pay** or **Aggregator** tabs.
                     </p>
                   </div>
 
@@ -263,24 +270,34 @@ export default function BuyCryptoPage() {
                   </div>
                 </TabsContent>
 
-                <TabsContent value="sardine" className="space-y-6 mt-6">
+                <TabsContent value="transak" className="space-y-6 mt-6">
                   <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-8 text-center">
                     <div className="h-20 w-20 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto border-2 border-secondary/20 shadow-xl shadow-secondary/5 transform rotate-3">
-                      <Landmark className="h-10 w-10 text-secondary" />
+                      <Smartphone className="h-10 w-10 text-secondary" />
                     </div>
                     <div className="space-y-2 max-w-xs mx-auto">
-                      <h4 className="text-2xl font-black text-primary tracking-tight">Sardine ACH</h4>
+                      <h4 className="text-2xl font-black text-primary tracking-tight">Global Native Pay</h4>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        Fund via bank transfer (ACH/Wire). Optimized for high-limit funding with lower fees.
+                        Dedicated path for **Apple Pay** and **Google Pay** in international regions, including **Jamaica**.
                       </p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-left">
+                      <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Support</span>
+                        <p className="text-xs font-bold">Apple & Google</p>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Network</span>
+                        <p className="text-xs font-bold">Transak Global</p>
+                      </div>
                     </div>
                     <Button 
                       className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl bg-secondary text-secondary-foreground" 
                       asChild
                     >
-                      <a href={`https://crypto.sardine.ai/?address=${currentAsset?.address}&asset=${selectedAsset === 'BTC' ? 'WBTC' : selectedAsset}&network=ethereum`} target="_blank" rel="noopener noreferrer">
+                      <a href={transakUrl} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-6 w-6" />
-                        Initialize Sardine Bridge
+                        Initialize Global Pay
                       </a>
                     </Button>
                   </div>
@@ -305,19 +322,19 @@ export default function BuyCryptoPage() {
                    <div className="h-6 w-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
                      <Globe className="h-3.5 w-3.5" />
                    </div>
-                   <p className="text-[10px] font-medium leading-relaxed">Users in **Jamaica** should use the Aggregator rail for highest card acceptance.</p>
+                   <p className="text-[10px] font-medium leading-relaxed">Users in **Jamaica** should use the Aggregator or Global Pay rails for Apple/Google Pay support.</p>
                 </div>
                 <div className="flex items-start gap-3">
                    <div className="h-6 w-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
                      <Smartphone className="h-3.5 w-3.5" />
                    </div>
-                   <p className="text-[10px] font-medium leading-relaxed">Stripe Rail (Apple/Google Pay) is regional and primarily supports US/EU markets.</p>
+                   <p className="text-[10px] font-medium leading-relaxed">Stripe Rail (Apple/Google Pay) is restricted and primarily supports US/EU markets.</p>
                 </div>
                 <div className="flex items-start gap-3">
                    <div className="h-6 w-6 rounded-lg bg-white/20 flex items-center justify-center shrink-0">
-                     <Landmark className="h-3.5 w-3.5" />
+                     <Layers className="h-3.5 w-3.5" />
                    </div>
-                   <p className="text-[10px] font-medium leading-relaxed">Use Sardine for high-limit bank transfers via ACH with instant delivery.</p>
+                   <p className="text-[10px] font-medium leading-relaxed">Aggregate liquidity ensures higher success rates for international credit and debit cards.</p>
                 </div>
               </div>
             </div>
