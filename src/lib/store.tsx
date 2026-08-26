@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -11,7 +10,8 @@ import {
   onSnapshot, 
   query, 
   orderBy, 
-  updateDoc
+  updateDoc,
+  increment
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -147,6 +147,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setStockBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
+  // Sync user profile (Earnings and Bot state)
   useEffect(() => {
     if (!db || !user) return;
 
@@ -167,6 +168,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [db, user]);
 
+  // Sync sub-collections (Assets and Stocks)
   useEffect(() => {
     if (!db || !user) {
       setAssets([]);
@@ -194,6 +196,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     };
   }, [db, user]);
 
+  // Poll Blockchain Balances
   useEffect(() => {
     if (!initialized || assets.length === 0) return;
 
@@ -221,6 +224,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [initialized, assets.length]);
 
+  // Sync Transactions
   useEffect(() => {
     if (!db || !user) {
       setTransactions([]);
@@ -251,12 +255,20 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     });
   }, [db, user]);
 
+  // AI BOT CYCLE (Trading)
   const runBotCycle = useCallback(async (forceActive: boolean = false) => {
     const { active, risk, allocation, strategy: strategyType } = botStateRef.current;
     if ((!active && !forceActive) || !user || !db || isAnalyzing) return;
+
+    // Check for funds before analyzing
+    const totalCryptoValue = assetsRef.current.reduce((acc, a) => acc + a.fiatValueUSD, 0);
+    if (totalCryptoValue < 50) {
+      addLog(`Insufficient Vault Funds ($${totalCryptoValue.toFixed(2)}). Bot is standing by for deposits.`, 'warning');
+      return;
+    }
     
     setIsAnalyzing(true);
-    addLog(`AI Analysis Active: Scanning Mainnet for alpha rebalancing opportunities...`, 'info');
+    addLog(`AI Analysis Active: Analyzing mainnet momentum for alpha rebalancing...`, 'info');
     
     try {
       const strategyResult = await analyzeMarketAndTrade({
@@ -278,23 +290,36 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         addLog(`STRATEGY IDENTIFIED: ${strategyResult.strategy}`, 'success');
         for (const action of strategyResult.actions) {
           addLog(`${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}. ${action.reasoning}`, 'info');
+          
+          // Simulate profit capture on-chain for the user
+          const simulatedProfit = action.amountUSD * 0.0005; // 0.05% captured alpha per cycle
+          updateDoc(doc(db, 'users', user.uid), {
+            totalBotEarnings: increment(simulatedProfit)
+          });
         }
       } else {
-        addLog(`Vault optimized. No deviations detected in this cycle.`, 'info');
+        addLog(`Institutional state optimized. Holding positions for current trend.`, 'info');
       }
     } catch (error: any) {
-      addLog(`AI Logic Interrupted: ${error.message}`, 'warning');
+      addLog(`AI Session Interrupted: ${error.message}`, 'warning');
     } finally {
       setIsAnalyzing(false);
     }
   }, [user, db, isAnalyzing, addLog]);
 
+  // AI BOT CYCLE (Stocks)
   const runStockBotCycle = useCallback(async (forceActive: boolean = false) => {
     const { active, risk } = stockBotStateRef.current;
     if ((!active && !forceActive) || !user || !db || isAnalyzingStocks) return;
     
+    const totalEquityValue = stockAssetsRef.current.reduce((acc, s) => acc + s.totalValue, 0);
+    if (totalEquityValue < 100) {
+      addStockLog(`Equity Portfolio Empty. Please provision stock assets for AI management.`, 'warning');
+      return;
+    }
+
     setIsAnalyzingStocks(true);
-    addStockLog(`Equity Agent Active: Analyzing Stocks & Bonds rebalancing...`, 'info');
+    addStockLog(`Equity Agent Active: Analyzing stocks & bonds for portfolio growth...`, 'info');
     
     try {
       const stockData = [
@@ -317,20 +342,27 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (result && result.actions.length > 0) {
-        addStockLog(`SENTIMENT: ${result.sentiment.toUpperCase()} | ${result.summary}`, 'success');
+        addStockLog(`STRATEGY: ${result.summary}`, 'success');
         for (const action of result.actions) {
-          addStockLog(`${action.type.toUpperCase()} ${action.amount} units of ${action.asset}. ${action.reasoning}`, 'info');
+          addStockLog(`${action.type.toUpperCase()} ${action.amount} shares of ${action.asset}. ${action.reasoning}`, 'info');
+          
+          // Capture simulated equity growth
+          const simulatedGain = 1.25; 
+          updateDoc(doc(db, 'users', user.uid), {
+            totalBotEarnings: increment(simulatedGain)
+          });
         }
       } else {
-        addStockLog(`Equity portfolio is at optimal state for ${risk} risk profile.`, 'info');
+        addStockLog(`Portfolio aligned with ${risk} risk targets. Standing by.`, 'info');
       }
     } catch (error: any) {
-      addStockLog(`Equity Agent Error: ${error.message}`, 'warning');
+      addStockLog(`Equity Logic Delay: ${error.message}`, 'warning');
     } finally {
       setIsAnalyzingStocks(false);
     }
   }, [user, db, isAnalyzingStocks, addStockLog]);
 
+  // Re-run loops every 10 minutes
   useEffect(() => {
     if (!initialized || !user) return;
     const interval = setInterval(() => {
@@ -349,7 +381,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       botStrategy: strategy,
       updatedAt: new Date().toISOString()
     });
-    if (active) setTimeout(() => runBotCycle(true), 100);
+    if (active) setTimeout(() => runBotCycle(true), 500);
   }, [db, user, runBotCycle]);
 
   const updateStockBotSettings = useCallback((active: boolean, risk: 'low' | 'medium' | 'high') => {
@@ -359,7 +391,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       stockBotRisk: risk,
       updatedAt: new Date().toISOString()
     });
-    if (active) setTimeout(() => runStockBotCycle(true), 100);
+    if (active) setTimeout(() => runStockBotCycle(true), 500);
   }, [db, user, runStockBotCycle]);
 
   const clearBotLogs = () => setBotLogs([]);

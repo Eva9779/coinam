@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo } from 'react';
@@ -74,6 +73,7 @@ const BotTradingChart = memo(({ symbol }: { symbol: string }) => {
         id="bot_chart_inner"
         ref={containerRef} 
         className="absolute inset-0 w-full h-full"
+        style={{ width: '100%', height: '100%' }}
       />
     </div>
   );

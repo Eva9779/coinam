@@ -1,9 +1,7 @@
-
 'use server';
 /**
- * @fileOverview This file defines a Genkit flow for the Antigravity Equity Agent (Stocks & Bonds).
- *
- * - analyzeEquityMarket - A function that handles stock/bond analysis and suggestions.
+ * @fileOverview This file defines a Genkit flow for the Antigravity Equity Agent.
+ * Specialized in Stocks and Bonds rebalancing for long-term capital appreciation.
  */
 
 import { ai } from '@/ai/genkit';
@@ -32,13 +30,13 @@ export type StockBotInput = z.infer<typeof StockBotInputSchema>;
 const StockBotActionSchema = z.object({
   type: z.enum(['buy', 'sell', 'hold']),
   asset: z.string(),
-  amount: z.number().describe('Number of shares or bond units.'),
+  amount: z.number().describe('Shares or bond units.'),
   reasoning: z.string(),
 });
 
 const StockBotOutputSchema = z.object({
-  summary: z.string().describe('Short market sentiment summary.'),
-  actions: z.array(StockBotActionSchema).describe('List of recommended adjustments.'),
+  summary: z.string().describe('Market-wide strategy summary.'),
+  actions: z.array(StockBotActionSchema).describe('Recommended rebalancing actions.'),
   sentiment: z.enum(['bullish', 'bearish', 'neutral']),
 });
 export type StockBotOutput = z.infer<typeof StockBotOutputSchema>;
@@ -63,31 +61,31 @@ const stockBotPrompt = ai.definePrompt({
   name: 'stockBotPrompt',
   input: { schema: StockBotInputSchema },
   output: { schema: StockBotOutputSchema },
-  prompt: `You are an institutional equity strategist for Google Antigravity. Your goal is stable growth and capital preservation in stocks and bonds.
+  prompt: `You are an institutional Portfolio Manager at Google Antigravity. Your goal is smart capital allocation across Stocks and Bonds.
 
 Risk Profile: {{{riskTolerance}}}
 
-Current Market Data:
+Live Market Feed:
 {{#each marketData}}
-- {{{symbol}}} ({{{name}}}): Price $ {{{price}}}, Change: {{{changePercent}}}% [{{{type}}}]
+- {{{symbol}}} ({{{name}}}): $ {{{price}}} ({{{changePercent}}}% Change) [{{{type}}}]
 {{/each}}
 
-User Holdings:
+Portfolio Snapshot:
 {{#if currentHoldings}}
 {{#each currentHoldings}}
-- {{{symbol}}}: {{{shares}}} units, Value $ {{{value}}}
+- {{{symbol}}}: {{{shares}}} units, $ {{{value}}} current valuation
 {{/each}}
 {{else}}
-User currently has no equity exposure. Recommend initial positions based on risk profile.
+NO CURRENT EQUITY EXPOSURE.
 {{/if}}
 
-Instructions:
-1. Identify high-alpha opportunities in global stocks and safety in bonds.
-2. If Risk is 'low', prioritize government and corporate bonds with steady yields.
-3. If Risk is 'high', prioritize growth-sector stocks (Technology, AI, Energy).
-4. Provide clear reasoning for every buy or sell recommendation.
+Intelligence Directives:
+1. DIVERSIFICATION: Balance Tech-heavy stocks with Bonds based on risk profile.
+2. GROWTH: For 'high' risk, identify high-alpha growth sectors (Technology, AI).
+3. STABILITY: For 'low' risk, prioritize rebalancing into Bond ETFs and Treasuries to protect the principal.
+4. REASONING: Provide clear, data-driven reasoning for every recommended buy or sell to maximize user trust.
 
-Output in valid JSON.`,
+Captured yield and profit should be the primary outcome of these actions.`,
 });
 
 const stockBotFlow = ai.defineFlow(
@@ -98,7 +96,7 @@ const stockBotFlow = ai.defineFlow(
   },
   async (input) => {
     const { output } = await stockBotPrompt(input);
-    if (!output) throw new Error('AI failed to generate equity strategy.');
+    if (!output) throw new Error('AI Equity Engine returned null.');
     return output;
   }
 );

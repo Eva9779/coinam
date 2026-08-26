@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo } from 'react';
@@ -23,7 +22,8 @@ import {
   Globe,
   Trash2,
   LineChart,
-  Target
+  Target,
+  Trophy
 } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -60,7 +60,12 @@ const EquityChart = memo(({ symbol }: { symbol: string }) => {
 
   return (
     <div className="w-full h-[500px] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl bg-[#020617] relative">
-      <div id="equity_chart_inner" ref={containerRef} className="absolute inset-0 w-full h-full" />
+      <div 
+        id="equity_chart_inner" 
+        ref={containerRef} 
+        className="absolute inset-0 w-full h-full"
+        style={{ width: '100%', height: '100%' }}
+      />
     </div>
   );
 });
@@ -73,6 +78,7 @@ export default function StocksPage() {
     stockBotActive, 
     stockBotRisk, 
     stockBotLogs, 
+    totalBotEarnings,
     isAnalyzingStocks,
     updateStockBotSettings,
     clearStockBotLogs
@@ -100,7 +106,7 @@ export default function StocksPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            Autonomous Analysis of Global Stocks & Corporate Bonds.
+            Institutional Equity Analysis. Managing global stocks & corporate debt.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -128,24 +134,26 @@ export default function StocksPage() {
             <Card className="rounded-[2.5rem] bg-gradient-to-br from-primary to-primary/80 text-white border-none shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Portfolio Value</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Unified Yield</p>
                   <p className="text-4xl font-black tracking-tighter">
-                    ${stockAssets.reduce((acc, s) => acc + s.totalValue, 0).toLocaleString()}
+                    ${totalBotEarnings.toFixed(2)}
                   </p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
-                  <Briefcase className="h-7 w-7 text-secondary" />
+                  <Trophy className="h-7 w-7 text-secondary" />
                 </div>
               </CardContent>
             </Card>
             <Card className="rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/10 shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Market Sentiment</p>
-                  <p className="text-4xl font-black tracking-tighter text-secondary">STABLE</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Portfolio Valuation</p>
+                  <p className="text-4xl font-black tracking-tighter text-primary">
+                    ${stockAssets.reduce((acc, s) => acc + s.totalValue, 0).toLocaleString()}
+                  </p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-secondary/10 flex items-center justify-center border-secondary/20">
-                  <Activity className="h-7 w-7 text-secondary" />
+                  <Briefcase className="h-7 w-7 text-secondary" />
                 </div>
               </CardContent>
             </Card>

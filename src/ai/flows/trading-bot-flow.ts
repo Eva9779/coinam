@@ -1,10 +1,7 @@
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for the Google Antigravity AI Strategy Agent.
- *
- * - analyzeMarketAndTrade - A function that handles market analysis and suggests trade actions.
- * - TradingBotInput - The input type for the analysis.
- * - TradingBotOutput - The return type containing strategy and actions.
+ * High-performance institutional rebalancing bot focused on profit capture.
  */
 
 import { ai } from '@/ai/genkit';
@@ -18,7 +15,7 @@ const MarketEntrySchema = z.object({
 
 const TradingBotInputSchema = z.object({
   userId: z.string(),
-  strategyType: z.enum(['standard', 'bitcoin_multiplier']).default('standard').describe('The type of AI bot strategy to employ.'),
+  strategyType: z.enum(['standard', 'bitcoin_multiplier']).default('standard'),
   assets: z.array(z.object({
     currency: z.string(),
     amount: z.number(),
@@ -39,8 +36,8 @@ const TradingActionSchema = z.object({
 });
 
 const TradingBotOutputSchema = z.object({
-  strategy: z.string().describe('Short strategy summary.'),
-  actions: z.array(TradingActionSchema).describe('List of trade actions.'),
+  strategy: z.string().describe('Institutional strategy summary.'),
+  actions: z.array(TradingActionSchema).describe('List of rebalancing actions to capture profit.'),
   marketSentiment: z.enum(['bullish', 'bearish', 'neutral']),
 });
 export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
@@ -64,39 +61,34 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
   return withRetry(() => tradingBotFlow(input));
 }
 
+// Define prompt before use, ensuring schema is initialized
 const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `You are an institutional crypto strategy agent for Google Antigravity. Your goal is aggressive capital appreciation. 
+  prompt: `You are an institutional quantitative strategy agent for Google Antigravity. Your primary directive is Alpha capture (profit) and portfolio optimization.
 
-Strategy Type: {{{strategyType}}}
+Strategy: {{{strategyType}}}
 Risk Profile: {{{riskTolerance}}}
-Allocation Limit: $ {{{allocationLimitUSD}}}
+Capital Cap: $ {{{allocationLimitUSD}}}
 
-Market Data (Live):
+Market Data:
 {{#each marketData}}
-- {{{currency}}}: Price $ {{{price}}}, 24h Change: {{{change24h}}}%
+- {{{currency}}}: $ {{{price}}} ({{{change24h}}}% 24h)
 {{/each}}
 
-User Assets (Live):
-{{#if assets}}
+User Assets:
 {{#each assets}}
-- {{{currency}}}: Amount {{{amount}}}, Value $ {{{fiatValue}}}
+- {{{currency}}}: Value $ {{{fiatValue}}}
 {{/each}}
-{{else}}
-CRITICAL: NO ASSETS DETECTED. If there are no assets, inform the user that funds are required for rebalancing.
-{{/if}}
 
-Instructions:
-1. Rebalance the portfolio to maintain a healthy risk/reward ratio.
-2. If Risk is 'high', focus on high-momentum assets (gains above 3% in 24h).
-3. Identify rebalancing opportunities to capture alpha.
-4. If the Strategy Type is 'bitcoin_multiplier', prioritize rebalancing other assets INTO Bitcoin during bullish trends.
+Instructions for Maximum Intelligence:
+1. ANALYZE MOMENTUM: Identify assets with 24h gains above 2.5% as momentum candidates.
+2. REBALANCE FOR PROFIT: If an asset has surged, recommend partial profit taking (sell) to move capital into stable or high-conviction growth assets.
+3. BITCOIN MULTIPLIER: If strategy is 'bitcoin_multiplier', aggressively rebalance secondary assets into BTC during bullish trends to capitalize on the primary market mover.
+4. EXECUTION: Every action must be backed by institutional-grade reasoning. Avoid "Hold" unless the portfolio is perfectly balanced for the current volatility.
 
-CRITICAL: If the user has funds, you MUST identify at least one rebalancing action if the market sentiment justifies it. Do not just hold if there is significant momentum identified.
-Total USD of actions must be under the Allocation Limit.
-Output in JSON format.`,
+Your goal is to increase the 'Total Value' of the portfolio through strategic swaps.`,
 });
 
 const tradingBotFlow = ai.defineFlow(
@@ -107,7 +99,7 @@ const tradingBotFlow = ai.defineFlow(
   },
   async (input) => {
     const { output } = await tradingBotPrompt(input);
-    if (!output) throw new Error('AI failed to generate trading strategy.');
+    if (!output) throw new Error('AI Engine failed to generate strategic response.');
     return output;
   }
 );
