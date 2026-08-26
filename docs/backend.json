@@ -14,13 +14,15 @@
         "botActive": { "type": "boolean" },
         "botAllocation": { "type": "number" },
         "botRiskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
-        "botStrategy": { "type": "string", "enum": ["standard", "bitcoin_multiplier"] }
+        "botStrategy": { "type": "string", "enum": ["standard", "bitcoin_multiplier"] },
+        "stockBotActive": { "type": "boolean" },
+        "stockBotRisk": { "type": "string", "enum": ["low", "medium", "high"] }
       },
       "required": ["uid", "email"]
     },
     "WalletAsset": {
       "title": "Wallet Asset",
-      "description": "Cryptographic vault document stored in /users/{userId}/assets/{assetId}.",
+      "description": "Cryptographic vault document.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -33,9 +35,24 @@
       },
       "required": ["currency", "address"]
     },
+    "StockAsset": {
+      "title": "Stock Asset",
+      "description": "Traditional equity or bond holding.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "symbol": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["stock", "bond"] },
+        "shares": { "type": "number" },
+        "currentPrice": { "type": "number" },
+        "totalValue": { "type": "number" }
+      },
+      "required": ["symbol", "name", "shares"]
+    },
     "Transaction": {
       "title": "Transaction",
-      "description": "Private financial ledger stored in /users/{userId}/transactions/{transactionId}.",
+      "description": "Private financial ledger.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -62,6 +79,10 @@
     "/users/{userId}/assets/{assetId}": {
       "schema": "WalletAsset",
       "description": "Individual vault endpoints."
+    },
+    "/users/{userId}/stocks/{stockId}": {
+      "schema": "StockAsset",
+      "description": "Stocks and bonds holdings."
     },
     "/users/{userId}/transactions/{transactionId}": {
       "schema": "Transaction",

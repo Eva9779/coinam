@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -16,6 +17,7 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { toast } from '@/hooks/use-toast';
 import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
+import { analyzeEquityMarket } from '@/ai/flows/stock-bot-flow';
 import { INITIAL_MARKET_DATA } from '@/lib/data';
 import { getLiveBalance } from '@/lib/blockchain';
 
@@ -27,6 +29,16 @@ export interface WalletAsset {
   address: string;
   isLive: boolean;
   privateKey?: `0x${string}`;
+}
+
+export interface StockAsset {
+  id: string;
+  symbol: string;
+  name: string;
+  type: 'stock' | 'bond';
+  shares: number;
+  currentPrice: number;
+  totalValue: number;
 }
 
 export interface Transaction {
@@ -49,6 +61,7 @@ interface BotLog {
 
 interface VaultContextType {
   assets: WalletAsset[];
+  stockAssets: StockAsset[];
   transactions: Transaction[];
   initialized: boolean;
   isSyncing: boolean;
@@ -60,18 +73,25 @@ interface VaultContextType {
   botRiskLevel: 'low' | 'medium' | 'high';
   botStrategy: 'standard' | 'bitcoin_multiplier';
   botLogs: BotLog[];
+  stockBotActive: boolean;
+  stockBotRisk: 'low' | 'medium' | 'high';
+  stockBotLogs: BotLog[];
   isAnalyzing: boolean;
+  isAnalyzingStocks: boolean;
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
   generateNewWallet: (currency: string, customId?: string) => Promise<string | null>;
   importPrivateKey: (currency: string, privateKey: `0x${string}`) => Promise<void>;
   updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: 'standard' | 'bitcoin_multiplier') => void;
+  updateStockBotSettings: (active: boolean, risk: 'low' | 'medium' | 'high') => void;
   clearBotLogs: () => void;
+  clearStockBotLogs: () => void;
 }
 
 const VaultContext = createContext<VaultContextType | undefined>(undefined);
 
 export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
+  const [stockAssets, setStockAssets] = useState<StockAsset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
   const [botActive, setBotActive] = useState(false);
@@ -79,13 +99,21 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const [botRiskLevel, setBotRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [botStrategy, setBotStrategy] = useState<'standard' | 'bitcoin_multiplier'>('standard');
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
+  
+  const [stockBotActive, setStockBotActive] = useState(false);
+  const [stockBotRisk, setStockBotRisk] = useState<'low' | 'medium' | 'high'>('medium');
+  const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
+  
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isAnalyzingStocks, setIsAnalyzingStocks] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
   const [provisioning, setProvisioning] = useState(false);
   
   const assetsRef = useRef<WalletAsset[]>([]);
+  const stockAssetsRef = useRef<StockAsset[]>([]);
   const botStateRef = useRef({ active: false, risk: 'medium', allocation: 1000, strategy: 'standard' });
+  const stockBotStateRef = useRef({ active: false, risk: 'medium' });
 
   const { user } = useUserHook();
   const db = useFirestore();
@@ -93,6 +121,10 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     assetsRef.current = assets;
   }, [assets]);
+
+  useEffect(() => {
+    stockAssetsRef.current = stockAssets;
+  }, [stockAssets]);
 
   useEffect(() => {
     botStateRef.current = { 
@@ -103,8 +135,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     };
   }, [botActive, botRiskLevel, botAllocation, botStrategy]);
 
+  useEffect(() => {
+    stockBotStateRef.current = { active: stockBotActive, risk: stockBotRisk };
+  }, [stockBotActive, stockBotRisk]);
+
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
+  }, []);
+
+  const addStockLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
+    setStockBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
   useEffect(() => {
@@ -119,6 +159,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         setBotAllocation(data.botAllocation || 1000);
         setBotRiskLevel(data.botRiskLevel || 'medium');
         setBotStrategy(data.botStrategy || 'standard');
+        setStockBotActive(!!data.stockBotActive);
+        setStockBotRisk(data.stockBotRisk || 'medium');
       }
     });
 
@@ -128,21 +170,28 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!db || !user) {
       setAssets([]);
+      setStockAssets([]);
       return;
     }
 
     const assetsRefCol = collection(db, 'users', user.uid, 'assets');
-    const unsubscribe = onSnapshot(assetsRefCol, (snapshot) => {
+    const unsubscribeAssets = onSnapshot(assetsRefCol, (snapshot) => {
       const assetsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
       setAssets(assetsData);
       setInitialized(true);
       setIsSyncing(false);
-    }, (error) => {
-      setInitialized(true);
-      setIsSyncing(false);
     });
 
-    return () => unsubscribe();
+    const stocksRefCol = collection(db, 'users', user.uid, 'stocks');
+    const unsubscribeStocks = onSnapshot(stocksRefCol, (snapshot) => {
+      const stocksData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as StockAsset));
+      setStockAssets(stocksData);
+    });
+
+    return () => {
+      unsubscribeAssets();
+      unsubscribeStocks();
+    };
   }, [db, user]);
 
   useEffect(() => {
@@ -168,7 +217,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     };
 
     pollBalances();
-    const interval = setInterval(pollBalances, 15000); 
+    const interval = setInterval(pollBalances, 60000); 
     return () => clearInterval(interval);
   }, [initialized, assets.length]);
 
@@ -182,7 +231,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const txData = snapshot.docs.map(doc => doc.data() as Transaction);
       setTransactions(txData);
-    }, (error) => {});
+    });
     return () => unsubscribe();
   }, [db, user]);
 
@@ -206,43 +255,21 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     const { active, risk, allocation, strategy: strategyType } = botStateRef.current;
     if ((!active && !forceActive) || !user || !db || isAnalyzing) return;
     
-    const currentAssets = assetsRef.current;
-    const totalBalanceUSD = currentAssets.reduce((acc, a) => acc + a.fiatValueUSD, 0);
-
-    if (totalBalanceUSD <= 0) {
-      addLog(`SIGNAL HALTED: No active capital detected. Please fund your vault via the Global Aggregator to enable autonomous rebalancing.`, 'warning');
-      return;
-    }
-
     setIsAnalyzing(true);
     addLog(`AI Analysis Active: Scanning Mainnet for alpha rebalancing opportunities...`, 'info');
     
     try {
-      let liveMarket;
-      try {
-        const marketRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,usd-coin&vs_currencies=usd&include_24hr_change=true');
-        const marketJson = await marketRes.json();
-        liveMarket = [
-          { currency: 'BTC', price: marketJson.bitcoin.usd, change24h: marketJson.bitcoin.usd_24h_change },
-          { currency: 'ETH', price: marketJson.ethereum.usd, change24h: marketJson.ethereum.usd_24h_change },
-          { currency: 'SOL', price: marketJson.solana.usd, change24h: marketJson.solana.usd_24h_change },
-          { currency: 'USDC', price: 1, change24h: 0 },
-        ];
-      } catch {
-        liveMarket = INITIAL_MARKET_DATA.map(m => ({ 
-          currency: m.currency, price: m.currentPriceUSD, change24h: m.dailyChangePercent 
-        }));
-      }
-
       const strategyResult = await analyzeMarketAndTrade({
         userId: user.uid,
-        strategyType: strategyType as 'standard' | 'bitcoin_multiplier',
-        assets: currentAssets.map(a => ({
+        strategyType: strategyType as any,
+        assets: assetsRef.current.map(a => ({
           currency: a.currency,
           amount: a.amount,
           fiatValue: a.fiatValueUSD
         })),
-        marketData: liveMarket,
+        marketData: INITIAL_MARKET_DATA.map(m => ({ 
+          currency: m.currency, price: m.currentPriceUSD, change24h: m.dailyChangePercent 
+        })),
         riskTolerance: risk as any,
         allocationLimitUSD: allocation
       });
@@ -250,49 +277,93 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       if (strategyResult && strategyResult.actions.length > 0) {
         addLog(`STRATEGY IDENTIFIED: ${strategyResult.strategy}`, 'success');
         for (const action of strategyResult.actions) {
-          addLog(`Bot Recommendation: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}.`, 'info');
-          addLog(`Awaiting vault signature for Mainnet execution.`, 'info');
+          addLog(`${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}. ${action.reasoning}`, 'info');
         }
       } else {
         addLog(`Vault optimized. No deviations detected in this cycle.`, 'info');
       }
-
     } catch (error: any) {
-      addLog(`AI Logic Interrupted: ${error.message || 'Verification error.'}`, 'warning');
+      addLog(`AI Logic Interrupted: ${error.message}`, 'warning');
     } finally {
       setIsAnalyzing(false);
     }
   }, [user, db, isAnalyzing, addLog]);
 
+  const runStockBotCycle = useCallback(async (forceActive: boolean = false) => {
+    const { active, risk } = stockBotStateRef.current;
+    if ((!active && !forceActive) || !user || !db || isAnalyzingStocks) return;
+    
+    setIsAnalyzingStocks(true);
+    addStockLog(`Equity Agent Active: Analyzing Stocks & Bonds rebalancing...`, 'info');
+    
+    try {
+      const stockData = [
+        { symbol: 'AAPL', name: 'Apple Inc.', price: 185.92, changePercent: 1.2, type: 'stock' as const },
+        { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 142.65, changePercent: 0.8, type: 'stock' as const },
+        { symbol: 'TSLA', name: 'Tesla Inc.', price: 238.45, changePercent: -2.4, type: 'stock' as const },
+        { symbol: 'BND', name: 'Vanguard Bond ETF', price: 72.15, changePercent: 0.1, type: 'bond' as const },
+        { symbol: 'TRES', name: 'US 10Y Treasury', price: 98.40, changePercent: 0.05, type: 'bond' as const },
+      ];
+
+      const result = await analyzeEquityMarket({
+        userId: user.uid,
+        riskTolerance: risk as any,
+        currentHoldings: stockAssetsRef.current.map(s => ({
+          symbol: s.symbol,
+          shares: s.shares,
+          value: s.totalValue
+        })),
+        marketData: stockData
+      });
+
+      if (result && result.actions.length > 0) {
+        addStockLog(`SENTIMENT: ${result.sentiment.toUpperCase()} | ${result.summary}`, 'success');
+        for (const action of result.actions) {
+          addStockLog(`${action.type.toUpperCase()} ${action.amount} units of ${action.asset}. ${action.reasoning}`, 'info');
+        }
+      } else {
+        addStockLog(`Equity portfolio is at optimal state for ${risk} risk profile.`, 'info');
+      }
+    } catch (error: any) {
+      addStockLog(`Equity Agent Error: ${error.message}`, 'warning');
+    } finally {
+      setIsAnalyzingStocks(false);
+    }
+  }, [user, db, isAnalyzingStocks, addStockLog]);
+
   useEffect(() => {
     if (!initialized || !user) return;
     const interval = setInterval(() => {
       if (botStateRef.current.active) runBotCycle();
+      if (stockBotStateRef.current.active) runStockBotCycle();
     }, 600000); 
     return () => clearInterval(interval);
-  }, [initialized, user, runBotCycle]);
+  }, [initialized, user, runBotCycle, runStockBotCycle]);
 
   const updateBotSettings = useCallback((active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: 'standard' | 'bitcoin_multiplier') => {
     if (!db || !user) return;
-    const userRef = doc(db, 'users', user.uid);
-    
-    updateDoc(userRef, {
+    updateDoc(doc(db, 'users', user.uid), {
       botActive: active,
       botAllocation: allocation,
       botRiskLevel: risk,
       botStrategy: strategy,
       updatedAt: new Date().toISOString()
-    }).catch(() => {});
-    
-    if (active) {
-      addLog(`AI Neural Link Established. Agent is now monitoring markets.`, 'success');
-      setTimeout(() => runBotCycle(true), 100);
-    } else {
-      addLog(`Agent in standby mode. Cloud analysis suspended.`, 'info');
-    }
-  }, [db, user, addLog, runBotCycle]);
+    });
+    if (active) setTimeout(() => runBotCycle(true), 100);
+  }, [db, user, runBotCycle]);
+
+  const updateStockBotSettings = useCallback((active: boolean, risk: 'low' | 'medium' | 'high') => {
+    if (!db || !user) return;
+    updateDoc(doc(db, 'users', user.uid), {
+      stockBotActive: active,
+      stockBotRisk: risk,
+      updatedAt: new Date().toISOString()
+    });
+    if (active) setTimeout(() => runStockBotCycle(true), 100);
+  }, [db, user, runStockBotCycle]);
 
   const clearBotLogs = () => setBotLogs([]);
+  const clearStockBotLogs = () => setStockBotLogs([]);
 
   const generateNewWallet = useCallback(async (currency: string, customId: string = 'primary-vault') => {
     if (!db || !user) return null;
@@ -300,21 +371,16 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     try {
       const pKey = generatePrivateKey();
       const account = privateKeyToAccount(pKey);
-      
-      const userDocRef = doc(db, 'users', user.uid);
-      await setDoc(userDocRef, { uid: user.uid, email: user.email, updatedAt: new Date().toISOString() }, { merge: true });
-
-      const newAsset: Omit<WalletAsset, 'id'> = {
+      await setDoc(doc(db, 'users', user.uid), { uid: user.uid, email: user.email, updatedAt: new Date().toISOString() }, { merge: true });
+      const newAsset = {
         currency,
-        amount: 0, 
+        amount: 0,
         fiatValueUSD: 0,
         address: account.address,
         isLive: true,
         privateKey: pKey
       };
-      
-      const assetDocRef = doc(db, 'users', user.uid, 'assets', customId);
-      await setDoc(assetDocRef, newAsset);
+      await setDoc(doc(db, 'users', user.uid, 'assets', customId), newAsset);
       return account.address;
     } catch (e) {
       return null;
@@ -328,15 +394,8 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     try {
       const account = privateKeyToAccount(privateKey);
       const assetId = `imported_${Date.now()}`;
-      const assetDocRef = doc(db, 'users', user.uid, 'assets', assetId);
-      await setDoc(assetDocRef, {
-        id: assetId,
-        currency,
-        amount: 0,
-        fiatValueUSD: 0,
-        address: account.address,
-        isLive: true,
-        privateKey: privateKey
+      await setDoc(doc(db, 'users', user.uid, 'assets', assetId), {
+        id: assetId, currency, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: privateKey
       });
       toast({ title: "Vault Restored" });
     } catch (error) {
@@ -346,9 +405,11 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <VaultContext.Provider value={{ 
-      assets, transactions, initialized, isSyncing, isProvisioning: provisioning, user,
-      totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs, isAnalyzing,
-      addTransaction, generateNewWallet, importPrivateKey, updateBotSettings, clearBotLogs
+      assets, stockAssets, transactions, initialized, isSyncing, isProvisioning: provisioning, user,
+      totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
+      stockBotActive, stockBotRisk, stockBotLogs, isAnalyzing, isAnalyzingStocks,
+      addTransaction, generateNewWallet, importPrivateKey, updateBotSettings, updateStockBotSettings,
+      clearBotLogs, clearStockBotLogs
     }}>
       {children}
     </VaultContext.Provider>

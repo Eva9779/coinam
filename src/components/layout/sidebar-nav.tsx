@@ -14,18 +14,19 @@ import {
   Repeat,
   CreditCard,
   Banknote,
-  Bot
+  Bot,
+  Landmark
 } from "lucide-react";
 
 const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Wallet", href: "/wallet", icon: Wallet },
-  { name: "AI Trading Bot", href: "/bot", icon: Bot },
-  { name: "Buy Crypto", href: "/buy", icon: CreditCard },
+  { name: "Vault", href: "/wallet", icon: Wallet },
+  { name: "Stocks & Bonds", href: "/stocks", icon: Landmark },
+  { name: "Strategy Agent", href: "/bot", icon: Bot },
+  { name: "Buy Assets", href: "/buy", icon: CreditCard },
   { name: "Withdraw", href: "/withdraw", icon: Banknote },
   { name: "Trade", href: "/trade", icon: Repeat },
-  { name: "Transactions", href: "/transactions", icon: ArrowLeftRight },
-  { name: "Market", href: "/market", icon: TrendingUp },
+  { name: "Markets", href: "/market", icon: TrendingUp },
   { name: "Smart Alerts", href: "/alerts", icon: Bell },
 ];
 
