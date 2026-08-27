@@ -1,7 +1,8 @@
+
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for the Antigravity Equity Agent.
- * Specialized in Stocks and Bonds rebalancing for long-term capital appreciation.
+ * Specialized in Tokenized Real World Asset (RWA) rebalancing for institutional yields.
  */
 
 import { ai } from '@/ai/genkit';
@@ -35,8 +36,8 @@ const StockBotActionSchema = z.object({
 });
 
 const StockBotOutputSchema = z.object({
-  summary: z.string().describe('Market-wide strategy summary.'),
-  actions: z.array(StockBotActionSchema).describe('Recommended rebalancing actions.'),
+  summary: z.string().describe('RWA protocol strategy summary.'),
+  actions: z.array(StockBotActionSchema).describe('Recommended tokenized rebalancing actions.'),
   sentiment: z.enum(['bullish', 'bearish', 'neutral']),
 });
 export type StockBotOutput = z.infer<typeof StockBotOutputSchema>;
@@ -61,11 +62,11 @@ const stockBotPrompt = ai.definePrompt({
   name: 'stockBotPrompt',
   input: { schema: StockBotInputSchema },
   output: { schema: StockBotOutputSchema },
-  prompt: `You are an institutional Portfolio Manager at Google Antigravity. Your goal is smart capital allocation across Stocks and Bonds.
+  prompt: `You are an institutional RWA Strategy Agent at Google Antigravity. Your goal is decentralized capital allocation across Tokenized Stocks and Bonds.
 
 Risk Profile: {{{riskTolerance}}}
 
-Live Market Feed:
+Live RWA Market Feed:
 {{#each marketData}}
 - {{{symbol}}} ({{{name}}}): $ {{{price}}} ({{{changePercent}}}% Change) [{{{type}}}]
 {{/each}}
@@ -76,14 +77,14 @@ Portfolio Snapshot:
 - {{{symbol}}}: {{{shares}}} units, $ {{{value}}} current valuation
 {{/each}}
 {{else}}
-NO CURRENT EQUITY EXPOSURE.
+NO CURRENT TOKENIZED EQUITY EXPOSURE.
 {{/if}}
 
 Intelligence Directives:
-1. DIVERSIFICATION: Balance Tech-heavy stocks with Bonds based on risk profile.
-2. GROWTH: For 'high' risk, identify high-alpha growth sectors (Technology, AI).
-3. STABILITY: For 'low' risk, prioritize rebalancing into Bond ETFs and Treasuries to protect the principal.
-4. REASONING: Provide clear, data-driven reasoning for every recommended buy or sell to maximize user trust.
+1. DECENTRALIZED SETTLEMENT: All actions rebalance tokenized assets directly within the user's cryptographic enclave.
+2. DIVERSIFICATION: Balance Tech-heavy tokenized stocks with Bond-backed tokens based on risk profile.
+3. ALPHA CAPTURE: Identify momentum in tokenized markets to increase the total portfolio valuation.
+4. REASONING: Provide data-driven reasoning for every recommended swap to maximize user trust in the RWA protocol.
 
 Captured yield and profit should be the primary outcome of these actions.`,
 });
@@ -96,7 +97,7 @@ const stockBotFlow = ai.defineFlow(
   },
   async (input) => {
     const { output } = await stockBotPrompt(input);
-    if (!output) throw new Error('AI Equity Engine returned null.');
+    if (!output) throw new Error('AI RWA Engine returned null.');
     return output;
   }
 );

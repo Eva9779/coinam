@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, memo } from 'react';
@@ -23,7 +24,8 @@ import {
   Trash2,
   LineChart,
   Target,
-  Trophy
+  Trophy,
+  Layers
 } from 'lucide-react';
 import { useVaultStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -102,11 +104,11 @@ export default function StocksPage() {
         <div>
           <h2 className="text-3xl font-bold text-primary flex items-center gap-3 tracking-tighter">
             <Landmark className="h-8 w-8 text-secondary" />
-            Equity Agent
+            RWA Strategy Agent
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            Institutional Equity Analysis. Managing global stocks & corporate debt.
+            Decentralized Equity Enclave. Managing tokenized stocks & bonds (RWA).
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -115,7 +117,7 @@ export default function StocksPage() {
             stockBotActive ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"
           )}>
             <div className={cn("h-2 w-2 rounded-full mr-2", stockBotActive ? "bg-green-500 animate-pulse" : "bg-amber-500")} />
-            Equity Link: {stockBotActive ? 'LIVE' : 'STANDBY'}
+            Protocol Link: {stockBotActive ? 'LIVE' : 'STANDBY'}
           </Badge>
           <Button 
             onClick={handleToggleBot} 
@@ -123,7 +125,7 @@ export default function StocksPage() {
             className="h-12 px-8 font-bold rounded-2xl shadow-xl gap-2 transition-all"
           >
             {stockBotActive ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-            {stockBotActive ? 'Deactivate Agent' : 'Activate Equity Agent'}
+            {stockBotActive ? 'Deactivate Agent' : 'Activate RWA Agent'}
           </Button>
         </div>
       </div>
@@ -147,13 +149,13 @@ export default function StocksPage() {
             <Card className="rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/10 shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Portfolio Valuation</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Tokenized Valuation</p>
                   <p className="text-4xl font-black tracking-tighter text-primary">
                     ${stockAssets.reduce((acc, s) => acc + s.totalValue, 0).toLocaleString()}
                   </p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-secondary/10 flex items-center justify-center border-secondary/20">
-                  <Briefcase className="h-7 w-7 text-secondary" />
+                  <Layers className="h-7 w-7 text-secondary" />
                 </div>
               </CardContent>
             </Card>
@@ -173,7 +175,7 @@ export default function StocksPage() {
             <CardHeader className="border-b border-white/10 flex flex-row items-center justify-between px-8 py-6">
               <div className="flex items-center gap-3">
                 <Terminal className="h-5 w-5 text-secondary" />
-                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">Equity Analysis Feed</CardTitle>
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">RWA Analysis Feed</CardTitle>
               </div>
               <div className="flex items-center gap-2">
                 {isAnalyzingStocks && (
@@ -226,24 +228,24 @@ export default function StocksPage() {
                       <SelectValue placeholder="Select Risk" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
-                      <SelectItem value="low">Conservative (Bonds Focus)</SelectItem>
-                      <SelectItem value="medium">Balanced (Index Focus)</SelectItem>
-                      <SelectItem value="high">Aggressive (Equity Focus)</SelectItem>
+                      <SelectItem value="low">Conservative (Bond-Tokens Focus)</SelectItem>
+                      <SelectItem value="medium">Balanced (Index-Tokens Focus)</SelectItem>
+                      <SelectItem value="high">Aggressive (Growth-Tokens Focus)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Analysis Target</Label>
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">RWA Vision Target</Label>
                   <Select value={chartSymbol} onValueChange={setChartSymbol}>
                     <SelectTrigger className="h-12 rounded-xl font-bold">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
-                      <SelectItem value="NASDAQ:AAPL">Apple Inc. (AAPL)</SelectItem>
-                      <SelectItem value="NASDAQ:GOOGL">Alphabet (GOOGL)</SelectItem>
-                      <SelectItem value="NASDAQ:TSLA">Tesla (TSLA)</SelectItem>
-                      <SelectItem value="AMEX:BND">Vanguard Bond (BND)</SelectItem>
+                      <SelectItem value="NASDAQ:AAPL">Apple Token (bAAPL)</SelectItem>
+                      <SelectItem value="NASDAQ:GOOGL">Google Token (bGOOGL)</SelectItem>
+                      <SelectItem value="NASDAQ:TSLA">Tesla Token (bTSLA)</SelectItem>
+                      <SelectItem value="AMEX:BND">Bond Token (bBND)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -252,10 +254,10 @@ export default function StocksPage() {
               <div className="p-6 rounded-[1.5rem] bg-slate-900 text-white space-y-4">
                 <h4 className="text-sm font-black flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-secondary" />
-                  Equity Protection
+                  RWA Protocol Security
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  The Antigravity Equity Agent utilizes institutional rebalancing models to optimize Stock and Bond allocations based on your risk profile.
+                  The Antigravity RWA Agent utilizes institutional rebalancing models to optimize Tokenized Equity and Debt allocations within your secure enclave.
                 </p>
               </div>
             </CardContent>
@@ -264,19 +266,19 @@ export default function StocksPage() {
           <Card className="rounded-[2.5rem] shadow-xl border-primary/10 bg-card/50 p-6 space-y-4">
             <h3 className="text-sm font-bold flex items-center gap-2">
               <Briefcase className="h-4 w-4 text-primary" />
-              Active Holdings
+              Tokenized Holdings
             </h3>
             <div className="space-y-3">
               {stockAssets.length > 0 ? stockAssets.map(s => (
                 <div key={s.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/20">
                   <div>
                     <div className="font-bold text-xs">{s.symbol}</div>
-                    <div className="text-[10px] text-muted-foreground">{s.shares} units</div>
+                    <div className="text-[10px] text-muted-foreground">{s.shares} token units</div>
                   </div>
                   <div className="text-xs font-bold">${s.totalValue.toLocaleString()}</div>
                 </div>
               )) : (
-                <p className="text-[10px] text-center text-muted-foreground opacity-50 py-4 font-bold uppercase">No active holdings</p>
+                <p className="text-[10px] text-center text-muted-foreground opacity-50 py-4 font-bold uppercase">No tokenized holdings</p>
               )}
             </div>
           </Card>

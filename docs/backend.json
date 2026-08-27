@@ -37,7 +37,7 @@
     },
     "StockAsset": {
       "title": "Stock Asset",
-      "description": "Traditional equity or bond holding.",
+      "description": "Tokenized Real World Asset (RWA) representing traditional equity or bonds on-chain.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -46,7 +46,8 @@
         "type": { "type": "string", "enum": ["stock", "bond"] },
         "shares": { "type": "number" },
         "currentPrice": { "type": "number" },
-        "totalValue": { "type": "number" }
+        "totalValue": { "type": "number" },
+        "tokenAddress": { "type": "string", "description": "The ERC-20 contract address for the tokenized asset." }
       },
       "required": ["symbol", "name", "shares"]
     },
@@ -82,7 +83,7 @@
     },
     "/users/{userId}/stocks/{stockId}": {
       "schema": "StockAsset",
-      "description": "Stocks and bonds holdings."
+      "description": "Tokenized RWA holdings (Stocks and Bonds)."
     },
     "/users/{userId}/transactions/{transactionId}": {
       "schema": "Transaction",
