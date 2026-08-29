@@ -1,24 +1,39 @@
 
 # Coin A,M | Asset Security
 
-This is a high-performance cryptocurrency vault prototype built with Next.js, React, and Genkit.
+This is a high-performance cryptocurrency and tokenized equity wallet prototype built with Next.js, React, and Genkit.
 
-## 🚀 CRITICAL: Troubleshooting "Compiling" Hangs
+## 🚀 Troubleshooting GitHub Push Errors
 
-If your preview screen stays white or shows "Compiling /" for more than 20 seconds, follow these steps:
+If you see the error `! [rejected] main -> main (non-fast-forward)` or `fatal: cannot rename the current branch while not on any`, follow these steps in your PowerShell terminal:
 
-1.  **Refresh the Browser Tab**: Sometimes the dev server (Turbopack) needs a fresh request to finish the compilation cycle.
-2.  **Verify Production Environment**: Features like Apple Pay and Google Pay **only appear on Production HTTPS URLs**.
-3.  **Check Your Branch**: Ensure your changes are on the branch that Vercel is set to deploy (usually `main`).
+1. **Get back on the main branch**:
+   ```powershell
+   git checkout -B main
+   ```
+2. **Synchronize with GitHub**:
+   ```powershell
+   git pull origin main --rebase
+   ```
+   *(If this says "unrelated histories", use: `git pull origin main --allow-unrelated-histories`)*
+3. **Push your changes**:
+   ```powershell
+   git push -u origin main
+   ```
 
 ## Native Wallet Requirements
 - **Apple Pay**: Requires Safari on iOS or macOS.
 - **Google Pay**: Requires Chrome on Android or Desktop.
 - **Security**: Mandatory HTTPS connection. In Studio Preview (http), native wallets are hidden for your security.
+- **Regional Note**: Stripe Crypto is restricted to US/EU. Users in **Jamaica** should use the **Coindisco** or **Aggregator** tabs.
 
 ## Tech Stack
 - **Framework**: Next.js 15 (App Router / Turbopack)
-- **AI**: Genkit (Google Gemini)
+- **AI**: Genkit (Google Gemini 1.5 Flash)
 - **Database/Auth**: Firebase Firestore & Authentication
-- **Payments**: Onramper Aggregator / Stripe (Ready)
+- **Payments**: Coindisco / Onramper / Stripe
 - **Blockchain**: Viem (Mainnet RPC)
+
+## AI Agents
+- **Strategy Agent**: Quantitative crypto rebalancing.
+- **Equity Agent**: Tokenized Real World Asset (RWA) analysis for Stocks and Bonds.

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -165,6 +166,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       await setDoc(doc(db, 'users', user.uid, 'assets', customId), newAsset);
       return account.address;
     } catch (e) {
+      console.error("Failed to generate wallet:", e);
       return null;
     } finally {
       setProvisioning(false);
