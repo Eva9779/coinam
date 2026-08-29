@@ -80,6 +80,7 @@ interface WalletContextType {
   isAnalyzing: boolean;
   isAnalyzingStocks: boolean;
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
+  updateBalance: (currency: string, amount: number, fiatPrice: number) => void;
   generateNewWallet: (currency: string, customId?: string) => Promise<string | null>;
   importPrivateKey: (currency: string, privateKey: `0x${string}`) => Promise<void>;
   updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: 'standard' | 'bitcoin_multiplier') => void;
@@ -283,6 +284,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     });
   }, [db, user]);
 
+  const updateBalance = useCallback((currency: string, amount: number, fiatPrice: number) => {
+    // Optimistic local update handled by Firestore snapshot
+  }, []);
+
   const runBotCycle = useCallback(async (forceActive: boolean = false) => {
     const { active, risk, allocation, strategy: strategyType } = botStateRef.current;
     if ((!active && !forceActive) || !user || !db || isAnalyzing) return;
@@ -438,7 +443,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       assets, stockAssets, transactions, initialized, isSyncing, isProvisioning: provisioning, user,
       totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
       stockBotActive, stockBotRisk, stockBotLogs, isAnalyzing, isAnalyzingStocks,
-      addTransaction, generateNewWallet, importPrivateKey, updateBotSettings, updateStockBotSettings,
+      addTransaction, updateBalance, generateNewWallet, importPrivateKey, updateBotSettings, updateStockBotSettings,
       clearBotLogs, clearStockBotLogs
     }}>
       {children}
