@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeftRight, TrendingUp, Info, RefreshCw, BarChart3 } from "lucide-react";
-import { useVaultStore } from "@/lib/store";
+import { useWalletStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 
 // Professional TradingView Chart Component
@@ -58,7 +58,7 @@ const TradingViewWidget = memo(({ symbol }: { symbol: string }) => {
 TradingViewWidget.displayName = "TradingViewWidget";
 
 export default function TradePage() {
-  const { assets, updateBalance, addTransaction, initialized } = useVaultStore();
+  const { assets, updateBalance, addTransaction, initialized } = useWalletStore();
   const [fromAsset, setFromAsset] = useState("USDC");
   const [toAsset, setToAsset] = useState("BTC");
   const [amount, setAmount] = useState("");

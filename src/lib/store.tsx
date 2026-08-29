@@ -59,7 +59,7 @@ interface BotLog {
   timestamp: string;
 }
 
-interface VaultContextType {
+interface WalletContextType {
   assets: WalletAsset[];
   stockAssets: StockAsset[];
   transactions: Transaction[];
@@ -87,9 +87,9 @@ interface VaultContextType {
   clearStockBotLogs: () => void;
 }
 
-const VaultContext = createContext<VaultContextType | undefined>(undefined);
+const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-export function VaultProvider({ children }: { children: React.ReactNode }) {
+export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
   const [stockAssets, setStockAssets] = useState<StockAsset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -147,7 +147,36 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     setStockBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
-  // Sync user profile (Earnings and Bot state)
+  const generateNewWallet = useCallback(async (currency: string, customId: string = 'primary-wallet') => {
+    if (!db || !user) return null;
+    setProvisioning(true);
+    try {
+      const pKey = generatePrivateKey();
+      const account = privateKeyToAccount(pKey);
+      await setDoc(doc(db, 'users', user.uid), { uid: user.uid, email: user.email, updatedAt: new Date().toISOString() }, { merge: true });
+      const newAsset = {
+        currency,
+        amount: 0,
+        fiatValueUSD: 0,
+        address: account.address,
+        isLive: true,
+        privateKey: pKey
+      };
+      await setDoc(doc(db, 'users', user.uid, 'assets', customId), newAsset);
+      return account.address;
+    } catch (e) {
+      return null;
+    } finally {
+      setProvisioning(false);
+    }
+  }, [db, user]);
+
+  useEffect(() => {
+    if (initialized && user && assets.length === 0 && !provisioning) {
+      generateNewWallet('ETH', 'primary-wallet');
+    }
+  }, [initialized, user, assets.length, provisioning, generateNewWallet]);
+
   useEffect(() => {
     if (!db || !user) return;
 
@@ -168,7 +197,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [db, user]);
 
-  // Sync sub-collections (Assets and Stocks)
   useEffect(() => {
     if (!db || !user) {
       setAssets([]);
@@ -196,7 +224,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     };
   }, [db, user]);
 
-  // Poll Blockchain Balances
   useEffect(() => {
     if (!initialized || assets.length === 0) return;
 
@@ -224,7 +251,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [initialized, assets.length]);
 
-  // Sync Transactions
   useEffect(() => {
     if (!db || !user) {
       setTransactions([]);
@@ -255,15 +281,13 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     });
   }, [db, user]);
 
-  // AI BOT CYCLE (Trading)
   const runBotCycle = useCallback(async (forceActive: boolean = false) => {
     const { active, risk, allocation, strategy: strategyType } = botStateRef.current;
     if ((!active && !forceActive) || !user || !db || isAnalyzing) return;
 
-    // Check for funds before analyzing
     const totalCryptoValue = assetsRef.current.reduce((acc, a) => acc + a.fiatValueUSD, 0);
     if (totalCryptoValue < 50) {
-      addLog(`Insufficient Vault Funds ($${totalCryptoValue.toFixed(2)}). Bot is standing by for deposits.`, 'warning');
+      addLog(`Insufficient Wallet Funds ($${totalCryptoValue.toFixed(2)}). Bot is standing by for deposits.`, 'warning');
       return;
     }
     
@@ -291,8 +315,7 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         for (const action of strategyResult.actions) {
           addLog(`${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}. ${action.reasoning}`, 'info');
           
-          // Simulate profit capture on-chain for the user
-          const simulatedProfit = action.amountUSD * 0.0005; // 0.05% captured alpha per cycle
+          const simulatedProfit = action.amountUSD * 0.0005;
           updateDoc(doc(db, 'users', user.uid), {
             totalBotEarnings: increment(simulatedProfit)
           });
@@ -307,7 +330,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, db, isAnalyzing, addLog]);
 
-  // AI BOT CYCLE (Stocks)
   const runStockBotCycle = useCallback(async (forceActive: boolean = false) => {
     const { active, risk } = stockBotStateRef.current;
     if ((!active && !forceActive) || !user || !db || isAnalyzingStocks) return;
@@ -346,7 +368,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
         for (const action of result.actions) {
           addStockLog(`${action.type.toUpperCase()} ${action.amount} shares of ${action.asset}. ${action.reasoning}`, 'info');
           
-          // Capture simulated equity growth
           const simulatedGain = 1.25; 
           updateDoc(doc(db, 'users', user.uid), {
             totalBotEarnings: increment(simulatedGain)
@@ -362,7 +383,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, db, isAnalyzingStocks, addStockLog]);
 
-  // Re-run loops every 10 minutes
   useEffect(() => {
     if (!initialized || !user) return;
     const interval = setInterval(() => {
@@ -397,30 +417,6 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
   const clearBotLogs = () => setBotLogs([]);
   const clearStockBotLogs = () => setStockBotLogs([]);
 
-  const generateNewWallet = useCallback(async (currency: string, customId: string = 'primary-vault') => {
-    if (!db || !user) return null;
-    setProvisioning(true);
-    try {
-      const pKey = generatePrivateKey();
-      const account = privateKeyToAccount(pKey);
-      await setDoc(doc(db, 'users', user.uid), { uid: user.uid, email: user.email, updatedAt: new Date().toISOString() }, { merge: true });
-      const newAsset = {
-        currency,
-        amount: 0,
-        fiatValueUSD: 0,
-        address: account.address,
-        isLive: true,
-        privateKey: pKey
-      };
-      await setDoc(doc(db, 'users', user.uid, 'assets', customId), newAsset);
-      return account.address;
-    } catch (e) {
-      return null;
-    } finally {
-      setProvisioning(false);
-    }
-  }, [db, user]);
-
   const importPrivateKey = async (currency: string, privateKey: `0x${string}`) => {
     if (!db || !user) return;
     try {
@@ -429,14 +425,14 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       await setDoc(doc(db, 'users', user.uid, 'assets', assetId), {
         id: assetId, currency, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: privateKey
       });
-      toast({ title: "Vault Restored" });
+      toast({ title: "Wallet Restored" });
     } catch (error) {
       toast({ title: "Import failed", variant: "destructive" });
     }
   };
 
   return (
-    <VaultContext.Provider value={{ 
+    <WalletContext.Provider value={{ 
       assets, stockAssets, transactions, initialized, isSyncing, isProvisioning: provisioning, user,
       totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
       stockBotActive, stockBotRisk, stockBotLogs, isAnalyzing, isAnalyzingStocks,
@@ -444,12 +440,12 @@ export function VaultProvider({ children }: { children: React.ReactNode }) {
       clearBotLogs, clearStockBotLogs
     }}>
       {children}
-    </VaultContext.Provider>
+    </WalletContext.Provider>
   );
 }
 
-export function useVaultStore() {
-  const context = useContext(VaultContext);
-  if (context === undefined) throw new Error('useVaultStore must be used within a VaultProvider');
+export function useWalletStore() {
+  const context = useContext(WalletContext);
+  if (context === undefined) throw new Error('useWalletStore must be used within a WalletProvider');
   return context;
 }

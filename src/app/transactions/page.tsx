@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ArrowUpRight, ArrowDownLeft, Send, CheckCircle2, History, AlertCircle, Zap, ShieldCheck, Database, Copy, Loader2 } from "lucide-react";
-import { useVaultStore } from "@/lib/store";
+import { useWalletStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { getLiveGasPrice, sendLiveTransaction } from "@/lib/blockchain";
@@ -19,7 +19,7 @@ import { QRCodeSVG } from 'qrcode.react';
 type FeeTier = 'slow' | 'average' | 'fast';
 
 export default function TransactionsPage() {
-  const { assets, transactions, updateBalance, addTransaction, initialized } = useVaultStore();
+  const { assets, transactions, updateBalance, addTransaction, initialized } = useWalletStore();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'send';
   
@@ -86,11 +86,8 @@ export default function TransactionsPage() {
     setIsSending(true);
     
     try {
-      // 1. Blockchain Broadcast: Direct transmission to the peer network
-      // This is the CRITICAL mission step.
       const txHash = await sendLiveTransaction(asset.privateKey, recipient, amount);
       
-      // IMMEDIATE SUCCESS: Celebrate the on-chain broadcast regardless of ledger sync.
       toast({
         title: "Broadcast Finalized",
         description: `Network Signature: ${txHash.slice(0, 16)}...`,
@@ -104,8 +101,6 @@ export default function TransactionsPage() {
       setAmount("");
       setRecipient("");
 
-      // 2. Ledger Sync (Isolated & Silent)
-      // These background sync calls will no longer block the UI or throw red-screen errors.
       updateBalance(sentCurrency, -sentAmount, fiatPrice);
       addTransaction({
         type: 'send',

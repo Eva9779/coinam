@@ -30,7 +30,7 @@ import {
   Rocket,
   Coins
 } from 'lucide-react';
-import { useVaultStore } from '@/lib/store';
+import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
@@ -94,7 +94,7 @@ export default function TradingBotPage() {
     isAnalyzing,
     updateBotSettings,
     clearBotLogs
-  } = useVaultStore();
+  } = useWalletStore();
 
   const [localAllocation, setLocalAllocation] = useState(botAllocation.toString());
   const [localRisk, setLocalRisk] = useState<'low' | 'medium' | 'high'>(botRiskLevel);

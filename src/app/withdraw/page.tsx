@@ -7,13 +7,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Banknote, Building2, ShieldCheck, Loader2, ArrowLeft, Zap, ExternalLink, CreditCard } from 'lucide-react';
-import { useVaultStore } from '@/lib/store';
+import { useWalletStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { createWithdrawalSession } from '@/app/lib/stripe-actions';
 
 export default function WithdrawPage() {
-  const { assets, initialized } = useVaultStore();
+  const { assets, initialized } = useWalletStore();
   const [selectedAsset, setSelectedAsset] = useState<string>('');
   const [isRedirecting, setIsRedirecting] = useState(false);
 
@@ -129,7 +129,7 @@ export default function WithdrawPage() {
             {!canWithdraw && (
               <div className="flex flex-col items-center gap-4">
                 <p className="text-center text-[10px] text-destructive font-bold uppercase tracking-widest">
-                  Insufficient balance in selected vault for liquidation.
+                  Insufficient balance in selected wallet for liquidation.
                 </p>
                 <Button variant="outline" asChild className="rounded-xl font-bold">
                   <Link href="/buy">

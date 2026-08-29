@@ -1,4 +1,3 @@
-
 "use client";
 
 import { Button } from "@/components/ui/button";
@@ -23,7 +22,6 @@ import { cn } from "@/lib/utils";
 export default function LandingPage() {
   return (
     <div className="flex flex-col min-h-screen bg-background selection:bg-secondary selection:text-white">
-      {/* Navigation */}
       <header className="h-20 border-b bg-background/80 backdrop-blur-xl sticky top-0 z-50 px-6 sm:px-12 flex items-center justify-between">
         <div className="flex items-center gap-2 text-primary font-bold text-2xl tracking-tighter">
           <ShieldCheck className="h-9 w-9 text-secondary" />
@@ -44,7 +42,6 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* Hero Section */}
       <section className="relative pt-24 pb-32 px-6 sm:px-12 overflow-hidden bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/5 via-background to-background">
         <div className="max-w-6xl mx-auto flex flex-col items-center text-center space-y-8 relative z-10">
           <Badge variant="outline" className="py-2 px-4 rounded-full border-secondary/30 bg-secondary/5 text-secondary font-black tracking-[0.2em] text-[10px] uppercase animate-in fade-in slide-in-from-bottom-4 duration-1000">
@@ -54,12 +51,12 @@ export default function LandingPage() {
             Secure Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-secondary to-blue-600">Digital Legacy</span> with AI Intelligence.
           </h1>
           <p className="text-xl text-muted-foreground font-medium max-w-2xl leading-relaxed">
-            Experience the world's most advanced non-custodial vault. Integrated with native Apple/Google Pay and AI-driven autonomous trading bots.
+            Experience the world's most advanced non-custodial wallet. Integrated with native Apple/Google Pay and AI-driven autonomous trading bots.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 pt-4">
             <Button size="lg" className="h-16 px-10 text-xl font-black rounded-2xl shadow-2xl group" asChild>
               <Link href="/register">
-                Initialize Your Vault 
+                Initialize Your Wallet 
                 <ChevronRight className="ml-2 h-6 w-6 group-hover:translate-x-1 transition-transform" />
               </Link>
             </Button>
@@ -76,11 +73,9 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Abstract Background Elements */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-primary/5 rounded-full blur-[120px] -z-10" />
       </section>
 
-      {/* Features Grid */}
       <section id="features" className="py-24 px-6 sm:px-12 bg-white">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
@@ -90,7 +85,7 @@ export default function LandingPage() {
               </div>
               <h3 className="text-2xl font-black tracking-tight">Instant On-Ramp</h3>
               <p className="text-muted-foreground font-medium leading-relaxed">
-                Fund your secure vault in seconds using Apple Pay, Google Pay, or Debit Card. No complex exchanges required.
+                Fund your secure wallet in seconds using Apple Pay, Google Pay, or Debit Card. No complex exchanges required.
               </p>
             </div>
             <div className="space-y-4">
@@ -106,7 +101,7 @@ export default function LandingPage() {
               <div className="h-14 w-14 rounded-2xl bg-green-500/10 flex items-center justify-center">
                 <ShieldCheck className="h-7 w-7 text-green-600" />
               </div>
-              <h3 className="text-2xl font-black tracking-tight">Vault Isolation</h3>
+              <h3 className="text-2xl font-black tracking-tight">Wallet Isolation</h3>
               <p className="text-muted-foreground font-medium leading-relaxed">
                 Non-custodial cryptographic keys generated on-device. You maintain absolute control over your digital assets.
               </p>
@@ -115,7 +110,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Security Section */}
       <section id="security" className="py-24 px-6 sm:px-12 bg-slate-950 text-white overflow-hidden relative">
         <div className="absolute inset-0 opacity-10 pointer-events-none">
           <Lock className="h-[600px] w-[600px] absolute -right-20 -bottom-20 rotate-12" />
@@ -153,7 +147,7 @@ export default function LandingPage() {
              <div className="flex items-center justify-between border-b border-white/10 pb-6">
                <div className="flex items-center gap-3">
                  <Layers className="h-6 w-6 text-secondary" />
-                 <span className="font-bold uppercase tracking-widest text-xs opacity-50">Protocol: Vault-Secure-V4</span>
+                 <span className="font-bold uppercase tracking-widest text-xs opacity-50">Protocol: Wallet-Secure-V4</span>
                </div>
                <Badge className="bg-green-500 text-white border-none animate-pulse">ACTIVE</Badge>
              </div>
@@ -162,7 +156,7 @@ export default function LandingPage() {
                    <div className="h-full bg-secondary w-3/4" />
                 </div>
                 <div className="flex justify-between text-[10px] font-bold opacity-40 uppercase tracking-widest">
-                  <span>Encryption Key Strenght</span>
+                  <span>Encryption Key Strength</span>
                   <span>4096-bit AES</span>
                 </div>
              </div>
@@ -173,7 +167,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="py-20 px-6 sm:px-12 bg-background border-t">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between gap-12">
           <div className="space-y-4 max-w-sm">

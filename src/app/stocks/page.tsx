@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo } from 'react';
@@ -27,7 +26,7 @@ import {
   Trophy,
   Layers
 } from 'lucide-react';
-import { useVaultStore } from '@/lib/store';
+import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
@@ -84,7 +83,7 @@ export default function StocksPage() {
     isAnalyzingStocks,
     updateStockBotSettings,
     clearStockBotLogs
-  } = useVaultStore();
+  } = useWalletStore();
 
   const [localRisk, setLocalRisk] = useState<'low' | 'medium' | 'high'>(stockBotRisk);
   const [chartSymbol, setChartSymbol] = useState("NASDAQ:AAPL");

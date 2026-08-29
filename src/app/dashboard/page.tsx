@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -21,14 +20,14 @@ import {
   Briefcase,
   Landmark
 } from "lucide-react";
-import { useVaultStore } from "@/lib/store";
+import { useWalletStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { INITIAL_MARKET_DATA } from "@/lib/data";
 
 export default function Dashboard() {
-  const { assets, stockAssets, transactions, initialized, botActive, stockBotActive, botLogs, isAnalyzing, totalBotEarnings } = useVaultStore();
+  const { assets, stockAssets, transactions, initialized, botActive, stockBotActive, botLogs, isAnalyzing, totalBotEarnings } = useWalletStore();
   const [marketData, setMarketData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -74,7 +73,7 @@ export default function Dashboard() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-center">Synchronizing Production Vault...</p>
+        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-center">Synchronizing Production Wallet...</p>
       </div>
     );
   }
@@ -123,7 +122,7 @@ export default function Dashboard() {
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
               <TrendingUp className="h-3 w-3 text-secondary" />
-              Institutional Market highlights
+              Institutional Market Highlights
             </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center gap-8 overflow-x-auto pb-2 no-scrollbar">
@@ -163,7 +162,7 @@ export default function Dashboard() {
                       {asset.currency}
                     </div>
                     <div>
-                      <div className="font-bold text-sm">{asset.currency} Vault</div>
+                      <div className="font-bold text-sm">{asset.currency} Wallet</div>
                       <div className="text-xs text-muted-foreground font-medium">{asset.amount.toFixed(4)} {asset.currency}</div>
                     </div>
                   </div>

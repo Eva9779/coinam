@@ -1,4 +1,3 @@
-
 'use client';
 
 import './globals.css';
@@ -7,7 +6,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { ShieldCheck, Database, LogOut, User as UserIcon, Loader2, Menu } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { getLiveBlockNumber } from '@/lib/blockchain';
-import { VaultProvider } from '@/lib/store';
+import { WalletProvider } from '@/lib/store';
 import { usePathname, useRouter } from 'next/navigation';
 import { FirebaseClientProvider, useUserHook, useAuth } from '@/firebase';
 import { signOut as firebaseSignOut } from 'firebase/auth';
@@ -59,12 +58,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Handle Public Pages (Landing, Login, Register, Market)
   if (isPublicPage && !user) {
     return <>{children}</>;
   }
 
-  // If user is logged in, show the app shell for all pages (even public ones like landing/market)
   if (user) {
     const handleSignOut = () => {
       firebaseSignOut(auth).then(() => {
@@ -226,11 +223,11 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased bg-background text-foreground overflow-x-hidden">
         <FirebaseClientProvider>
-          <VaultProvider>
+          <WalletProvider>
             <AuthGuard>
               {children}
             </AuthGuard>
-          </VaultProvider>
+          </WalletProvider>
         </FirebaseClientProvider>
         <Toaster />
       </body>

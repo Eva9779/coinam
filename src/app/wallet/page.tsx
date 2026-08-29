@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from "react";
@@ -23,13 +22,13 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
-import { useVaultStore } from "@/lib/store";
+import { useWalletStore } from "@/lib/store";
 import { getLiveBalance } from "@/lib/blockchain";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export default function WalletPage() {
-  const { assets, initialized, isSyncing, isProvisioning, generateNewWallet } = useVaultStore();
+  const { assets, initialized, isSyncing, isProvisioning, generateNewWallet } = useWalletStore();
   const [search, setSearch] = useState("");
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
 
@@ -60,11 +59,10 @@ export default function WalletPage() {
     });
   };
 
-  const handleInitializeVault = async () => {
-    await generateNewWallet('ETH', 'primary-vault');
+  const handleInitializeWallet = async () => {
+    await generateNewWallet('ETH', 'primary-wallet');
   };
 
-  // FULL SCREEN LOADING GUARD: Ensures we don't show empty UI before cloud sync is definitive
   if (!initialized) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
@@ -73,8 +71,8 @@ export default function WalletPage() {
           <ShieldCheck className="h-8 w-8 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
         </div>
         <div className="text-center space-y-2">
-          <p className="text-xs font-black uppercase tracking-[0.3em] text-primary animate-pulse">Syncing Cloud Enclave</p>
-          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest opacity-60">Connecting to secure vault network...</p>
+          <p className="text-xs font-black uppercase tracking-[0.3em] text-primary animate-pulse">Syncing Wallet Network</p>
+          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest opacity-60">Connecting to secure asset enclave...</p>
         </div>
       </div>
     );
@@ -86,7 +84,7 @@ export default function WalletPage() {
         <div>
           <h2 className="text-3xl font-bold text-primary flex items-center gap-3 tracking-tighter">
             <ShieldCheck className="h-8 w-8 text-secondary" />
-            Non-Custodial Vault
+            Non-Custodial Wallet
           </h2>
           <div className="flex items-center gap-2 mt-1">
             <p className="text-muted-foreground text-sm font-medium">Cryptographic endpoints synchronized with decentralized peers.</p>
@@ -119,7 +117,7 @@ export default function WalletPage() {
           <Card className="shadow-2xl border-none bg-card/50 backdrop-blur-lg rounded-[2rem]">
             <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b bg-muted/20 px-8 py-6">
               <div>
-                <CardTitle className="text-xl font-bold tracking-tighter">Vault Endpoints</CardTitle>
+                <CardTitle className="text-xl font-bold tracking-tighter">Wallet Endpoints</CardTitle>
                 <CardDescription className="text-xs uppercase font-bold tracking-widest opacity-60">Direct Network Isolation</CardDescription>
               </div>
               <div className="relative w-full sm:w-64">
@@ -199,16 +197,16 @@ export default function WalletPage() {
                           <Key className="h-10 w-10 text-primary opacity-40" />
                         </div>
                         <div className="space-y-2 px-4">
-                          <h4 className="text-xl font-black uppercase tracking-tight">Vault Not Initialized</h4>
+                          <h4 className="text-xl font-black uppercase tracking-tight">Wallet Not Initialized</h4>
                           <p className="text-sm text-muted-foreground max-w-xs mx-auto">To begin securing your digital legacy, you must first provision a unique cryptographic identity.</p>
                         </div>
                         <Button 
                           size="lg" 
                           className="h-16 px-10 text-lg font-black rounded-2xl shadow-2xl gap-3 transition-transform hover:scale-105 active:scale-95" 
-                          onClick={handleInitializeVault}
+                          onClick={handleInitializeWallet}
                         >
                           <PlusCircle className="h-6 w-6" />
-                          Initialize Secure Vault
+                          Initialize Secure Wallet
                         </Button>
                       </>
                     )}
@@ -262,7 +260,7 @@ export default function WalletPage() {
               <Button variant="outline" className="w-full font-black h-14 shadow-2xl flex items-center gap-2 rounded-2xl border-white/10 hover:bg-white/5 text-white group" asChild>
                 <Link href="/settings">
                    <Settings className="h-5 w-5 text-secondary transition-transform group-hover:rotate-90" />
-                   Manage Vault Security
+                   Manage Wallet Security
                    <ArrowRight className="h-4 w-4 ml-auto opacity-50" />
                 </Link>
               </Button>

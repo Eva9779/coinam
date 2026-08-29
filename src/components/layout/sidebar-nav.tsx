@@ -1,4 +1,3 @@
-
 "use client";
 
 import Link from "next/link";
@@ -20,7 +19,7 @@ import {
 
 const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { name: "Vault", href: "/wallet", icon: Wallet },
+  { name: "Wallet", href: "/wallet", icon: Wallet },
   { name: "Stocks & Bonds", href: "/stocks", icon: Landmark },
   { name: "Strategy Agent", href: "/bot", icon: Bot },
   { name: "Buy Assets", href: "/buy", icon: CreditCard },

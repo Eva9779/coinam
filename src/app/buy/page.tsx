@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -19,7 +18,7 @@ import {
   Sparkles,
   Smartphone
 } from 'lucide-react';
-import { useVaultStore } from '@/lib/store';
+import { useWalletStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
@@ -31,7 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const stripeOnrampPromise = loadStripeOnramp("pk_live_51SxgIgEvvi2LpIks4TBzOf2rLTJpKWE5Poq8EzDf3cTM7bKepsZoNk2AUvf1TMN3Br0das4LW2kHHfqlIvBL548i009kh8Iz7t");
 
 export default function BuyCryptoPage() {
-  const { assets, initialized } = useVaultStore();
+  const { assets, initialized } = useWalletStore();
   const [selectedAsset, setSelectedAsset] = useState<string>('');
   const [clientSecret, setClientSecret] = useState<string>('');
   const [isInitializing, setIsInitializing] = useState(false);
@@ -76,7 +75,7 @@ export default function BuyCryptoPage() {
     if (session.status === 'fulfillment_complete') {
       toast({
         title: "Provisioning Successful",
-        description: "Your vault is being funded via Stripe network.",
+        description: "Your wallet is being funded via Stripe network.",
       });
     }
   }, []);
@@ -85,19 +84,17 @@ export default function BuyCryptoPage() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Syncing Vault State...</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Syncing Wallet State...</p>
       </div>
     );
   }
 
   const currentAsset = assets.find(a => a.currency === selectedAsset);
   
-  // Optimized Onramper Link for Jamaica
   const onramperUrl = currentAsset?.address 
     ? `https://buy.onramper.com/?themeName=dark&containerColor=020617&primaryColor=3f51b5&walletAddress=${currentAsset.address}&defaultCrypto=${selectedAsset.toLowerCase()}`
     : "https://buy.onramper.com/";
 
-  // Coindisco URL for International Funding
   const coindiscoUrl = currentAsset?.address
     ? `https://coindisco.com/?address=${currentAsset.address}&symbol=${selectedAsset.toUpperCase()}`
     : "https://coindisco.com/";
@@ -138,7 +135,7 @@ export default function BuyCryptoPage() {
             </CardHeader>
             <CardContent className="pt-8 px-8 pb-8 space-y-8">
               <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Target Vault Address</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Target Wallet Address</Label>
                 <Select value={selectedAsset} onValueChange={setSelectedAsset}>
                   <SelectTrigger className="h-16 text-lg font-bold bg-background/50 border-2 rounded-2xl transition-all hover:border-primary/50">
                     <SelectValue placeholder="Select asset" />
@@ -149,7 +146,7 @@ export default function BuyCryptoPage() {
                         <div className="flex items-center gap-4">
                           <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-xs font-black border uppercase">{a.currency}</div>
                           <div className="flex flex-col text-left">
-                            <span className="font-bold text-sm">{a.currency} Vault Key</span>
+                            <span className="font-bold text-sm">{a.currency} Wallet Key</span>
                             <span className="text-[10px] opacity-50 font-mono font-bold tracking-tighter">{a.address.slice(0, 16)}...</span>
                           </div>
                         </div>

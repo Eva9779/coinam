@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState } from "react";
@@ -7,12 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, ShieldAlert, TrendingUp, Zap, Sparkles, RefreshCw } from "lucide-react";
-import { useVaultStore } from "@/lib/store";
+import { useWalletStore } from "@/lib/store";
 import { INITIAL_MARKET_DATA } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
 export default function AlertsPage() {
-  const { assets, transactions, user, initialized } = useVaultStore();
+  const { assets, transactions, user, initialized } = useWalletStore();
   const [data, setData] = useState<SmartAlertsOutput | null>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
