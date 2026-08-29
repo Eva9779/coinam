@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -39,13 +38,13 @@ import {
 import { useAuth, useUserHook } from '@/firebase';
 import { updateEmail, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
-import { useVaultStore } from '@/lib/store';
+import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
 export default function SettingsPage() {
   const auth = useAuth();
   const { user, loading: userLoading } = useUserHook();
-  const { assets, generateNewWallet, importPrivateKey } = useVaultStore();
+  const { assets, generateNewWallet, importPrivateKey } = useWalletStore();
   
   const [email, setEmail] = useState(user?.email || '');
   const [newPassword, setNewPassword] = useState('');
@@ -111,7 +110,7 @@ export default function SettingsPage() {
       await updatePassword(user, newPassword);
       toast({
         title: "Security Hardened",
-        description: "Your vault passphrase has been updated successfully.",
+        description: "Your wallet passphrase has been updated successfully.",
       });
       setNewPassword('');
       setConfirmPassword('');
@@ -133,7 +132,7 @@ export default function SettingsPage() {
     setIsGenerating(false);
     toast({
       title: "Key Provisioned",
-      description: "A new cryptographic endpoint is now live in your vault.",
+      description: "A new cryptographic endpoint is now live in your wallet.",
     });
   };
 
@@ -252,14 +251,14 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <CardTitle className="text-lg font-bold">Passphrase Rotation</CardTitle>
-                  <CardDescription className="text-xs">Harden your vault security with a new master key.</CardDescription>
+                  <CardDescription className="text-xs">Harden your wallet security with a new master key.</CardDescription>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="pt-8 space-y-6">
               <form onSubmit={handleUpdatePassword} className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">New Vault Passphrase</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">New Wallet Passphrase</Label>
                   <Input 
                     type="password" 
                     value={newPassword} 
@@ -287,7 +286,7 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Vault Key Management Card */}
+          {/* Wallet Key Management Card */}
           <Card className="shadow-2xl border-primary/5 bg-card/50 backdrop-blur-xl rounded-[2rem] overflow-hidden">
             <CardHeader className="bg-muted/20 pb-6 border-b flex flex-row items-center justify-between">
               <div className="flex items-center gap-3">
@@ -295,7 +294,7 @@ export default function SettingsPage() {
                   <ShieldCheck className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-lg font-bold">Vault Credentials</CardTitle>
+                  <CardTitle className="text-lg font-bold">Wallet Credentials</CardTitle>
                   <CardDescription className="text-xs">Manage your non-custodial cryptographic keys.</CardDescription>
                 </div>
               </div>
@@ -310,7 +309,7 @@ export default function SettingsPage() {
                       <DialogHeader>
                         <DialogTitle className="text-xl font-black tracking-tight flex items-center gap-2">
                           <Terminal className="h-5 w-5 text-secondary" />
-                          Restore Vault
+                          Restore Wallet
                         </DialogTitle>
                         <DialogDescription className="text-sm font-medium">
                           Enter an existing private key to restore your assets.
@@ -348,7 +347,7 @@ export default function SettingsPage() {
                         {asset.currency}
                       </div>
                       <div>
-                        <div className="font-bold text-sm">{asset.currency} Vault Key</div>
+                        <div className="font-bold text-sm">{asset.currency} Wallet Key</div>
                         <div className="text-[10px] text-muted-foreground font-mono truncate max-w-[150px]">{asset.address}</div>
                       </div>
                     </div>
@@ -421,30 +420,48 @@ export default function SettingsPage() {
             <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
               <Fingerprint className="h-48 w-48" />
             </div>
-            <CardHeader className="relative z-10">
+            <CardHeader className="relative z-10 pb-4">
               <CardTitle className="text-sm font-black uppercase tracking-widest text-secondary flex items-center gap-2">
                 <ShieldCheck className="h-4 w-4" />
                 Security Status
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6 relative z-10">
-              <div className="p-4 bg-white/5 rounded-2xl border border-white/10 space-y-4 shadow-inner">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase opacity-60">MFA Status</span>
-                  <Badge variant="outline" className="text-[8px] bg-green-500/20 text-green-400 border-none">ACTIVE</Badge>
+            <CardContent className="space-y-8 relative z-10">
+              <div className="p-6 bg-white/5 rounded-2xl space-y-6 backdrop-blur-3xl border border-white/10 shadow-inner">
+                <div className="space-y-4">
+                   <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                         <Fingerprint className="h-4 w-4 text-secondary" />
+                         <span className="text-[10px] font-black uppercase tracking-widest text-white/70">Biometric Enclave</span>
+                      </div>
+                      <Badge className="bg-green-500 text-white border-none text-[8px] font-black">LOCKED</Badge>
+                   </div>
+                   <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                         <ShieldCheck className="h-4 w-4 text-secondary" />
+                         <span className="text-[10px] font-black uppercase tracking-widest text-white/70">Hardware Isolation</span>
+                      </div>
+                      <Badge className="bg-green-500 text-white border-none text-[8px] font-black">ACTIVE</Badge>
+                   </div>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase opacity-60">Network Sync</span>
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
+
+                <div className="h-px bg-white/10 w-full" />
+                
+                <div className="space-y-2">
+                  <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Master Key Integrity</div>
+                  <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
+                    <div className="h-full bg-secondary w-full" />
+                  </div>
                 </div>
               </div>
               
-              <div className="p-4 bg-secondary/10 rounded-xl border border-secondary/20 space-y-2">
-                <h4 className="text-xs font-black uppercase tracking-tight text-secondary">Enclave Protection</h4>
-                <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  Cryptographic keys are isolated to your private vault. Our team has zero access to your master keys.
-                </p>
-              </div>
+              <Button variant="outline" className="w-full font-black h-14 shadow-2xl flex items-center gap-2 rounded-2xl border-white/10 hover:bg-white/5 text-white group" asChild>
+                <Link href="/settings">
+                   <Settings className="h-5 w-5 text-secondary transition-transform group-hover:rotate-90" />
+                   Manage Wallet Security
+                   <ArrowRight className="h-4 w-4 ml-auto opacity-50" />
+                </Link>
+              </Button>
             </CardContent>
           </Card>
 

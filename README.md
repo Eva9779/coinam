@@ -1,4 +1,3 @@
-
 # Coin A,M | Asset Security
 
 This is a high-performance cryptocurrency and tokenized equity wallet prototype built with Next.js, React, and Genkit.
@@ -7,15 +6,15 @@ This is a high-performance cryptocurrency and tokenized equity wallet prototype 
 
 If you see the error `! [rejected] main -> main (non-fast-forward)` or `fatal: cannot rename the current branch while not on any`, follow these steps in your PowerShell terminal:
 
-1. **Get back on the main branch**:
+1. **Abort any stuck process**:
    ```powershell
-   git checkout -B main
+   git rebase --abort
    ```
-2. **Synchronize with GitHub**:
+2. **Synchronize with the remote repository**:
    ```powershell
-   git pull origin main --rebase
+   git pull origin main --allow-unrelated-histories
    ```
-   *(If this says "unrelated histories", use: `git pull origin main --allow-unrelated-histories`)*
+   *(If a text editor opens for a merge message, just save and close it).*
 3. **Push your changes**:
    ```powershell
    git push -u origin main
@@ -31,7 +30,6 @@ If you see the error `! [rejected] main -> main (non-fast-forward)` or `fatal: c
 - **Framework**: Next.js 15 (App Router / Turbopack)
 - **AI**: Genkit (Google Gemini 1.5 Flash)
 - **Database/Auth**: Firebase Firestore & Authentication
-- **Payments**: Coindisco / Onramper / Stripe
 - **Blockchain**: Viem (Mainnet RPC)
 
 ## AI Agents
