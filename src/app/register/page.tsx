@@ -47,7 +47,7 @@ export default function RegisterPage() {
       await createUserWithEmailAndPassword(auth, email, password);
       toast({
         title: "Identity Provisioned",
-        description: "Welcome to the secure vault network.",
+        description: "Welcome to the secure wallet network.",
       });
       router.push('/');
     } catch (error: any) {
@@ -68,7 +68,7 @@ export default function RegisterPage() {
           <div className="h-16 w-16 rounded-2xl bg-primary flex items-center justify-center mb-6 shadow-xl shadow-primary/20 transform -rotate-3 hover:rotate-0 transition-transform">
             <ShieldCheck className="h-10 w-10 text-primary-foreground" />
           </div>
-          <CardTitle className="text-3xl font-bold tracking-tight">Create Vault</CardTitle>
+          <CardTitle className="text-3xl font-bold tracking-tight">Create Wallet</CardTitle>
           <CardDescription className="text-muted-foreground font-medium">Initialize your secure identity on the network.</CardDescription>
         </CardHeader>
         <form onSubmit={handleRegister}>
@@ -121,7 +121,7 @@ export default function RegisterPage() {
           </CardContent>
           <CardFooter className="flex flex-col gap-5 pt-6">
             <Button type="submit" className="w-full h-12 text-lg font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all" disabled={loading}>
-              {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <><UserPlus className="mr-2 h-5 w-5" /> Initialize Identity</>}
+              {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <><UserPlus className="mr-2 h-5 w-5" /> Initialize Wallet</>}
             </Button>
             <div className="text-sm text-center text-muted-foreground font-medium">
               Already verified?{' '}

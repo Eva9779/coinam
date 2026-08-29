@@ -51,7 +51,7 @@ export default function LoginPage() {
       await signInWithEmailAndPassword(auth, email, password);
       toast({
         title: "Access Granted",
-        description: "Authenticated with the secure vault network.",
+        description: "Authenticated with the secure wallet network.",
       });
       router.push('/');
     } catch (error: any) {
@@ -96,7 +96,7 @@ export default function LoginPage() {
           <div className="h-16 w-16 rounded-2xl bg-primary flex items-center justify-center mb-6 shadow-xl shadow-primary/20 transform -rotate-3 hover:rotate-0 transition-transform">
             <ShieldCheck className="h-10 w-10 text-primary-foreground" />
           </div>
-          <CardTitle className="text-3xl font-bold tracking-tight">Vault Access</CardTitle>
+          <CardTitle className="text-3xl font-bold tracking-tight">Wallet Access</CardTitle>
           <CardDescription className="text-muted-foreground font-medium">Enter your credentials to access the secure network.</CardDescription>
         </CardHeader>
         <form onSubmit={handleLogin}>
@@ -131,14 +131,14 @@ export default function LoginPage() {
                         Access Recovery
                       </DialogTitle>
                       <DialogDescription className="text-sm font-medium">
-                        Regain access to your institutional vault assets.
+                        Regain access to your institutional wallet assets.
                       </DialogDescription>
                     </DialogHeader>
                     
                     <Tabs defaultValue="password" className="w-full mt-4">
                       <TabsList className="grid w-full grid-cols-2 bg-muted/50 p-1 rounded-xl">
                         <TabsTrigger value="password" className="rounded-lg font-bold text-[10px] uppercase">Identity Reset</TabsTrigger>
-                        <TabsTrigger value="vault" className="rounded-lg font-bold text-[10px] uppercase">Vault Restore</TabsTrigger>
+                        <TabsTrigger value="wallet" className="rounded-lg font-bold text-[10px] uppercase">Wallet Restore</TabsTrigger>
                       </TabsList>
                       
                       <TabsContent value="password" className="space-y-4 pt-4">
@@ -160,7 +160,7 @@ export default function LoginPage() {
                         </Button>
                       </TabsContent>
                       
-                      <TabsContent value="vault" className="space-y-4 pt-4">
+                      <TabsContent value="wallet" className="space-y-4 pt-4">
                         <div className="p-4 bg-primary/5 border border-dashed border-primary/20 rounded-2xl flex items-start gap-3">
                           <Key className="h-5 w-5 text-primary shrink-0 mt-0.5" />
                           <div className="space-y-2">
@@ -199,12 +199,12 @@ export default function LoginPage() {
           </CardContent>
           <CardFooter className="flex flex-col gap-5 pt-6">
             <Button type="submit" className="w-full h-12 text-lg font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all" disabled={loading}>
-              {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <><LogIn className="mr-2 h-5 w-5" /> Unlock Vault</>}
+              {loading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <><LogIn className="mr-2 h-5 w-5" /> Unlock Wallet</>}
             </Button>
             <div className="text-sm text-center text-muted-foreground font-medium">
               New to the network?{' '}
               <Link href="/register" className="text-primary hover:underline font-bold">
-                Initialize Vault
+                Initialize Wallet
               </Link>
             </div>
           </CardFooter>

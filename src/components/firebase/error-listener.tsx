@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect } from 'react';
@@ -11,8 +12,8 @@ export function FirebaseErrorListener() {
       // Professional informative notification that doesn't alarm the user
       // These background sync delays are expected during high network traffic or initial session setup
       toast({
-        title: 'Vault Syncing',
-        description: `Your broadcast is successful. The ledger history for your vault is currently queuing for synchronization.`,
+        title: 'Wallet Syncing',
+        description: `Your broadcast is successful. The ledger history for your wallet is currently queuing for synchronization.`,
       });
       
       // Log for developer context
