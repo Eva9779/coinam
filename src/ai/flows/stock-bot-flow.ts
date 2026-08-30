@@ -50,14 +50,14 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
   try {
     const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error("NEURAL LINK FAILURE: Missing API Key. Please provide your Gemini API key (AQ. or AIza format).");
+      throw new Error("NEURAL LINK FAILURE: Missing API Key. Please provide your 'AQ.' key.");
     }
     return await fn();
   } catch (error: any) {
     const errorStr = error.toString().toLowerCase();
     
     if (errorStr.includes('404') || errorStr.includes('not found')) {
-      throw new Error("RWA Engine Model Not Found. Please ensure your 'AQ.' key is active in AI Studio and 'gemini-1.5-flash' is supported.");
+      throw new Error("RWA Engine Model Not Found. Please ensure Gemini 1.5 Flash is enabled for your project in AI Studio.");
     }
 
     const isRateLimit = 

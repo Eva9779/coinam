@@ -71,14 +71,14 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
   try {
     const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error("NEURAL LINK FAILURE: Missing API Key. Please provide your Gemini API key (AQ. or AIza format).");
+      throw new Error("NEURAL LINK FAILURE: Missing API Key.");
     }
     return await fn();
   } catch (error: any) {
     const errorStr = error.toString().toLowerCase();
 
     if (errorStr.includes('404') || errorStr.includes('not found')) {
-      throw new Error("AI Alerts Engine Not Found. Please verify your Gemini key is active and supports 'gemini-1.5-flash'.");
+      throw new Error("AI Alerts Engine Not Found (404). Please verify 'Gemini 1.5 Flash' is enabled for your project in AI Studio.");
     }
 
     const isRateLimit = 
@@ -109,16 +109,6 @@ const smartAlertsPrompt = ai.definePrompt({
 Your goal is to provide generative-AI-powered smart alerts to users based on their transaction history, wallet balances, and current market movements.
 Analyze the provided data and identify any unusual or large transactions, as well as significant market changes that might impact the user's holdings.
 Provide clear reasoning and actionable insights for each alert.
-
-Consider the following criteria for generating alerts:
-1.  **Unusual Transactions**:
-    *   Transactions with amounts significantly different (e.g., 2x or 0.5x) from the user's typical average transaction amount.
-2.  **Large Transactions**:
-    *   Any single transaction exceeding a predefined threshold.
-3.  **Significant Market Movements**:
-    *   Cryptocurrencies with a daily price change greater than 10%.
-4.  **Low Balance Warning**:
-    *   If a user's balance drops below a safe threshold.
 
 User ID: {{{userId}}}
 Current Wallet Balances:
