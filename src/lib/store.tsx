@@ -20,7 +20,7 @@ import { toast } from '@/hooks/use-toast';
 import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
 import { analyzeEquityMarket } from '@/ai/flows/stock-bot-flow';
 import { INITIAL_MARKET_DATA } from '@/lib/data';
-import { getLiveBalance, executeMainnetSwap, executeRWASettlement } from '@/lib/blockchain';
+import { getLiveBalance, executeMainnetSwap, executeRWASettlement, getTransactionStatus } from '@/lib/blockchain';
 import { encryptKey, decryptKey } from '@/lib/encryption';
 
 export interface WalletAsset {
@@ -30,7 +30,7 @@ export interface WalletAsset {
   fiatValueUSD: number;
   address: string;
   isLive: boolean;
-  privateKey?: string; // Encrypted Key Blob
+  privateKey?: string; 
 }
 
 export interface StockAsset {
@@ -46,6 +46,8 @@ export interface StockAsset {
 export interface Transaction {
   id: string;
   type: 'send' | 'receive' | 'trade';
+  status: 'pending' | 'completed' | 'failed';
+  hash?: string;
   currency: string;
   amount: number;
   fiatValueUSD: number;
@@ -80,7 +82,7 @@ interface WalletContextType {
   stockBotLogs: BotLog[];
   isAnalyzing: boolean;
   isAnalyzingStocks: boolean;
-  addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
+  addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp' | 'status'>) => void;
   updateBalance: (currency: string, amount: number, fiatPrice: number) => void;
   generateNewWallet: (currency: string, customId?: string) => Promise<string | null>;
   importPrivateKey: (currency: string, privateKey: string) => Promise<void>;
@@ -156,8 +158,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       const pKey = generatePrivateKey();
       const account = privateKeyToAccount(pKey);
-      
-      // Encryption at Rest
       const encryptedKey = await encryptKey(user.uid, pKey);
 
       await setDoc(doc(db, 'users', user.uid), { 
@@ -239,6 +239,34 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     };
   }, [db, user]);
 
+  // Transaction Monitor
+  useEffect(() => {
+    if (!initialized || !user || !db || transactions.length === 0) return;
+
+    const pendingTxs = transactions.filter(tx => tx.status === 'pending' && tx.hash);
+    if (pendingTxs.length === 0) return;
+
+    const monitorTxs = async () => {
+      for (const tx of pendingTxs) {
+        if (!tx.hash) continue;
+        const newStatus = await getTransactionStatus(tx.hash);
+        if (newStatus !== 'pending') {
+          updateDoc(doc(db, 'users', user.uid, 'transactions', tx.id), {
+            status: newStatus
+          });
+          if (newStatus === 'completed') {
+            toast({ title: "Transaction Confirmed", description: `Signature ${tx.hash.slice(0, 10)}... settled.` });
+          } else {
+            toast({ title: "Transaction Failed", variant: "destructive", description: `Broadcast ${tx.hash.slice(0, 10)}... failed on-chain.` });
+          }
+        }
+      }
+    };
+
+    const interval = setInterval(monitorTxs, 15000);
+    return () => clearInterval(interval);
+  }, [initialized, user, db, transactions]);
+
   useEffect(() => {
     if (!initialized || assets.length === 0) return;
 
@@ -274,17 +302,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const txRef = collection(db, 'users', user.uid, 'transactions');
     const q = query(txRef, orderBy('timestamp', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const txData = snapshot.docs.map(doc => doc.data() as Transaction);
+      const txData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Transaction));
       setTransactions(txData);
     });
     return () => unsubscribe();
   }, [db, user]);
 
-  const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'timestamp'>) => {
+  const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'timestamp' | 'status'>) => {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}`;
     const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
-    const txData = { ...tx, id: txId, timestamp: new Date().toISOString() };
+    const txData = { ...tx, id: txId, timestamp: new Date().toISOString(), status: 'pending' as const };
     
     setDoc(txDocRef, txData).catch((e) => {
       const pError = new FirestorePermissionError({
@@ -339,9 +367,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         for (const action of strategyResult.actions) {
           addLog(`EXECUTING BROADCAST: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}`, 'info');
           
-          // Decrypt Key for Signing
           const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey!);
-          
           const txHash = await executeMainnetSwap(
             decryptedKey as `0x${string}`,
             action.fromAsset,
@@ -349,7 +375,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             action.amountUSD
           );
 
-          addLog(`MAINNET SETTLED: Hash ${txHash.slice(0, 16)}...`, 'success');
+          addLog(`MAINNET SIGNED: Hash ${txHash.slice(0, 16)}...`, 'success');
           
           updateDoc(doc(db, 'users', user.uid), {
             totalBotEarnings: increment(action.amountUSD * 0.0005)
@@ -357,10 +383,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           addTransaction({
             type: 'trade',
+            hash: txHash,
             currency: `${action.fromAsset} → ${action.toAsset}`,
             amount: action.amountUSD,
             fiatValueUSD: action.amountUSD,
-            description: `MAINNET AI REBALANCE | Hash: ${txHash.slice(0, 8)}...`
+            description: `MAINNET AI REBALANCE | Rebalancing Portfolio`
           });
         }
       } else {
@@ -417,10 +444,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             action.amount
           );
 
-          addStockLog(`SETTLED ON-CHAIN: Hash ${txHash.slice(0, 16)}...`, 'success');
+          addStockLog(`SIGNED RWA: Hash ${txHash.slice(0, 16)}...`, 'success');
           
           updateDoc(doc(db, 'users', user.uid), {
             totalBotEarnings: increment(2.50)
+          });
+
+          addTransaction({
+            type: 'trade',
+            hash: txHash,
+            currency: action.asset,
+            amount: action.amount,
+            fiatValueUSD: 0,
+            description: `RWA ${action.type.toUpperCase()} SETTLEMENT`
           });
         }
       } else {
@@ -431,7 +467,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsAnalyzingStocks(false);
     }
-  }, [user, db, isAnalyzingStocks, addStockLog]);
+  }, [user, db, isAnalyzingStocks, addStockLog, addTransaction]);
 
   useEffect(() => {
     if (!initialized || !user) return;
@@ -471,10 +507,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) return;
     try {
       const account = privateKeyToAccount(privateKey as `0x${string}`);
-      
-      // Encrypt Key at Rest
       const encryptedKey = await encryptKey(user.uid, privateKey);
-
       const assetId = `imported_${Date.now()}`;
       await setDoc(doc(db, 'users', user.uid, 'assets', assetId), {
         id: assetId, currency, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey

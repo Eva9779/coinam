@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -8,8 +9,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowUpRight, ArrowDownLeft, Send, CheckCircle2, History, AlertCircle, Zap, ShieldCheck, Database, Copy, Loader2 } from "lucide-react";
-import { useWalletStore } from "@/lib/store";
+import { 
+  ArrowUpRight, 
+  ArrowDownLeft, 
+  Send, 
+  CheckCircle2, 
+  History, 
+  AlertCircle, 
+  Zap, 
+  ShieldCheck, 
+  Database, 
+  Copy, 
+  Loader2,
+  Clock,
+  XCircle
+} from "lucide-react";
+import { useWalletStore, Transaction } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { getLiveGasPrice, sendLiveTransaction } from "@/lib/blockchain";
@@ -89,8 +104,8 @@ export default function TransactionsPage() {
       const txHash = await sendLiveTransaction(asset.privateKey, recipient, amount);
       
       toast({
-        title: "Broadcast Finalized",
-        description: `Network Signature: ${txHash.slice(0, 16)}...`,
+        title: "Broadcast Initialized",
+        description: `Signature: ${txHash.slice(0, 16)}...`,
       });
 
       const sentAmount = val;
@@ -104,11 +119,12 @@ export default function TransactionsPage() {
       updateBalance(sentCurrency, -sentAmount, fiatPrice);
       addTransaction({
         type: 'send',
+        hash: txHash,
         currency: sentCurrency,
         amount: sentAmount,
         fiatValueUSD: sentAmount * fiatPrice,
         toAddress: sentRecipient,
-        description: `Network Broadcast | Hash: ${txHash.slice(0, 10)}...`
+        description: `Mainnet Broadcast`
       });
 
     } catch (err: any) {
@@ -119,6 +135,17 @@ export default function TransactionsPage() {
       });
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const getStatusBadge = (status: Transaction['status']) => {
+    switch (status) {
+      case 'completed':
+        return <Badge className="bg-green-500/10 text-green-600 border-green-500/20 gap-1 font-black uppercase text-[8px]"><CheckCircle2 className="h-2 w-2" /> Verified</Badge>;
+      case 'failed':
+        return <Badge className="bg-red-500/10 text-red-600 border-red-500/20 gap-1 font-black uppercase text-[8px]"><XCircle className="h-2 w-2" /> Failed</Badge>;
+      default:
+        return <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 gap-1 font-black uppercase text-[8px] animate-pulse"><Clock className="h-2 w-2" /> Processing</Badge>;
     }
   };
 
@@ -341,12 +368,12 @@ export default function TransactionsPage() {
                       <div className="space-y-1">
                         <div className="font-bold text-lg flex items-center gap-2">
                           {tx.type === 'receive' ? 'Mainnet Deposit' : tx.type === 'send' ? 'Mainnet Broadcast' : 'Peer Exchange'}
-                          <Badge variant="outline" className="text-[9px] h-4 bg-green-500/10 text-green-600 border-green-500/20 font-bold uppercase">Verified</Badge>
+                          {getStatusBadge(tx.status)}
                         </div>
                         <div className="text-sm text-muted-foreground font-medium">{tx.description}</div>
                         <div className="text-[10px] font-mono text-muted-foreground/70 uppercase tracking-widest flex items-center gap-1.5 font-bold">
-                          SIG: {tx.id.toUpperCase()}
-                          <CheckCircle2 className="h-2 w-2 text-green-500" />
+                          {tx.hash ? `SIG: ${tx.hash.slice(0, 16)}...` : `ID: ${tx.id.toUpperCase()}`}
+                          {tx.status === 'completed' && <CheckCircle2 className="h-2 w-2 text-green-500" />}
                         </div>
                       </div>
                     </div>

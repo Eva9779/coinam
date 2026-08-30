@@ -58,6 +58,8 @@
       "properties": {
         "id": { "type": "string" },
         "type": { "type": "string", "enum": ["send", "receive", "trade"] },
+        "status": { "type": "string", "enum": ["pending", "completed", "failed"] },
+        "hash": { "type": "string" },
         "currency": { "type": "string" },
         "amount": { "type": "number" },
         "fiatValueUSD": { "type": "number" },

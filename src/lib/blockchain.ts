@@ -11,7 +11,7 @@ export const TOKENS = {
   WETH: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
   USDC: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
   WBTC: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
-  SOL: '0xD1d69d25197a4d7E2dF0B9141C2BB73dEC995551', // Tokenized SOL on Mainnet
+  SOL: '0xD1d69d25197a4d7E2dF0B9141C2BB73dEC995551', 
 };
 
 /**
@@ -19,9 +19,6 @@ export const TOKENS = {
  */
 const UNISWAP_V3_ROUTER = '0xE592427A0AEce92De3Edee1F18E0157C05861564';
 
-/**
- * Minimal ABI for Uniswap V3 exactInputSingle and ERC20 Approve
- */
 const SWAP_ROUTER_ABI = [
   {
     name: 'exactInputSingle',
@@ -60,10 +57,6 @@ const ERC20_ABI = [
   },
 ] as const;
 
-/**
- * Live Network Gateway
- * Uses your Coinbase CDP RPC for direct, high-performance broadcasts.
- */
 const COINBASE_RPC_URL = `https://api.developer.coinbase.com/rpc/v1/mainnet/0TGjjV5EHjnHktxmAkRgECJwFYQa9AIV`;
 const PUBLIC_RPC_URL = `https://eth.llamarpc.com`;
 
@@ -75,9 +68,6 @@ export const publicClient = createPublicClient({
   ]),
 });
 
-/**
- * Fetches the current block number from the live network.
- */
 export async function getLiveBlockNumber() {
   try {
     return await publicClient.getBlockNumber();
@@ -86,9 +76,6 @@ export async function getLiveBlockNumber() {
   }
 }
 
-/**
- * Fetches the live balance of an Ethereum address.
- */
 export async function getLiveBalance(address: string) {
   try {
     if (!address || !address.startsWith('0x')) return '0';
@@ -99,9 +86,6 @@ export async function getLiveBalance(address: string) {
   }
 }
 
-/**
- * Fetches the current gas price in Gwei directly from the network.
- */
 export async function getLiveGasPrice() {
   try {
     const gasPrice = await publicClient.getGasPrice();
@@ -112,8 +96,17 @@ export async function getLiveGasPrice() {
 }
 
 /**
- * Signs and broadcasts a live transaction to the Ethereum Mainnet.
+ * Monitors the status of a transaction on the blockchain.
  */
+export async function getTransactionStatus(hash: string): Promise<'completed' | 'failed' | 'pending'> {
+  try {
+    const receipt = await publicClient.getTransactionReceipt({ hash: hash as `0x${string}` });
+    return receipt.status === 'success' ? 'completed' : 'failed';
+  } catch (e) {
+    return 'pending';
+  }
+}
+
 export async function sendLiveTransaction(privateKey: `0x${string}`, to: string, amount: string) {
   const account = privateKeyToAccount(privateKey);
   const walletClient = createWalletClient({
@@ -130,16 +123,6 @@ export async function sendLiveTransaction(privateKey: `0x${string}`, to: string,
   return hash;
 }
 
-/**
- * Executes a real-world swap via Uniswap V3 Mainnet broadcast.
- * Includes SLIPPAGE PROTECTION and resilience for native ETH/ERC20 swaps.
- * 
- * @param privateKey - The signing key
- * @param fromAsset - Source token symbol
- * @param toAsset - Destination token symbol
- * @param amountUSD - Value of trade in USD
- * @param slippageTolerance - Max allowed price impact (default 0.5%)
- */
 export async function executeMainnetSwap(
   privateKey: `0x${string}`, 
   fromAsset: string, 
@@ -157,16 +140,10 @@ export async function executeMainnetSwap(
   const tokenIn = TOKENS[fromAsset as keyof typeof TOKENS] || TOKENS.USDC;
   const tokenOut = TOKENS[toAsset as keyof typeof TOKENS] || TOKENS.WETH;
   
-  // Estimate amountIn based on USD (In production, use an Oracle)
   const estimatedPrice = fromAsset === 'ETH' ? 2500 : 1; 
   const amountIn = parseEther((amountUSD / estimatedPrice).toString()); 
-
-  // 1. Slippage Protection: Calculate amountOutMinimum
-  // In a real app, we fetch the quote from the router first.
-  // Here we assume 1:1 for simulation but enforce a floor for safety.
   const amountOutMinimum = amountIn - (amountIn * BigInt(Math.floor(slippageTolerance * 10000)) / 10000n);
 
-  // 2. Approve Uniswap Router to spend tokens (if not native ETH)
   if (fromAsset !== 'ETH' && fromAsset !== 'WETH') {
     const approveData = encodeFunctionData({
       abi: ERC20_ABI,
@@ -180,19 +157,18 @@ export async function executeMainnetSwap(
     });
   }
 
-  // 3. Encode Uniswap V3 exactInputSingle call with Slippage Protection
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); // 20 mins from now
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 60 * 20); 
   const swapData = encodeFunctionData({
     abi: SWAP_ROUTER_ABI,
     functionName: 'exactInputSingle',
     args: [{
       tokenIn: tokenIn as `0x${string}`,
       tokenOut: tokenOut as `0x${string}`,
-      fee: 3000, // 0.3% pool
+      fee: 3000, 
       recipient: account.address,
       deadline,
       amountIn,
-      amountOutMinimum, // ENFORCED SLIPPAGE PROTECTION
+      amountOutMinimum, 
       sqrtPriceLimitX96: 0n,
     }],
   });
@@ -206,9 +182,6 @@ export async function executeMainnetSwap(
   return hash;
 }
 
-/**
- * Executes tokenized RWA (Stocks/Bonds) settlement.
- */
 export async function executeRWASettlement(privateKey: `0x${string}`, symbol: string, type: 'buy' | 'sell', shares: number) {
   const account = privateKeyToAccount(privateKey);
   const walletClient = createWalletClient({
@@ -220,7 +193,7 @@ export async function executeRWASettlement(privateKey: `0x${string}`, symbol: st
   const hash = await walletClient.sendTransaction({
     to: account.address,
     value: 0n,
-    data: '0x' // Tokenized settlement call encoded here
+    data: '0x' 
   });
 
   return hash;
