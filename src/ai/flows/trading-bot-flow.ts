@@ -1,6 +1,6 @@
 'use server';
 /**
- * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
+ * Alpha-Maximizing Institutional Strategy Agent.
  * High-performance bot focused on profit capture and liquidity protection.
  */
 
@@ -57,6 +57,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
   } catch (error: any) {
     const errorStr = error.toString().toLowerCase();
     
+    // Specifically catch the 404/v1beta mismatch that occurs with some new keys
     if (errorStr.includes('404') || errorStr.includes('not found')) {
       throw new Error("Model Not Found. Please verify your 'AQ.' key is active in AI Studio and maps to 'gemini-1.5-flash'.");
     }
