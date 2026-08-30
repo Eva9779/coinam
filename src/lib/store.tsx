@@ -78,6 +78,7 @@ interface WalletContextType {
   botLogs: BotLog[];
   stockBotActive: boolean;
   stockBotRisk: 'low' | 'medium' | 'high';
+  stockBotAllocation: number;
   stockBotLogs: BotLog[];
   isAnalyzing: boolean;
   isAnalyzingStocks: boolean;
@@ -86,7 +87,7 @@ interface WalletContextType {
   generateNewWallet: (currency: string, customId?: string) => Promise<string | null>;
   importPrivateKey: (currency: string, privateKey: string) => Promise<void>;
   updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: 'standard' | 'bitcoin_multiplier') => void;
-  updateStockBotSettings: (active: boolean, risk: 'low' | 'medium' | 'high') => void;
+  updateStockBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => void;
   submitKYC: (data: any) => Promise<void>;
   clearBotLogs: () => void;
   clearStockBotLogs: () => void;
@@ -107,6 +108,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   
   const [stockBotActive, setStockBotActive] = useState(false);
+  const [stockBotAllocation, setStockBotAllocation] = useState(2500);
   const [stockBotRisk, setStockBotRisk] = useState<'low' | 'medium' | 'high'>('medium');
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
   
@@ -118,7 +120,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   
   const assetsRef = useRef<WalletAsset[]>([]);
   const botStateRef = useRef({ active: false, risk: 'medium', allocation: 1000, strategy: 'standard' });
-  const stockBotStateRef = useRef({ active: false, risk: 'medium' });
+  const stockBotStateRef = useRef({ active: false, risk: 'medium', allocation: 2500 });
 
   const { user } = useUserHook();
   const db = useFirestore();
@@ -137,8 +139,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [botActive, botRiskLevel, botAllocation, botStrategy]);
 
   useEffect(() => {
-    stockBotStateRef.current = { active: stockBotActive, risk: stockBotRisk };
-  }, [stockBotActive, stockBotRisk]);
+    stockBotStateRef.current = { active: stockBotActive, risk: stockBotRisk, allocation: stockBotAllocation };
+  }, [stockBotActive, stockBotRisk, stockBotAllocation]);
 
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
@@ -153,12 +155,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const txId = `tx_${Date.now()}`;
     const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
     
-    // Safety check: Firestore doesn't allow 'undefined' fields
     const cleanTx = JSON.parse(JSON.stringify({
       ...tx,
       id: txId,
       timestamp: new Date().toISOString(),
-      status: 'completed'
+      status: 'completed',
+      hash: tx.hash || null
     }));
 
     setDoc(txDocRef, cleanTx);
@@ -205,13 +207,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         for (const action of result.actions) {
           if (action.type === 'hold' || action.amountUSD <= 0) continue;
 
-          // ACTUAL TRADE EXECUTION
           if (usdcAsset && usdcAsset.fiatValueUSD >= action.amountUSD) {
             addLog(`Executing intent: Swap ${action.amountUSD} USDC for ${action.toAsset}`, 'info');
 
             let txHash = undefined;
-            let signatureAvailable = false;
-
             if (primaryAsset?.privateKey) {
               try {
                 const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey);
@@ -221,11 +220,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                   action.toAsset,
                   action.amountUSD
                 );
-                signatureAvailable = true;
               } catch (e) {}
             }
 
-            // Move the money locally in the database
             const toAssetPrice = INITIAL_MARKET_DATA.find(m => m.currency === action.toAsset)?.currentPriceUSD || 1;
             const receiveAmount = action.amountUSD / toAssetPrice;
             
@@ -240,10 +237,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               currency: `${action.fromAsset} → ${action.toAsset}`,
               amount: action.amountUSD,
               fiatValueUSD: action.amountUSD,
-              description: signatureAvailable ? `Mainnet Intent | ${result.strategy}` : `Institutional Swap | ${result.strategy}`
+              description: txHash ? `Mainnet Intent | ${result.strategy}` : `Institutional Swap | ${result.strategy}`
             });
             
-            addLog(signatureAvailable ? `Broadcast Finalized: ${txHash?.slice(0, 16)}...` : `Settlement Authorized locally.`, 'success');
+            addLog(txHash ? `Broadcast Finalized: ${txHash?.slice(0, 16)}...` : `Settlement Authorized locally.`, 'success');
           } else {
             addLog(`Capital Shortfall: Awaiting USDC funding to execute ${action.toAsset} trade.`, 'warning');
           }
@@ -257,7 +254,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [user, db, isAnalyzing, addLog, addTransaction, updateBalance]);
 
   const runStockBotCycle = useCallback(async (forceActive: boolean = false) => {
-    const { active, risk } = stockBotStateRef.current;
+    const { active, risk, allocation } = stockBotStateRef.current;
     if ((!active && !forceActive) || !user || !db || isAnalyzingStocks) return;
 
     const primaryAsset = assetsRef.current.find(a => !!a.privateKey);
@@ -301,12 +298,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               } catch (e) {}
             }
 
-            // Move the money
             updateBalance('USDC', -totalCost, 1);
             
             const stockRef = doc(db, 'users', user.uid, 'stocks', action.asset.replace(':', '_'));
             const stockSnap = await getDoc(stockRef);
             
+            const yieldCaptured = totalCost * ((stockInfo?.changePercent || 0.1) / 100);
+
             if (stockSnap.exists()) {
               await updateDoc(stockRef, {
                 shares: increment(action.amount),
@@ -325,7 +323,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               });
             }
 
-            updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(5.00) });
+            updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(yieldCaptured) });
 
             addTransaction({
               type: 'trade',
@@ -410,6 +408,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setBotRiskLevel(data.botRiskLevel || 'medium');
         setBotStrategy(data.botStrategy || 'standard');
         setStockBotActive(!!data.stockBotActive);
+        setStockBotAllocation(data.stockBotAllocation || 2500);
         setStockBotRisk(data.stockBotRisk || 'medium');
         setKycStatus(data.kycStatus || 'unverified');
       }
@@ -463,10 +462,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (active) setTimeout(() => runBotCycle(true), 500);
   };
 
-  const updateStockBotSettings = (active: boolean, risk: 'low' | 'medium' | 'high') => {
+  const updateStockBotSettings = (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => {
     if (!db || !user) return;
     updateDoc(doc(db, 'users', user.uid), {
       stockBotActive: active,
+      stockBotAllocation: allocation,
       stockBotRisk: risk,
       updatedAt: new Date().toISOString()
     });
@@ -495,7 +495,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     <WalletContext.Provider value={{ 
       assets, stockAssets, transactions, initialized, isSyncing, isProvisioning: provisioning, user,
       kycStatus, totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
-      stockBotActive, stockBotRisk, stockBotLogs, isAnalyzing, isAnalyzingStocks,
+      stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzing, isAnalyzingStocks,
       addTransaction, updateBalance, generateNewWallet, importPrivateKey, updateBotSettings, updateStockBotSettings,
       submitKYC, clearBotLogs, clearStockBotLogs
     }}>

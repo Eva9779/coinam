@@ -17,6 +17,7 @@
         "botStrategy": { "type": "string", "enum": ["standard", "bitcoin_multiplier"] },
         "stockBotActive": { "type": "boolean" },
         "stockBotRisk": { "type": "string", "enum": ["low", "medium", "high"] },
+        "stockBotAllocation": { "type": "number" },
         "kycStatus": { "type": "string", "enum": ["unverified", "pending", "verified", "rejected"] },
         "kycData": {
           "type": "object",

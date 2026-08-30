@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, memo } from 'react';
@@ -5,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Briefcase, 
@@ -23,7 +25,10 @@ import {
   Trophy,
   Layers,
   ShieldAlert,
-  ArrowRight
+  ArrowRight,
+  DollarSign,
+  TrendingUp,
+  Cpu
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -78,6 +83,7 @@ export default function StocksPage() {
     stockAssets, 
     stockBotActive, 
     stockBotRisk, 
+    stockBotAllocation,
     stockBotLogs, 
     totalBotEarnings,
     isAnalyzingStocks,
@@ -87,6 +93,7 @@ export default function StocksPage() {
   } = useWalletStore();
 
   const [localRisk, setLocalRisk] = useState<'low' | 'medium' | 'high'>(stockBotRisk);
+  const [localAllocation, setLocalAllocation] = useState(stockBotAllocation.toString());
   const [chartSymbol, setChartSymbol] = useState("NASDAQ:AAPL");
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
@@ -94,9 +101,26 @@ export default function StocksPage() {
     terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [stockBotLogs]);
 
+  useEffect(() => {
+    setLocalAllocation(stockBotAllocation.toString());
+    setLocalRisk(stockBotRisk);
+  }, [stockBotAllocation, stockBotRisk]);
+
   const handleToggleBot = () => {
-    updateStockBotSettings(!stockBotActive, localRisk);
+    const allocationNum = parseFloat(localAllocation);
+    if (isNaN(allocationNum) || allocationNum <= 0) {
+      toast({
+        title: "Configuration Error",
+        description: "Please specify a valid equity allocation cap.",
+        variant: "destructive"
+      });
+      return;
+    }
+    updateStockBotSettings(!stockBotActive, allocationNum, localRisk);
   };
+
+  const totalValue = stockAssets.reduce((acc, s) => acc + s.totalValue, 0);
+  const apy = localRisk === 'high' ? '12.4%' : localRisk === 'medium' ? '7.2%' : '4.8%';
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20">
@@ -108,7 +132,7 @@ export default function StocksPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            Global RWA Enclave. Managing tokenized stocks & bonds across jurisdictions.
+            Institutional RWA Enclave. Local rebalancing managing ${totalValue.toLocaleString()} in assets.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -132,30 +156,43 @@ export default function StocksPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="rounded-[2.5rem] bg-gradient-to-br from-primary to-primary/80 text-white border-none shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Unified Yield</p>
-                  <p className="text-4xl font-black tracking-tighter">
+                  <p className="text-3xl font-black tracking-tighter">
                     ${totalBotEarnings.toFixed(2)}
                   </p>
                 </div>
-                <div className="h-14 w-14 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
-                  <Trophy className="h-7 w-7 text-secondary" />
+                <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
+                  <Trophy className="h-6 w-6 text-secondary" />
                 </div>
               </CardContent>
             </Card>
             <Card className="rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/10 shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Tokenized Valuation</p>
-                  <p className="text-4xl font-black tracking-tighter text-primary">
-                    ${stockAssets.reduce((acc, s) => acc + s.totalValue, 0).toLocaleString()}
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Tokenized Vault</p>
+                  <p className="text-3xl font-black tracking-tighter text-primary">
+                    ${totalValue.toLocaleString()}
                   </p>
                 </div>
-                <div className="h-14 w-14 rounded-2xl bg-secondary/10 flex items-center justify-center border-secondary/20">
-                  <Layers className="h-7 w-7 text-secondary" />
+                <div className="h-12 w-12 rounded-2xl bg-secondary/10 flex items-center justify-center border-secondary/20">
+                  <Layers className="h-6 w-6 text-secondary" />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/10 shadow-xl">
+              <CardContent className="p-8 flex items-center justify-between">
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Projected APY</p>
+                  <p className="text-3xl font-black tracking-tighter text-green-600">
+                    {apy}
+                  </p>
+                </div>
+                <div className="h-12 w-12 rounded-2xl bg-green-500/10 flex items-center justify-center border-green-500/20">
+                  <TrendingUp className="h-6 w-6 text-green-600" />
                 </div>
               </CardContent>
             </Card>
@@ -192,7 +229,7 @@ export default function StocksPage() {
             <CardContent className="flex-1 overflow-y-auto p-8 font-mono text-xs space-y-3 no-scrollbar max-h-[400px]">
               {stockBotLogs.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center opacity-20 text-center space-y-6 py-20">
-                  <Target className="h-16 w-16" />
+                  <Cpu className="h-16 w-16" />
                   <p className="uppercase tracking-[0.4em] font-black text-sm">Awaiting Strategic Signal</p>
                 </div>
               ) : (
@@ -222,21 +259,36 @@ export default function StocksPage() {
             <CardContent className="pt-6 space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Allocation Cap (USD)</Label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                      type="number" 
+                      placeholder="2500" 
+                      value={localAllocation}
+                      onChange={(e) => setLocalAllocation(e.target.value)}
+                      disabled={stockBotActive}
+                      className="pl-9 h-12 rounded-xl font-bold text-lg"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-widest opacity-70">Risk Tolerance</Label>
                   <Select value={localRisk} onValueChange={(v: any) => setLocalRisk(v)} disabled={stockBotActive}>
                     <SelectTrigger className="h-12 rounded-xl font-bold">
                       <SelectValue placeholder="Select Risk" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
-                      <SelectItem value="low">Conservative (Bond-Tokens Focus)</SelectItem>
-                      <SelectItem value="medium">Balanced (Index-Tokens Focus)</SelectItem>
-                      <SelectItem value="high">Aggressive (Growth-Tokens Focus)</SelectItem>
+                      <SelectItem value="low">Conservative (Bond Focus)</SelectItem>
+                      <SelectItem value="medium">Balanced (Index Focus)</SelectItem>
+                      <SelectItem value="high">Aggressive (Tech Growth Focus)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">RWA Vision Target</Label>
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Focus Asset</Label>
                   <Select value={chartSymbol} onValueChange={setChartSymbol}>
                     <SelectTrigger className="h-12 rounded-xl font-bold">
                       <SelectValue />
@@ -254,10 +306,10 @@ export default function StocksPage() {
               <div className="p-6 rounded-[1.5rem] bg-slate-900 text-white space-y-4">
                 <h4 className="text-sm font-black flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-secondary" />
-                  Global RWA Protocol
+                  RWA Yield Protocol
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  The AI Strategy Agent utilizes institutional rebalancing models to optimize tokenized asset exposure across global markets.
+                  The Strategy Agent rebalances your tokenized stocks based on market momentum. Low risk focuses on safe Bond tokens for predictable dividends.
                 </p>
               </div>
             </CardContent>
@@ -270,12 +322,15 @@ export default function StocksPage() {
             </h3>
             <div className="space-y-3">
               {stockAssets.length > 0 ? stockAssets.map(s => (
-                <div key={s.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/20">
+                <div key={s.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/20 border-l-4 border-secondary">
                   <div>
                     <div className="font-bold text-xs">{s.symbol}</div>
-                    <div className="text-[10px] text-muted-foreground">{s.shares} token units</div>
+                    <div className="text-[10px] text-muted-foreground">{s.shares.toFixed(2)} units</div>
                   </div>
-                  <div className="text-xs font-bold">${s.totalValue.toLocaleString()}</div>
+                  <div className="text-right">
+                    <div className="text-xs font-bold">${s.totalValue.toLocaleString()}</div>
+                    <div className="text-[9px] text-green-600 font-bold uppercase">Synced</div>
+                  </div>
                 </div>
               )) : (
                 <p className="text-[10px] text-center text-muted-foreground opacity-50 py-4 font-bold uppercase">No tokenized holdings</p>
