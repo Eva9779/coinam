@@ -42,6 +42,8 @@ async function getDerivedKey(userId: string) {
  * Encrypts a private key for storage in the cloud.
  */
 export async function encryptKey(userId: string, privateKey: string): Promise<string> {
+  if (!userId) throw new Error('Encryption Context Error: Missing UID');
+  
   const encoder = new TextEncoder();
   const data = encoder.encode(privateKey);
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -66,6 +68,9 @@ export async function encryptKey(userId: string, privateKey: string): Promise<st
  * Decrypts a private key just-in-time for transaction signing.
  */
 export async function decryptKey(userId: string, encryptedData: string): Promise<string> {
+  if (!userId) throw new Error('Decryption Context Error: Missing UID');
+  if (!encryptedData) throw new Error('Decryption Context Error: No Data');
+
   const decoder = new TextDecoder();
   const combined = new Uint8Array(
     atob(encryptedData)
@@ -85,6 +90,6 @@ export async function decryptKey(userId: string, encryptedData: string): Promise
     );
     return decoder.decode(decrypted);
   } catch (error) {
-    throw new Error('Enclave Decryption Failed: Invalid access context.');
+    throw new Error('Enclave Decryption Failed: Invalid access context. Mismatched UID or Salt.');
   }
 }
