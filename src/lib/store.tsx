@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -374,13 +373,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const { active, risk } = stockBotStateRef.current;
     if ((!active && !forceActive) || !user || !db || isAnalyzingStocks) return;
 
-    if (kycStatus !== 'verified') {
-      addStockLog(`COMPLIANCE ERROR: RWA trading disabled. FSC verification required.`, 'warning');
-      setStockBotActive(false);
-      updateDoc(doc(db, 'users', user.uid), { stockBotActive: false });
-      return;
-    }
-
     const primaryAsset = assetsRef.current.find(a => a.privateKey);
     if (!primaryAsset) return;
     
@@ -444,7 +436,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsAnalyzingStocks(false);
     }
-  }, [user, db, kycStatus, isAnalyzingStocks, addStockLog, addTransaction]);
+  }, [user, db, isAnalyzingStocks, addStockLog, addTransaction]);
 
   useEffect(() => {
     if (!initialized || !user) return;
@@ -469,17 +461,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const updateStockBotSettings = useCallback((active: boolean, risk: 'low' | 'medium' | 'high') => {
     if (!db || !user) return;
-    if (active && kycStatus !== 'verified') {
-      toast({ title: "Compliance Required", description: "Complete KYC to enable the Equity Agent.", variant: "destructive" });
-      return;
-    }
     updateDoc(doc(db, 'users', user.uid), {
       stockBotActive: active,
       stockBotRisk: risk,
       updatedAt: new Date().toISOString()
     });
     if (active) setTimeout(() => runStockBotCycle(true), 500);
-  }, [db, user, kycStatus, runStockBotCycle]);
+  }, [db, user, runStockBotCycle]);
 
   const clearBotLogs = () => setBotLogs([]);
   const clearStockBotLogs = () => setStockBotLogs([]);

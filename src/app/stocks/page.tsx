@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo } from 'react';
@@ -96,46 +95,8 @@ export default function StocksPage() {
   }, [stockBotLogs]);
 
   const handleToggleBot = () => {
-    if (kycStatus !== 'verified') {
-      toast({ title: "Verification Required", description: "Global institutional KYC is mandatory for RWA trading.", variant: "destructive" });
-      return;
-    }
     updateStockBotSettings(!stockBotActive, localRisk);
   };
-
-  if (kycStatus !== 'verified') {
-    return (
-      <div className="max-w-4xl mx-auto py-20">
-        <Card className="rounded-[3rem] border-dashed border-2 p-12 text-center space-y-8 bg-card/50 backdrop-blur-xl">
-          <div className="h-24 w-24 rounded-3xl bg-amber-500/10 flex items-center justify-center mx-auto border-2 border-amber-500/20 shadow-2xl shadow-amber-500/5 rotate-3">
-            <ShieldAlert className="h-12 w-12 text-amber-600" />
-          </div>
-          <div className="space-y-4 max-w-lg mx-auto">
-            <h2 className="text-4xl font-black text-primary tracking-tighter">Global Compliance Required</h2>
-            <p className="text-muted-foreground font-medium text-lg leading-relaxed">
-              Trading Tokenized Stocks and Bonds (RWA) requires universal institutional identity verification. Access is currently restricted to compliant accounts.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-4 text-left max-w-sm mx-auto">
-             <div className="p-4 rounded-2xl bg-muted/50 border space-y-1">
-               <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Protocol</span>
-               <p className="text-xs font-bold">Global Securities Standard</p>
-             </div>
-             <div className="p-4 rounded-2xl bg-muted/50 border space-y-1">
-               <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Status</span>
-               <p className="text-xs font-bold text-amber-600 uppercase">Awaiting Verification</p>
-             </div>
-          </div>
-          <Button size="lg" className="h-16 px-10 text-xl font-black rounded-2xl shadow-2xl gap-3 group" asChild>
-            <Link href="/kyc">
-              Verify Global Identity
-              <ArrowRight className="h-6 w-6 group-hover:translate-x-1 transition-transform" />
-            </Link>
-          </Button>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20">
@@ -296,7 +257,7 @@ export default function StocksPage() {
                   Global RWA Protocol
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  The AI Strategy Agent utilizes institutional rebalancing models to optimize tokenized asset exposure across global markets for verified accounts.
+                  The AI Strategy Agent utilizes institutional rebalancing models to optimize tokenized asset exposure across global markets.
                 </p>
               </div>
             </CardContent>
