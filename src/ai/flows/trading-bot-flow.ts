@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
@@ -40,14 +39,27 @@ const TradingBotOutputSchema = z.object({
   strategy: z.string().describe('Institutional strategy summary.'),
   actions: z.array(TradingActionSchema).describe('List of rebalancing actions to capture profit via DEX execution.'),
   marketSentiment: z.enum(['bullish', 'bearish', 'neutral']),
+  error: z.string().optional(),
 });
 export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
-async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 2000): Promise<T> {
+/**
+ * Enhanced retry logic for Gemini Free Tier stability.
+ * Uses 30s delay to clear rate limits.
+ */
+async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): Promise<T> {
   try {
     return await fn();
   } catch (error: any) {
-    if (retries > 0 && (error.status === 429 || error.message?.includes('quota'))) {
+    const errorStr = error.toString();
+    const isRateLimit = 
+      errorStr.includes('429') || 
+      errorStr.includes('RESOURCE_EXHAUSTED') || 
+      error.status === 429 || 
+      error.message?.includes('quota');
+
+    if (retries > 0 && isRateLimit) {
+      console.warn(`AI Rate Limit hit. Retrying in ${delay / 1000}s...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return withRetry(fn, retries - 1, delay * 2);
     }
@@ -56,7 +68,28 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 2000): Pr
 }
 
 export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<TradingBotOutput> {
-  return withRetry(() => tradingBotFlow(input));
+  try {
+    // Check for API key presence to provide a better error
+    if (!process.env.GOOGLE_GENAI_API_KEY && !process.env.GEMINI_API_KEY) {
+      return {
+        strategy: 'ERROR',
+        actions: [],
+        marketSentiment: 'neutral',
+        error: 'Institutional API Key Missing. Please check your .env file.'
+      };
+    }
+
+    const output = await withRetry(() => tradingBotFlow(input));
+    return output;
+  } catch (error: any) {
+    console.error('Trading Bot Flow Error:', error);
+    return {
+      strategy: 'ERROR',
+      actions: [],
+      marketSentiment: 'neutral',
+      error: `Neural Link Failure: ${error.message || 'Unknown internal error'}`
+    };
+  }
 }
 
 const tradingBotPrompt = ai.definePrompt({

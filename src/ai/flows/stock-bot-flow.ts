@@ -38,14 +38,23 @@ const StockBotOutputSchema = z.object({
   summary: z.string().describe('RWA protocol strategy summary.'),
   actions: z.array(StockBotActionSchema).describe('Recommended tokenized RWA rebalancing actions.'),
   sentiment: z.enum(['bullish', 'bearish', 'neutral']),
+  error: z.string().optional(),
 });
 export type StockBotOutput = z.infer<typeof StockBotOutputSchema>;
 
-async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 2000): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): Promise<T> {
   try {
     return await fn();
   } catch (error: any) {
-    if (retries > 0 && (error.status === 429 || error.message?.includes('quota'))) {
+    const errorStr = error.toString();
+    const isRateLimit = 
+      errorStr.includes('429') || 
+      errorStr.includes('RESOURCE_EXHAUSTED') || 
+      error.status === 429 || 
+      error.message?.includes('quota');
+
+    if (retries > 0 && isRateLimit) {
+      console.warn(`AI Rate Limit hit (RWA). Retrying in ${delay / 1000}s...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return withRetry(fn, retries - 1, delay * 2);
     }
@@ -54,7 +63,25 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 2000): Pr
 }
 
 export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBotOutput> {
-  return withRetry(() => stockBotFlow(input));
+  try {
+    if (!process.env.GOOGLE_GENAI_API_KEY && !process.env.GEMINI_API_KEY) {
+      return {
+        summary: 'COMPLIANCE ERROR',
+        actions: [],
+        sentiment: 'neutral',
+        error: 'RWA Protocol Key Missing. Please check your .env file.'
+      };
+    }
+    return await withRetry(() => stockBotFlow(input));
+  } catch (error: any) {
+    console.error('Stock Bot Flow Error:', error);
+    return {
+      summary: 'COMPLIANCE ERROR',
+      actions: [],
+      sentiment: 'neutral',
+      error: `RWA Protocol Failure: ${error.message || 'Unknown internal error'}`
+    };
+  }
 }
 
 const stockBotPrompt = ai.definePrompt({

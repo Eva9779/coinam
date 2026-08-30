@@ -176,9 +176,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     addLog(`INSTITUTIONAL GUARD: Scanning Mainnet for Alpha rebalancing opportunities...`, 'info');
     
     try {
-      const gasPrice = await getLiveGasPrice();
-      
-      const strategyResult = await analyzeMarketAndTrade({
+      const result = await analyzeMarketAndTrade({
         userId: user.uid,
         strategyType: strategyType as any,
         assets: assetsRef.current.map(a => ({
@@ -193,10 +191,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         allocationLimitUSD: allocation
       });
 
-      if (strategyResult && strategyResult.actions.length > 0) {
-        addLog(`STRATEGY IDENTIFIED: ${strategyResult.strategy}`, 'success');
+      if (result.error) {
+        addLog(`Protocol Error: ${result.error}`, 'warning');
+        setIsAnalyzing(false);
+        return;
+      }
+
+      if (result && result.actions.length > 0) {
+        addLog(`STRATEGY IDENTIFIED: ${result.strategy}`, 'success');
         
-        for (const action of strategyResult.actions) {
+        const gasPrice = await getLiveGasPrice();
+
+        for (const action of result.actions) {
           const estimatedGasUSD = (250000 * gasPrice) / 1e9 * 2500; 
           if (action.amountUSD * 0.05 < estimatedGasUSD) {
             addLog(`TRADE ABORTED: Transaction costs exceed profit potential for ${action.toAsset}.`, 'warning');
@@ -232,7 +238,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         addLog(`Portfolio state optimized. Monitoring liquidity nodes.`, 'info');
       }
     } catch (error: any) {
-      addLog(`Safety Guard Reverted: ${error.message}`, 'warning');
+      addLog(`Safety Guard Reverted: ${error.message || 'Server Link Interrupted'}`, 'warning');
     } finally {
       setIsAnalyzing(false);
     }
@@ -262,6 +268,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         currentHoldings: [], 
         marketData: stockData
       });
+
+      if (result.error) {
+        addStockLog(`RWA Engine Warning: ${result.error}`, 'warning');
+        setIsAnalyzingStocks(false);
+        return;
+      }
 
       if (result && result.actions.length > 0) {
         addStockLog(`YIELD OPTIMIZATION: ${result.summary}`, 'success');
@@ -295,7 +307,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (error: any) {
-      addStockLog(`Protocol Safety Check: ${error.message}`, 'warning');
+      addStockLog(`Protocol Safety Check: ${error.message || 'Server Link Interrupted'}`, 'warning');
     } finally {
       setIsAnalyzingStocks(false);
     }
