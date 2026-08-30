@@ -3,7 +3,7 @@ import { googleAI } from '@genkit-ai/google-genai';
 
 /**
  * Institutional AI Enclave Configuration
- * 
+ *
  * Optimized for the new 'AQ.' authentication standard.
  * We prioritize the key from environment variables.
  */

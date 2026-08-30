@@ -1,12 +1,12 @@
 'use server';
 /**
- * Alpha-Maximizing Institutional Strategy Agent.
+ * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
  * High-performance bot focused on profit capture and liquidity protection.
+ * Updated to support new 'AQ.' auth keys and robust error recovery.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
-import { googleAI } from '@genkit-ai/google-genai';
 
 const MarketEntrySchema = z.object({
   currency: z.string(),
@@ -46,9 +46,9 @@ export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
 /**
  * Local Institutional Fallback Strategy
- * Used when the Neural Link (AI) is unavailable.
+ * Used when the Neural Link (AI) is unavailable or returning 404/403.
  */
-function getLocalStrategy(input: TradingBotInput): TradingBotOutput {
+function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotOutput {
   const actions: any[] = [];
   const btc = input.marketData.find(m => m.currency === 'BTC');
   
@@ -66,28 +66,32 @@ function getLocalStrategy(input: TradingBotInput): TradingBotOutput {
     strategy: 'LOCAL INSTITUTIONAL FALLBACK',
     actions,
     marketSentiment: btc && btc.change24h > 0 ? 'bullish' : 'neutral',
-    error: 'AI Neural Link Offline (404/403). Using local quantitative defaults.'
+    error: `AI Link Offline: ${errorMsg}. Using local quantitative defaults.`
   };
 }
 
 export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<TradingBotOutput> {
   try {
     const { output } = await ai.generate({
-      model: googleAI.model('gemini-1.5-flash'),
-      input: { schema: TradingBotInputSchema },
+      model: 'googleai/gemini-1.5-flash',
+      input: input,
       output: { schema: TradingBotOutputSchema },
-      prompt: `You are an institutional quantitative strategy agent. 
+      prompt: `You are an institutional quantitative strategy agent for Coin A,M. 
       Strategy: ${input.strategyType}
       Risk: ${input.riskTolerance}
-      Data: ${JSON.stringify(input.marketData)}
+      Market: ${JSON.stringify(input.marketData)}
       Portfolio: ${JSON.stringify(input.assets)}
-      Directives: Identify momentum > 2.5% and rebalance to USDC.`,
+      Directives: Analyze for momentum > 2.5% and rebalance to capture alpha.`,
     });
 
     if (!output) throw new Error('AI Engine failed to generate response.');
     return output;
   } catch (error: any) {
-    console.warn('AI Link Failure, switching to Local Protocol:', error.message);
-    return getLocalStrategy(input);
+    console.warn('Trading Bot AI Failure:', error.message);
+    const is404 = error.message.includes('404') || error.message.includes('not found');
+    const diagnostic = is404 
+      ? "Model Not Found (404). Please ensure 'gemini-1.5-flash' is active for your 'AQ.' key in AI Studio." 
+      : error.message;
+    return getLocalStrategy(input, diagnostic);
   }
 }
