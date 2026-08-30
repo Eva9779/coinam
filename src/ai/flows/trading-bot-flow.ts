@@ -52,14 +52,14 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
   try {
     return await fn();
   } catch (error: any) {
-    const errorStr = error.toString();
+    const errorStr = error.toString().toLowerCase();
     const isRateLimit = 
       errorStr.includes('429') || 
-      errorStr.includes('RESOURCE_EXHAUSTED') || 
+      errorStr.includes('resource_exhausted') || 
       error.status === 429 || 
-      error.message?.includes('quota');
+      error.message?.toLowerCase().includes('quota');
 
-    const isNotFound = errorStr.includes('404') || errorStr.includes('not found');
+    const isNotFound = errorStr.includes('404') || errorStr.includes('not found') || errorStr.includes('not supported');
 
     if (retries > 0 && isRateLimit) {
       console.warn(`AI Rate Limit hit. Retrying in ${delay / 1000}s...`);
@@ -68,7 +68,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
     }
     
     if (isNotFound) {
-      throw new Error("Model ID 'gemini-1.5-flash-latest' not found. Please ensure your API key has access to Gemini 1.5 Flash in your region.");
+      throw new Error("Neural Link Model Not Found. Please ensure your API key is active in Google AI Studio and 'gemini-1.5-flash' is supported for your region.");
     }
 
     throw error;

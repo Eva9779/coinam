@@ -43,18 +43,22 @@ const StockBotOutputSchema = z.object({
 });
 export type StockBotOutput = z.infer<typeof StockBotOutputSchema>;
 
+/**
+ * Enhanced retry logic for Gemini Free Tier stability.
+ * Uses 30s delay to clear rate limits.
+ */
 async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): Promise<T> {
   try {
     return await fn();
   } catch (error: any) {
-    const errorStr = error.toString();
+    const errorStr = error.toString().toLowerCase();
     const isRateLimit = 
       errorStr.includes('429') || 
-      errorStr.includes('RESOURCE_EXHAUSTED') || 
+      errorStr.includes('resource_exhausted') || 
       error.status === 429 || 
-      error.message?.includes('quota');
+      error.message?.toLowerCase().includes('quota');
 
-    const isNotFound = errorStr.includes('404') || errorStr.includes('not found');
+    const isNotFound = errorStr.includes('404') || errorStr.includes('not found') || errorStr.includes('not supported');
 
     if (retries > 0 && isRateLimit) {
       console.warn(`AI Rate Limit hit (RWA). Retrying in ${delay / 1000}s...`);
@@ -63,7 +67,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
     }
 
     if (isNotFound) {
-      throw new Error("Model ID 'gemini-1.5-flash-latest' not found. Please check your API key and project region.");
+      throw new Error("RWA Engine Model Not Found. Please ensure your API key is active in Google AI Studio and the 'gemini-1.5-flash' model is available in your region.");
     }
     
     throw error;
@@ -84,7 +88,7 @@ export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBo
   } catch (error: any) {
     console.error('Stock Bot Flow Error:', error);
     return {
-      summary: 'COMPLIANCE ERROR',
+      summary: 'PROTOCOL ERROR',
       actions: [],
       sentiment: 'neutral',
       error: `RWA Protocol Failure: ${error.message || 'Unknown internal error'}`
