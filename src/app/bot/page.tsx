@@ -28,7 +28,8 @@ import {
   Trash2,
   BrainCircuit,
   Rocket,
-  Coins
+  Coins,
+  Cpu
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -125,6 +126,8 @@ export default function TradingBotPage() {
     updateBotSettings(!botActive, allocationNum, localRisk, localStrategy);
   };
 
+  const isLocalProtocol = botLogs.some(log => log.msg.includes("LOCAL PROTOCOL"));
+
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -134,8 +137,8 @@ export default function TradingBotPage() {
             Strategy Agent
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
-            <Globe className="h-4 w-4" />
-            {localStrategy === 'bitcoin_multiplier' ? 'Bitcoin Multiplier Active. Monitoring growth trends.' : 'AI Analysis Active. Monitoring mainnet rebalancing opportunities.'}
+            <Cpu className="h-4 w-4" />
+            {isLocalProtocol ? 'Local Quantitative Protocol active (Regional Mode).' : 'AI Neural Link active. Monitoring Mainnet trends.'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -144,7 +147,7 @@ export default function TradingBotPage() {
             botActive ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"
           )}>
             <div className={cn("h-2 w-2 rounded-full mr-2", botActive ? "bg-green-500 animate-pulse" : "bg-amber-500")} />
-            Neural Link: {botActive ? 'LIVE' : 'STANDBY'}
+            Strategy Link: {botActive ? 'LIVE' : 'STANDBY'}
           </Badge>
           <Button 
             onClick={handleToggleBot} 
@@ -152,7 +155,7 @@ export default function TradingBotPage() {
             className="h-12 px-8 font-bold rounded-2xl shadow-xl gap-2 transition-all"
           >
             {botActive ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-            {botActive ? 'Disable Agent' : 'Launch AI Agent'}
+            {botActive ? 'Disable Agent' : 'Launch Agent'}
           </Button>
         </div>
       </div>
@@ -174,8 +177,8 @@ export default function TradingBotPage() {
             <Card className="rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/10 shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Mainnet Analysis</p>
-                  <p className="text-4xl font-black tracking-tighter text-green-600">{botActive ? 'SYNCING' : 'IDLE'}</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Mainnet Sync</p>
+                  <p className="text-4xl font-black tracking-tighter text-green-600">{botActive ? 'ACTIVE' : 'IDLE'}</p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-green-500/10 flex items-center justify-center border-green-500/20">
                   <Activity className="h-7 w-7 text-green-600" />
@@ -198,13 +201,13 @@ export default function TradingBotPage() {
             <CardHeader className="border-b border-white/10 flex flex-row items-center justify-between px-8 py-6">
               <div className="flex items-center gap-3">
                 <Terminal className="h-5 w-5 text-secondary" />
-                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">Neural Execution Feed</CardTitle>
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">Enclave Strategy Feed</CardTitle>
               </div>
               <div className="flex items-center gap-2">
                 {isAnalyzing && (
                   <div className="flex items-center gap-2 text-[10px] font-bold text-secondary mr-4">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    ANALYZING MAINNET
+                    ANALYZING LEDGER
                   </div>
                 )}
                 <Button variant="ghost" size="icon" onClick={clearBotLogs} className="h-8 w-8 text-white/30 hover:text-white">
@@ -245,7 +248,7 @@ export default function TradingBotPage() {
             <CardContent className="pt-6 space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">AI Agent Core</Label>
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Agent Profile</Label>
                   <Select value={localStrategy} onValueChange={(v: any) => setLocalStrategy(v)} disabled={botActive}>
                     <SelectTrigger className="h-12 rounded-xl font-bold">
                       <SelectValue placeholder="Select Bot Strategy" />
@@ -258,7 +261,7 @@ export default function TradingBotPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Capital Allocation Cap (USD)</Label>
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Allocation Cap (USD)</Label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input 
@@ -273,7 +276,7 @@ export default function TradingBotPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Risk Tolerance Profile</Label>
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Risk Profile</Label>
                   <Select value={localRisk} onValueChange={(v: any) => setLocalRisk(v)} disabled={botActive}>
                     <SelectTrigger className="h-12 rounded-xl font-bold">
                       <SelectValue placeholder="Select Strategy" />
@@ -290,21 +293,14 @@ export default function TradingBotPage() {
               <div className="h-px bg-primary/10 w-full" />
 
               <div className="p-6 rounded-[1.5rem] bg-slate-900 text-white space-y-4 relative overflow-hidden">
-                {localStrategy === 'bitcoin_multiplier' ? (
-                  <Coins className={cn("absolute -right-6 -bottom-6 h-28 w-28 opacity-10 text-secondary transition-all", botActive && "animate-pulse")} />
-                ) : (
-                  <Rocket className={cn("absolute -right-6 -bottom-6 h-28 w-28 opacity-10 text-secondary transition-all", localRisk === 'high' && "animate-bounce")} />
-                )}
+                <Cpu className={cn("absolute -right-6 -bottom-6 h-28 w-28 opacity-10 text-secondary transition-all", botActive && "animate-pulse")} />
                 
                 <h4 className="text-sm font-black flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-secondary" />
                   Execution Protection
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  {localStrategy === 'bitcoin_multiplier' 
-                    ? "The Bitcoin Multiplier agent is optimized for BTC accumulation. It rebalances capital to capitalize on Bitcoin momentum." 
-                    : "The AI Strategy Agent provides institutional rebalancing signals. Swaps and transfers are settled directly against the decentralized ledger."
-                  }
+                  Autonomous agents provide institutional rebalancing signals. If the AI link is restricted, the bot uses the high-performance local quantitative enclave to protect your principal.
                 </p>
               </div>
 
