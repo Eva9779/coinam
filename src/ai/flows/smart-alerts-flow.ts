@@ -65,19 +65,20 @@ export type SmartAlertsOutput = z.infer<typeof SmartAlertsOutputSchema>;
 
 /**
  * Institutional error recovery with API diagnostics.
+ * Updated to support new 'AQ.' auth keys.
  */
 async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): Promise<T> {
   try {
     const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey || !apiKey.startsWith('AIzaSy')) {
-      throw new Error("NEURAL LINK FAILURE: Missing or Invalid API Key. Please obtain a key starting with 'AIzaSy' from Google AI Studio.");
+    if (!apiKey) {
+      throw new Error("NEURAL LINK FAILURE: Missing API Key. Please provide your Gemini API key (AQ. or AIza format).");
     }
     return await fn();
   } catch (error: any) {
     const errorStr = error.toString().toLowerCase();
 
     if (errorStr.includes('404') || errorStr.includes('not found')) {
-      throw new Error("AI Alerts Engine Not Found. Please ensure your API key starts with 'AIzaSy' and is active in Google AI Studio.");
+      throw new Error("AI Alerts Engine Not Found. Please verify your 'AQ.' key and ensuring 'gemini-1.5-flash' is available in your region.");
     }
 
     const isRateLimit = 
