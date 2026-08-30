@@ -143,7 +143,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     stockBotStateRef.current = { active: stockBotActive, risk: stockBotRisk };
   }, [stockBotActive, stockBotRisk]);
 
-  // Utility functions
+  // Utility functions defined first to avoid ReferenceError
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
@@ -169,6 +169,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     });
   }, [db, user]);
 
+  // Bot cycle functions that depend on the utilities above
   const runBotCycle = useCallback(async (forceActive: boolean = false) => {
     const { active, risk, allocation, strategy: strategyType } = botStateRef.current;
     if ((!active && !forceActive) || !user || !db || isAnalyzing) return;
