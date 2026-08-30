@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -19,7 +20,7 @@ import { toast } from '@/hooks/use-toast';
 import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
 import { analyzeEquityMarket } from '@/ai/flows/stock-bot-flow';
 import { INITIAL_MARKET_DATA } from '@/lib/data';
-import { getLiveBalance, executeMainnetSwap, executeRWASettlement, getTransactionStatus } from '@/lib/blockchain';
+import { getLiveBalance, executeMainnetSwap, executeRWASettlement, getTransactionStatus, TOKENS } from '@/lib/blockchain';
 import { encryptKey, decryptKey } from '@/lib/encryption';
 
 export interface WalletAsset {
@@ -40,6 +41,7 @@ export interface StockAsset {
   shares: number;
   currentPrice: number;
   totalValue: number;
+  tokenAddress?: string;
 }
 
 export interface Transaction {
@@ -424,8 +426,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             hash: txHash,
             currency: action.asset,
             amount: action.amount,
-            fiatValueUSD: 0,
-            description: `RWA ${action.type.toUpperCase()} SETTLEMENT`
+            fiatValueUSD: action.amount * (stockData.find(s => s.symbol === action.asset.replace('NASDAQ:', '').replace('AMEX:', ''))?.price || 0),
+            description: `RWA ${action.type.toUpperCase()} SETTLEMENT | Institutional Enclave`
           });
         }
       } else {

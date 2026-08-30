@@ -168,7 +168,7 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
             </Badge>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          <div className="flex items-center gap-4 shrink-0">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="h-10 px-2 sm:px-3 rounded-xl border flex items-center gap-2 sm:gap-3 hover:bg-muted/50 transition-all outline-none">
