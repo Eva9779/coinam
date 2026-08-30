@@ -97,7 +97,7 @@ export default function StocksPage() {
 
   const handleToggleBot = () => {
     if (kycStatus !== 'verified') {
-      toast({ title: "Institutional Compliance Required", description: "You must complete regulatory KYC to enable RWA agents.", variant: "destructive" });
+      toast({ title: "Verification Required", description: "Global institutional KYC is mandatory for RWA trading.", variant: "destructive" });
       return;
     }
     updateStockBotSettings(!stockBotActive, localRisk);
@@ -111,24 +111,24 @@ export default function StocksPage() {
             <ShieldAlert className="h-12 w-12 text-amber-600" />
           </div>
           <div className="space-y-4 max-w-lg mx-auto">
-            <h2 className="text-4xl font-black text-primary tracking-tighter">Regulatory Compliance Required</h2>
+            <h2 className="text-4xl font-black text-primary tracking-tighter">Global Compliance Required</h2>
             <p className="text-muted-foreground font-medium text-lg leading-relaxed">
-              Trading tokenized stocks and bonds (RWA) in **Jamaica** requires institutional identity verification. Secure your session to unlock Equity Enclaves.
+              Trading Tokenized Stocks and Bonds (RWA) requires universal institutional identity verification. Access is currently restricted to compliant accounts.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-4 text-left max-w-sm mx-auto">
              <div className="p-4 rounded-2xl bg-muted/50 border space-y-1">
                <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Protocol</span>
-               <p className="text-xs font-bold">Jamaica FSC Compliance</p>
+               <p className="text-xs font-bold">Global Securities Standard</p>
              </div>
              <div className="p-4 rounded-2xl bg-muted/50 border space-y-1">
                <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Status</span>
-               <p className="text-xs font-bold text-amber-600 uppercase">Verification Needed</p>
+               <p className="text-xs font-bold text-amber-600 uppercase">Awaiting Verification</p>
              </div>
           </div>
           <Button size="lg" className="h-16 px-10 text-xl font-black rounded-2xl shadow-2xl gap-3 group" asChild>
             <Link href="/kyc">
-              Complete Compliance Enclave
+              Verify Global Identity
               <ArrowRight className="h-6 w-6 group-hover:translate-x-1 transition-transform" />
             </Link>
           </Button>
@@ -147,7 +147,7 @@ export default function StocksPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            Decentralized Equity Enclave. Managing tokenized stocks & bonds (RWA).
+            Global RWA Enclave. Managing tokenized stocks & bonds across jurisdictions.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -293,10 +293,10 @@ export default function StocksPage() {
               <div className="p-6 rounded-[1.5rem] bg-slate-900 text-white space-y-4">
                 <h4 className="text-sm font-black flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-secondary" />
-                  RWA Protocol Security
+                  Global RWA Protocol
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  The Antigravity RWA Agent utilizes institutional rebalancing models to optimize Tokenized Equity and Debt allocations within your secure enclave.
+                  The AI Strategy Agent utilizes institutional rebalancing models to optimize tokenized asset exposure across global markets for verified accounts.
                 </p>
               </div>
             </CardContent>

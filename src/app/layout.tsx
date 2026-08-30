@@ -164,7 +164,7 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
 
           <div className="flex items-center gap-4 flex-1 overflow-hidden">
             <Badge variant="outline" className="text-[9px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden sm:flex whitespace-nowrap">
-              v2.1.0 - FSC COMPLIANT
+              GLOBAL COMPLIANCE ACTIVE
             </Badge>
           </div>
 
@@ -218,11 +218,11 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <meta name="google-site-verification" content="vZEW1q5YcuccPg3pDH34xDYx09DGHlz3fbn4okapBTA" />
-        <meta name="description" content="Coin A,M | Secure your digital legacy with institutional AI-powered non-custodial asset security." />
+        <meta name="description" content="Coin A,M | Global institutional non-custodial asset security." />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-        <title>Coin A,M | Institutional AI Asset Security</title>
+        <title>Coin A,M | Institutional Asset Security</title>
       </head>
       <body className="font-body antialiased bg-background text-foreground overflow-x-hidden">
         <FirebaseClientProvider>

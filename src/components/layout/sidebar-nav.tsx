@@ -16,14 +16,15 @@ import {
   Banknote,
   Bot,
   Landmark,
-  ShieldCheck
+  ShieldCheck,
+  Globe
 } from "lucide-react";
 import { useWalletStore } from "@/lib/store";
 
 const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Wallet", href: "/wallet", icon: Wallet },
-  { name: "Stocks & Bonds", href: "/stocks", icon: Landmark },
+  { name: "Stocks & Bonds", icon: Landmark, href: "/stocks" },
   { name: "Strategy Agent", href: "/bot", icon: Bot },
   { name: "Buy Assets", href: "/buy", icon: CreditCard },
   { name: "Withdraw", href: "/withdraw", icon: Banknote },
@@ -66,7 +67,7 @@ export function SidebarNav() {
           )}
         >
           <ShieldCheck className="h-5 w-5" />
-          Verify Compliance
+          Verify Global Profile
         </Link>
       )}
 

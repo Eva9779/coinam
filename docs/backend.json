@@ -24,7 +24,8 @@
             "legalName": { "type": "string" },
             "idType": { "type": "string" },
             "idNumber": { "type": "string" },
-            "taxResidency": { "type": "string" }
+            "taxResidency": { "type": "string" },
+            "investorStatus": { "type": "string" }
           }
         }
       },
