@@ -6,6 +6,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const MarketEntrySchema = z.object({
   currency: z.string(),
@@ -44,94 +45,49 @@ const TradingBotOutputSchema = z.object({
 export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
 /**
- * Institutional error recovery with API diagnostics.
- * Updated to support new 'AQ.' auth keys.
+ * Local Institutional Fallback Strategy
+ * Used when the Neural Link (AI) is unavailable.
  */
-async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): Promise<T> {
-  try {
-    const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("NEURAL LINK FAILURE: Missing API Key. Please provide your 'AQ.' key in the environment variables.");
-    }
-    return await fn();
-  } catch (error: any) {
-    const errorStr = error.toString().toLowerCase();
-    
-    // Specifically catch the 404 mismatch that occurs with some new keys in AI Studio
-    if (errorStr.includes('404') || errorStr.includes('not found')) {
-      throw new Error("Model Not Found (404). Please verify that 'Gemini 1.5 Flash' is enabled for your project in AI Studio (gen-lang-client-...).");
-    }
-
-    const isRateLimit = 
-      errorStr.includes('429') || 
-      errorStr.includes('resource_exhausted') || 
-      error.status === 429 || 
-      error.message?.toLowerCase().includes('quota');
-
-    if (retries > 0 && isRateLimit) {
-      console.warn(`AI Rate Limit hit (Trading). Retrying in ${delay / 1000}s...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return withRetry(fn, retries - 1, delay * 2);
-    }
-    
-    throw error;
+function getLocalStrategy(input: TradingBotInput): TradingBotOutput {
+  const actions: any[] = [];
+  const btc = input.marketData.find(m => m.currency === 'BTC');
+  
+  if (btc && btc.change24h > 2 && input.strategyType === 'bitcoin_multiplier') {
+    actions.push({
+      type: 'buy',
+      fromAsset: 'USDC',
+      toAsset: 'BTC',
+      amountUSD: Math.min(input.allocationLimitUSD * 0.1, 50),
+      reasoning: 'LOCAL PROTOCOL: Detected BTC momentum. Accumulating via fallback strategy.'
+    });
   }
+
+  return {
+    strategy: 'LOCAL INSTITUTIONAL FALLBACK',
+    actions,
+    marketSentiment: btc && btc.change24h > 0 ? 'bullish' : 'neutral',
+    error: 'AI Neural Link Offline (404/403). Using local quantitative defaults.'
+  };
 }
 
 export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<TradingBotOutput> {
   try {
-    return await withRetry(() => tradingBotFlow(input));
+    const { output } = await ai.generate({
+      model: googleAI.model('gemini-1.5-flash'),
+      input: { schema: TradingBotInputSchema },
+      output: { schema: TradingBotOutputSchema },
+      prompt: `You are an institutional quantitative strategy agent. 
+      Strategy: ${input.strategyType}
+      Risk: ${input.riskTolerance}
+      Data: ${JSON.stringify(input.marketData)}
+      Portfolio: ${JSON.stringify(input.assets)}
+      Directives: Identify momentum > 2.5% and rebalance to USDC.`,
+    });
+
+    if (!output) throw new Error('AI Engine failed to generate response.');
+    return output;
   } catch (error: any) {
-    console.error('Trading Bot Flow Error:', error);
-    return {
-      strategy: 'NEURAL ERROR',
-      actions: [],
-      marketSentiment: 'neutral',
-      error: `Neural Link Failure: ${error.message || 'Unknown internal error'}`
-    };
+    console.warn('AI Link Failure, switching to Local Protocol:', error.message);
+    return getLocalStrategy(input);
   }
 }
-
-const tradingBotPrompt = ai.definePrompt({
-  name: 'tradingBotPrompt',
-  model: 'googleai/gemini-1.5-flash',
-  input: { schema: TradingBotInputSchema },
-  output: { schema: TradingBotOutputSchema },
-  prompt: `You are an institutional quantitative strategy agent. 
-Your primary directive is Alpha capture (maximum profit) and rigorous capital protection.
-
-DIRECTIVES:
-1. YIELD MAXIMIZATION: Identify assets with momentum (2.5%+ growth) and capture profits by rebalancing into stable assets (USDC).
-2. PRICE IMPACT AVOIDANCE: Only suggest trades where liquidity is sufficient. Avoid low-volume assets to prevent slippage losses.
-3. INSTITUTIONAL ALPHA: Prioritize high-quality trades with clear momentum signals.
-4. BITCOIN MULTIPLIER: If strategy is 'bitcoin_multiplier', accumulate BTC on pullbacks, but only if profitability is projected.
-
-Strategy: {{{strategyType}}}
-Risk Profile: {{{riskTolerance}}}
-Capital Cap: $ {{{allocationLimitUSD}}}
-
-Market Snapshot:
-{{#each marketData}}
-- {{{currency}}}: $ {{{price}}} ({{{change24h}}}% 24h)
-{{/each}}
-
-User Portfolio:
-{{#each assets}}
-- {{{currency}}}: Value $ {{{fiatValue}}}
-{{/each}}
-
-Evaluate liquidity and sentiment. Only output actions if a clear profit capture or hedging opportunity exists.`,
-});
-
-const tradingBotFlow = ai.defineFlow(
-  {
-    name: 'tradingBotFlow',
-    inputSchema: TradingBotInputSchema,
-    outputSchema: TradingBotOutputSchema,
-  },
-  async (input) => {
-    const { output } = await tradingBotPrompt(input);
-    if (!output) throw new Error('AI Engine failed to generate strategic response.');
-    return output;
-  }
-);

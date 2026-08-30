@@ -6,6 +6,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { googleAI } from '@genkit-ai/google-genai';
 
 const EquityMarketEntrySchema = z.object({
   symbol: z.string(),
@@ -43,95 +44,33 @@ const StockBotOutputSchema = z.object({
 export type StockBotOutput = z.infer<typeof StockBotOutputSchema>;
 
 /**
- * Institutional error recovery with API diagnostics.
- * Updated to support new 'AQ.' auth keys.
+ * Local RWA Fallback Strategy
  */
-async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): Promise<T> {
-  try {
-    const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("NEURAL LINK FAILURE: Missing API Key. Please provide your 'AQ.' key.");
-    }
-    return await fn();
-  } catch (error: any) {
-    const errorStr = error.toString().toLowerCase();
-    
-    if (errorStr.includes('404') || errorStr.includes('not found')) {
-      throw new Error("RWA Engine Model Not Found. Please ensure Gemini 1.5 Flash is enabled for your project in AI Studio.");
-    }
-
-    const isRateLimit = 
-      errorStr.includes('429') || 
-      errorStr.includes('resource_exhausted') || 
-      error.status === 429 || 
-      error.message?.toLowerCase().includes('quota');
-
-    if (retries > 0 && isRateLimit) {
-      console.warn(`AI Rate Limit hit (RWA). Retrying in ${delay / 1000}s...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return withRetry(fn, retries - 1, delay * 2);
-    }
-
-    throw error;
-  }
+function getLocalRWAStrategy(input: StockBotInput): StockBotOutput {
+  return {
+    summary: 'LOCAL RWA PROTOCOL ACTIVE',
+    actions: [],
+    sentiment: 'neutral',
+    error: 'AI Neural Link Offline (404). Accessing local RWA safety defaults.'
+  };
 }
 
 export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBotOutput> {
   try {
-    return await withRetry(() => stockBotFlow(input));
-  } catch (error: any) {
-    console.error('Stock Bot Flow Error:', error);
-    return {
-      summary: 'PROTOCOL ERROR',
-      actions: [],
-      sentiment: 'neutral',
-      error: `RWA Protocol Failure: ${error.message || 'Unknown internal error'}`
-    };
-  }
-}
+    const { output } = await ai.generate({
+      model: googleAI.model('gemini-1.5-flash'),
+      input: { schema: StockBotInputSchema },
+      output: { schema: StockBotOutputSchema },
+      prompt: `You are an institutional RWA Strategy Agent. 
+      Market Feed: ${JSON.stringify(input.marketData)}
+      Risk: ${input.riskTolerance}
+      Directives: Optimize capital across tokenized stocks and bonds.`,
+    });
 
-const stockBotPrompt = ai.definePrompt({
-  name: 'stockBotPrompt',
-  model: 'googleai/gemini-1.5-flash',
-  input: { schema: StockBotInputSchema },
-  output: { schema: StockBotOutputSchema },
-  prompt: `You are an institutional RWA Strategy Agent at Google Antigravity. 
-Your goal is decentralized capital allocation across Tokenized Stocks and Bonds.
-
-Risk Profile: {{{riskTolerance}}}
-
-Live RWA Market Feed:
-{{#each marketData}}
-- {{{symbol}}} ({{{name}}}): $ {{{price}}} ({{{changePercent}}}% Change) [{{{type}}}]
-{{/each}}
-
-Portfolio Snapshot:
-{{#if currentHoldings}}
-{{#each currentHoldings}}
-- {{{symbol}}}: {{{shares}}} units, $ {{{value}}} current valuation
-{{/each}}
-{{else}}
-NO CURRENT TOKENIZED EQUITY EXPOSURE.
-{{/if}}
-
-Institutional Intelligence Directives:
-1. TOKENIZED SETTLEMENT: Recommend actions to swap between Bond-backed tokens and Stock-backed tokens.
-2. ALPHA CAPTURE: Increase exposure to Tech-heavy tokens (AAPL, GOOGL) during bullish sentiment.
-3. HEDGING: Shift to Bond tokens (BND) when volatility increases, according to risk profile.
-4. REASONING: Provide institutional-grade reasoning for every rebalance.
-
-Your strategy will result in captured yield for the cryptographic enclave.`,
-});
-
-const stockBotFlow = ai.defineFlow(
-  {
-    name: 'stockBotFlow',
-    inputSchema: StockBotInputSchema,
-    outputSchema: StockBotOutputSchema,
-  },
-  async (input) => {
-    const { output } = await stockBotPrompt(input);
     if (!output) throw new Error('AI RWA Engine returned null.');
     return output;
+  } catch (error: any) {
+    console.warn('RWA AI Failure, switching to Local Protocol:', error.message);
+    return getLocalRWAStrategy(input);
   }
-);
+}
