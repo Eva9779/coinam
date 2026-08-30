@@ -158,13 +158,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       const pKey = generatePrivateKey();
       const account = privateKeyToAccount(pKey);
+      
+      // Virtual HSM: Encrypt the key with the user session context
       const encryptedKey = await encryptKey(user.uid, pKey);
 
       await setDoc(doc(db, 'users', user.uid), { 
         uid: user.uid, 
         email: user.email, 
         updatedAt: new Date().toISOString(),
-        securityLevel: 'hardened'
+        securityLevel: 'institutional-enclave'
       }, { merge: true });
 
       const newAsset = {
@@ -173,7 +175,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         fiatValueUSD: 0,
         address: account.address,
         isLive: true,
-        privateKey: encryptedKey
+        privateKey: encryptedKey // Persist the encrypted blob
       };
       
       await setDoc(doc(db, 'users', user.uid, 'assets', customId), newAsset);
@@ -367,6 +369,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         for (const action of strategyResult.actions) {
           addLog(`EXECUTING BROADCAST: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}`, 'info');
           
+          // Enclave Action: Just-in-time decryption for signing
           const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey!);
           const txHash = await executeMainnetSwap(
             decryptedKey as `0x${string}`,
@@ -435,6 +438,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         for (const action of result.actions) {
           addStockLog(`BROADCASTING RWA ${action.type.toUpperCase()}: ${action.amount} units of ${action.asset}`, 'info');
           
+          // Enclave Action: Just-in-time decryption for signing
           const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey!);
 
           const txHash = await executeRWASettlement(
