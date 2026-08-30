@@ -67,7 +67,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
     }
 
     if (isNotFound) {
-      throw new Error("RWA Engine Model Not Found. Please ensure your API key is active in Google AI Studio and the 'gemini-1.5-flash' model is available in your region.");
+      throw new Error("RWA Engine Model Not Found. Please ensure your API key is active in Google AI Studio and assigned to GOOGLE_GENAI_API_KEY.");
     }
     
     throw error;
@@ -76,12 +76,13 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
 
 export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBotOutput> {
   try {
+    // Institutional Diagnostic: Check for API Key presence
     if (!process.env.GOOGLE_GENAI_API_KEY && !process.env.GEMINI_API_KEY) {
       return {
-        summary: 'COMPLIANCE ERROR',
+        summary: 'CONFIG ERROR',
         actions: [],
         sentiment: 'neutral',
-        error: 'RWA Protocol Key Missing. Please check your .env file.'
+        error: 'RWA Protocol Key Missing. Please check your .env file for GOOGLE_GENAI_API_KEY.'
       };
     }
     return await withRetry(() => stockBotFlow(input));

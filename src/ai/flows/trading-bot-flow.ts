@@ -68,7 +68,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
     }
     
     if (isNotFound) {
-      throw new Error("Neural Link Model Not Found. Please ensure your API key is active in Google AI Studio and 'gemini-1.5-flash' is supported for your region.");
+      throw new Error("Neural Link Model Not Found. Please ensure GOOGLE_GENAI_API_KEY is set in your .env file and active in Google AI Studio.");
     }
 
     throw error;
@@ -77,21 +77,21 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
 
 export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<TradingBotOutput> {
   try {
+    // Institutional Diagnostic: Check for API Key presence
     if (!process.env.GOOGLE_GENAI_API_KEY && !process.env.GEMINI_API_KEY) {
       return {
-        strategy: 'ERROR',
+        strategy: 'CONFIG ERROR',
         actions: [],
         marketSentiment: 'neutral',
-        error: 'Institutional API Key Missing. Please check your .env file.'
+        error: 'Neural Link Key Missing. Please check your .env file for GOOGLE_GENAI_API_KEY.'
       };
     }
 
-    const output = await withRetry(() => tradingBotFlow(input));
-    return output;
+    return await withRetry(() => tradingBotFlow(input));
   } catch (error: any) {
     console.error('Trading Bot Flow Error:', error);
     return {
-      strategy: 'ERROR',
+      strategy: 'NEURAL ERROR',
       actions: [],
       marketSentiment: 'neutral',
       error: `Neural Link Failure: ${error.message || 'Unknown internal error'}`
