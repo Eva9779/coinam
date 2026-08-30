@@ -16,7 +16,17 @@
         "botRiskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
         "botStrategy": { "type": "string", "enum": ["standard", "bitcoin_multiplier"] },
         "stockBotActive": { "type": "boolean" },
-        "stockBotRisk": { "type": "string", "enum": ["low", "medium", "high"] }
+        "stockBotRisk": { "type": "string", "enum": ["low", "medium", "high"] },
+        "kycStatus": { "type": "string", "enum": ["unverified", "pending", "verified", "rejected"] },
+        "kycData": {
+          "type": "object",
+          "properties": {
+            "legalName": { "type": "string" },
+            "idType": { "type": "string" },
+            "idNumber": { "type": "string" },
+            "taxResidency": { "type": "string" }
+          }
+        }
       },
       "required": ["uid", "email"]
     },

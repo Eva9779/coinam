@@ -71,6 +71,7 @@ interface WalletContextType {
   isSyncing: boolean;
   isProvisioning: boolean;
   user: any;
+  kycStatus: 'unverified' | 'pending' | 'verified' | 'rejected';
   totalBotEarnings: number;
   botActive: boolean;
   botAllocation: number;
@@ -88,6 +89,7 @@ interface WalletContextType {
   importPrivateKey: (currency: string, privateKey: string) => Promise<void>;
   updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: 'standard' | 'bitcoin_multiplier') => void;
   updateStockBotSettings: (active: boolean, risk: 'low' | 'medium' | 'high') => void;
+  submitKYC: (data: any) => Promise<void>;
   clearBotLogs: () => void;
   clearStockBotLogs: () => void;
 }
@@ -98,6 +100,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
   const [stockAssets, setStockAssets] = useState<StockAsset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [kycStatus, setKycStatus] = useState<'unverified' | 'pending' | 'verified' | 'rejected'>('unverified');
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
   const [botActive, setBotActive] = useState(false);
   const [botAllocation, setBotAllocation] = useState(1000);
@@ -158,15 +161,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       const pKey = generatePrivateKey();
       const account = privateKeyToAccount(pKey);
-      
-      // Virtual HSM: Encrypt the key with the user session context
       const encryptedKey = await encryptKey(user.uid, pKey);
 
       await setDoc(doc(db, 'users', user.uid), { 
         uid: user.uid, 
         email: user.email, 
         updatedAt: new Date().toISOString(),
-        securityLevel: 'institutional-enclave'
+        securityLevel: 'institutional-enclave',
+        kycStatus: 'unverified'
       }, { merge: true });
 
       const newAsset = {
@@ -175,7 +177,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         fiatValueUSD: 0,
         address: account.address,
         isLive: true,
-        privateKey: encryptedKey // Persist the encrypted blob
+        privateKey: encryptedKey 
       };
       
       await setDoc(doc(db, 'users', user.uid, 'assets', customId), newAsset);
@@ -187,12 +189,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setProvisioning(false);
     }
   }, [db, user]);
-
-  useEffect(() => {
-    if (initialized && user && assets.length === 0 && !provisioning) {
-      generateNewWallet('ETH', 'primary-wallet');
-    }
-  }, [initialized, user, assets.length, provisioning, generateNewWallet]);
 
   useEffect(() => {
     if (!db || !user) return;
@@ -208,6 +204,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setBotStrategy(data.botStrategy || 'standard');
         setStockBotActive(!!data.stockBotActive);
         setStockBotRisk(data.stockBotRisk || 'medium');
+        setKycStatus(data.kycStatus || 'unverified');
       }
     });
 
@@ -241,74 +238,27 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     };
   }, [db, user]);
 
-  // Transaction Monitor
-  useEffect(() => {
-    if (!initialized || !user || !db || transactions.length === 0) return;
-
-    const pendingTxs = transactions.filter(tx => tx.status === 'pending' && tx.hash);
-    if (pendingTxs.length === 0) return;
-
-    const monitorTxs = async () => {
-      for (const tx of pendingTxs) {
-        if (!tx.hash) continue;
-        const newStatus = await getTransactionStatus(tx.hash);
-        if (newStatus !== 'pending') {
-          updateDoc(doc(db, 'users', user.uid, 'transactions', tx.id), {
-            status: newStatus
-          });
-          if (newStatus === 'completed') {
-            toast({ title: "Transaction Confirmed", description: `Signature ${tx.hash.slice(0, 10)}... settled.` });
-          } else {
-            toast({ title: "Transaction Failed", variant: "destructive", description: `Broadcast ${tx.hash.slice(0, 10)}... failed on-chain.` });
-          }
-        }
-      }
-    };
-
-    const interval = setInterval(monitorTxs, 15000);
-    return () => clearInterval(interval);
-  }, [initialized, user, db, transactions]);
-
-  useEffect(() => {
-    if (!initialized || assets.length === 0) return;
-
-    const pollBalances = async () => {
-      const updatedAssets = await Promise.all(assetsRef.current.map(async (asset) => {
-        try {
-          const liveBalance = await getLiveBalance(asset.address);
-          const balanceNum = parseFloat(liveBalance);
-          const registryPrice = INITIAL_MARKET_DATA.find(m => m.currency === asset.currency)?.currentPriceUSD || 2500;
-          
-          return {
-            ...asset,
-            amount: balanceNum,
-            fiatValueUSD: balanceNum * registryPrice
-          };
-        } catch (e) {
-          return asset;
-        }
-      }));
-      setAssets(updatedAssets);
-    };
-
-    pollBalances();
-    const interval = setInterval(pollBalances, 60000); 
-    return () => clearInterval(interval);
-  }, [initialized, assets.length]);
-
-  useEffect(() => {
-    if (!db || !user) {
-      setTransactions([]);
-      return;
+  const submitKYC = async (data: any) => {
+    if (!db || !user) return;
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        kycStatus: 'pending',
+        kycData: data,
+        updatedAt: new Date().toISOString()
+      });
+      toast({ title: "Compliance Data Submitted", description: "Internal FSC review in progress." });
+      
+      // Simulation: Auto-verify for prototype after 3 seconds
+      setTimeout(async () => {
+        await updateDoc(doc(db, 'users', user.uid), {
+          kycStatus: 'verified',
+        });
+        toast({ title: "Compliance Approved", description: "Institutional trading unlocked." });
+      }, 3000);
+    } catch (e) {
+      toast({ title: "Submission Failed", variant: "destructive" });
     }
-    const txRef = collection(db, 'users', user.uid, 'transactions');
-    const q = query(txRef, orderBy('timestamp', 'desc'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const txData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Transaction));
-      setTransactions(txData);
-    });
-    return () => unsubscribe();
-  }, [db, user]);
+  };
 
   const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'timestamp' | 'status'>) => {
     if (!db || !user) return;
@@ -369,7 +319,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         for (const action of strategyResult.actions) {
           addLog(`EXECUTING BROADCAST: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}`, 'info');
           
-          // Enclave Action: Just-in-time decryption for signing
           const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey!);
           const txHash = await executeMainnetSwap(
             decryptedKey as `0x${string}`,
@@ -407,6 +356,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const { active, risk } = stockBotStateRef.current;
     if ((!active && !forceActive) || !user || !db || isAnalyzingStocks) return;
 
+    // Regulatory Check
+    if (kycStatus !== 'verified') {
+      addStockLog(`COMPLIANCE ERROR: RWA trading disabled. FSC verification required.`, 'warning');
+      setStockBotActive(false);
+      updateDoc(doc(db, 'users', user.uid), { stockBotActive: false });
+      return;
+    }
+
     const primaryAsset = assetsRef.current.find(a => a.privateKey);
     if (!primaryAsset) return;
     
@@ -438,7 +395,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         for (const action of result.actions) {
           addStockLog(`BROADCASTING RWA ${action.type.toUpperCase()}: ${action.amount} units of ${action.asset}`, 'info');
           
-          // Enclave Action: Just-in-time decryption for signing
           const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey!);
 
           const txHash = await executeRWASettlement(
@@ -471,7 +427,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsAnalyzingStocks(false);
     }
-  }, [user, db, isAnalyzingStocks, addStockLog, addTransaction]);
+  }, [user, db, kycStatus, isAnalyzingStocks, addStockLog, addTransaction]);
 
   useEffect(() => {
     if (!initialized || !user) return;
@@ -496,13 +452,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const updateStockBotSettings = useCallback((active: boolean, risk: 'low' | 'medium' | 'high') => {
     if (!db || !user) return;
+    if (active && kycStatus !== 'verified') {
+      toast({ title: "Compliance Required", description: "Complete KYC to enable the Equity Agent.", variant: "destructive" });
+      return;
+    }
     updateDoc(doc(db, 'users', user.uid), {
       stockBotActive: active,
       stockBotRisk: risk,
       updatedAt: new Date().toISOString()
     });
     if (active) setTimeout(() => runStockBotCycle(true), 500);
-  }, [db, user, runStockBotCycle]);
+  }, [db, user, kycStatus, runStockBotCycle]);
 
   const clearBotLogs = () => setBotLogs([]);
   const clearStockBotLogs = () => setStockBotLogs([]);
@@ -525,10 +485,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   return (
     <WalletContext.Provider value={{ 
       assets, stockAssets, transactions, initialized, isSyncing, isProvisioning: provisioning, user,
-      totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
+      kycStatus, totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
       stockBotActive, stockBotRisk, stockBotLogs, isAnalyzing, isAnalyzingStocks,
       addTransaction, updateBalance, generateNewWallet, importPrivateKey, updateBotSettings, updateStockBotSettings,
-      clearBotLogs, clearStockBotLogs
+      submitKYC, clearBotLogs, clearStockBotLogs
     }}>
       {children}
     </WalletContext.Provider>

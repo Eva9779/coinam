@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, memo } from 'react';
@@ -11,24 +12,24 @@ import {
   Play, 
   Pause, 
   Terminal, 
-  TrendingUp, 
   Activity, 
   ShieldCheck, 
   Loader2,
   Settings2,
-  DollarSign,
   BarChart3,
   Landmark,
   Globe,
   Trash2,
-  LineChart,
   Target,
   Trophy,
-  Layers
+  Layers,
+  ShieldAlert,
+  ArrowRight
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import Link from 'next/link';
 
 const EquityChart = memo(({ symbol }: { symbol: string }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -81,6 +82,7 @@ export default function StocksPage() {
     stockBotLogs, 
     totalBotEarnings,
     isAnalyzingStocks,
+    kycStatus,
     updateStockBotSettings,
     clearStockBotLogs
   } = useWalletStore();
@@ -94,8 +96,46 @@ export default function StocksPage() {
   }, [stockBotLogs]);
 
   const handleToggleBot = () => {
+    if (kycStatus !== 'verified') {
+      toast({ title: "Institutional Compliance Required", description: "You must complete regulatory KYC to enable RWA agents.", variant: "destructive" });
+      return;
+    }
     updateStockBotSettings(!stockBotActive, localRisk);
   };
+
+  if (kycStatus !== 'verified') {
+    return (
+      <div className="max-w-4xl mx-auto py-20">
+        <Card className="rounded-[3rem] border-dashed border-2 p-12 text-center space-y-8 bg-card/50 backdrop-blur-xl">
+          <div className="h-24 w-24 rounded-3xl bg-amber-500/10 flex items-center justify-center mx-auto border-2 border-amber-500/20 shadow-2xl shadow-amber-500/5 rotate-3">
+            <ShieldAlert className="h-12 w-12 text-amber-600" />
+          </div>
+          <div className="space-y-4 max-w-lg mx-auto">
+            <h2 className="text-4xl font-black text-primary tracking-tighter">Regulatory Compliance Required</h2>
+            <p className="text-muted-foreground font-medium text-lg leading-relaxed">
+              Trading tokenized stocks and bonds (RWA) in **Jamaica** requires institutional identity verification. Secure your session to unlock Equity Enclaves.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-4 text-left max-w-sm mx-auto">
+             <div className="p-4 rounded-2xl bg-muted/50 border space-y-1">
+               <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Protocol</span>
+               <p className="text-xs font-bold">Jamaica FSC Compliance</p>
+             </div>
+             <div className="p-4 rounded-2xl bg-muted/50 border space-y-1">
+               <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest">Status</span>
+               <p className="text-xs font-bold text-amber-600 uppercase">Verification Needed</p>
+             </div>
+          </div>
+          <Button size="lg" className="h-16 px-10 text-xl font-black rounded-2xl shadow-2xl gap-3 group" asChild>
+            <Link href="/kyc">
+              Complete Compliance Enclave
+              <ArrowRight className="h-6 w-6 group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20">

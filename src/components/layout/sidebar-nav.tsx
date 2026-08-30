@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -14,8 +15,10 @@ import {
   CreditCard,
   Banknote,
   Bot,
-  Landmark
+  Landmark,
+  ShieldCheck
 } from "lucide-react";
+import { useWalletStore } from "@/lib/store";
 
 const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -31,9 +34,10 @@ const navItems = [
 
 export function SidebarNav() {
   const pathname = usePathname();
+  const { kycStatus } = useWalletStore();
 
   return (
-    <nav className="flex flex-col gap-2 px-2 py-4">
+    <nav className="flex flex-col gap-2 px-2 py-4 h-full">
       {navItems.map((item) => {
         const isActive = pathname === item.href;
         return (
@@ -52,6 +56,20 @@ export function SidebarNav() {
           </Link>
         );
       })}
+      
+      {kycStatus !== 'verified' && (
+        <Link
+          href="/kyc"
+          className={cn(
+            "flex items-center gap-3 px-3 py-2 text-sm font-bold rounded-md transition-colors mt-4 bg-amber-500/10 text-amber-600 border border-amber-500/20",
+            pathname === "/kyc" ? "bg-amber-500 text-white" : ""
+          )}
+        >
+          <ShieldCheck className="h-5 w-5" />
+          Verify Compliance
+        </Link>
+      )}
+
       <div className="mt-auto pt-4 border-t">
         <Link
           href="/settings"
