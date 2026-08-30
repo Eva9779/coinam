@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for the Antigravity Equity Agent.
@@ -53,11 +54,18 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
       error.status === 429 || 
       error.message?.includes('quota');
 
+    const isNotFound = errorStr.includes('404') || errorStr.includes('not found');
+
     if (retries > 0 && isRateLimit) {
       console.warn(`AI Rate Limit hit (RWA). Retrying in ${delay / 1000}s...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return withRetry(fn, retries - 1, delay * 2);
     }
+
+    if (isNotFound) {
+      throw new Error("Model ID 'gemini-1.5-flash-latest' not found. Please check your API key and project region.");
+    }
+    
     throw error;
   }
 }
