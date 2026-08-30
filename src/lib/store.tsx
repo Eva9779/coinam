@@ -91,6 +91,7 @@ interface WalletContextType {
   submitKYC: (data: any) => Promise<void>;
   clearBotLogs: () => void;
   clearStockBotLogs: () => void;
+  liquidateEarnings: () => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -175,6 +176,38 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       fiatValueUSD: increment(amount * fiatPrice)
     });
   }, [db, user]);
+
+  const liquidateEarnings = useCallback(async () => {
+    if (!db || !user || totalBotEarnings <= 0) return;
+    
+    const usdcAsset = assetsRef.current.find(a => a.currency === 'USDC');
+    if (!usdcAsset) {
+      toast({ title: "USDC Wallet required", variant: "destructive" });
+      return;
+    }
+
+    const earningsToLiquidate = totalBotEarnings;
+    
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        totalBotEarnings: 0
+      });
+      
+      updateBalance('USDC', earningsToLiquidate, 1);
+      
+      addTransaction({
+        type: 'receive',
+        currency: 'USDC',
+        amount: earningsToLiquidate,
+        fiatValueUSD: earningsToLiquidate,
+        description: `Liquidated Strategy Agent Earnings`
+      });
+      
+      toast({ title: "Earnings Liquidated", description: `$${earningsToLiquidate.toFixed(2)} moved to USDC wallet.` });
+    } catch (e) {
+      toast({ title: "Liquidation Failed", variant: "destructive" });
+    }
+  }, [db, user, totalBotEarnings, updateBalance, addTransaction]);
 
   const runBotCycle = useCallback(async (forceActive: boolean = false) => {
     const { active, risk, allocation, strategy: strategyType } = botStateRef.current;
@@ -497,7 +530,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       kycStatus, totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzing, isAnalyzingStocks,
       addTransaction, updateBalance, generateNewWallet, importPrivateKey, updateBotSettings, updateStockBotSettings,
-      submitKYC, clearBotLogs, clearStockBotLogs
+      submitKYC, clearBotLogs, clearStockBotLogs, liquidateEarnings
     }}>
       {children}
     </WalletContext.Provider>

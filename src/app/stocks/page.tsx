@@ -28,7 +28,9 @@ import {
   ArrowRight,
   DollarSign,
   TrendingUp,
-  Cpu
+  Cpu,
+  Banknote,
+  Sparkles
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -89,12 +91,14 @@ export default function StocksPage() {
     isAnalyzingStocks,
     kycStatus,
     updateStockBotSettings,
-    clearStockBotLogs
+    clearStockBotLogs,
+    liquidateEarnings
   } = useWalletStore();
 
   const [localRisk, setLocalRisk] = useState<'low' | 'medium' | 'high'>(stockBotRisk);
   const [localAllocation, setLocalAllocation] = useState(stockBotAllocation.toString());
   const [chartSymbol, setChartSymbol] = useState("NASDAQ:AAPL");
+  const [isLiquidating, setIsLiquidating] = useState(false);
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -119,6 +123,12 @@ export default function StocksPage() {
     updateStockBotSettings(!stockBotActive, allocationNum, localRisk);
   };
 
+  const handleLiquidate = async () => {
+    setIsLiquidating(true);
+    await liquidateEarnings();
+    setIsLiquidating(false);
+  };
+
   const totalValue = stockAssets.reduce((acc, s) => acc + s.totalValue, 0);
   const apy = localRisk === 'high' ? '12.4%' : localRisk === 'medium' ? '7.2%' : '4.8%';
 
@@ -132,10 +142,21 @@ export default function StocksPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            Institutional RWA Enclave. Local rebalancing managing ${totalValue.toLocaleString()} in assets.
+            Institutional RWA Enclave. Autonomous rebalancing of tokenized equities.
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {totalBotEarnings > 0 && (
+             <Button 
+              variant="outline" 
+              className="h-12 px-6 rounded-2xl border-secondary/30 text-secondary hover:bg-secondary/5 font-bold shadow-sm animate-in fade-in slide-in-from-right-4"
+              onClick={handleLiquidate}
+              disabled={isLiquidating}
+            >
+              {isLiquidating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              Liquidate ${totalBotEarnings.toFixed(2)} Profit
+            </Button>
+          )}
           <Badge variant="outline" className={cn(
             "px-4 py-1.5 font-black uppercase text-[10px] tracking-[0.2em] border-2",
             stockBotActive ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"
@@ -149,7 +170,7 @@ export default function StocksPage() {
             className="h-12 px-8 font-bold rounded-2xl shadow-xl gap-2 transition-all"
           >
             {stockBotActive ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-            {stockBotActive ? 'Deactivate Agent' : 'Activate RWA Agent'}
+            {stockBotActive ? 'Deactivate Agent' : 'Launch RWA Agent'}
           </Button>
         </div>
       </div>
@@ -311,6 +332,15 @@ export default function StocksPage() {
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
                   The Strategy Agent rebalances your tokenized stocks based on market momentum. Low risk focuses on safe Bond tokens for predictable dividends.
                 </p>
+              </div>
+
+              <div className="pt-4">
+                <Button className="w-full h-14 rounded-2xl font-black gap-2 shadow-xl" asChild>
+                  <Link href="/withdraw">
+                    <Banknote className="h-5 w-5" />
+                    Withdraw Earnings
+                  </Link>
+                </Button>
               </div>
             </CardContent>
           </Card>
