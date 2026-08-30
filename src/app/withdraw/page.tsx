@@ -15,18 +15,18 @@ import { createWithdrawalSession } from '@/app/lib/stripe-actions';
 
 export default function WithdrawPage() {
   const { assets, initialized, totalBotEarnings, liquidateEarnings } = useWalletStore();
-  const [selectedAsset, setSelectedAsset] = useState<string>('');
+  const [selectedAssetId, setSelectedAssetId] = useState<string>('');
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [isLiquidating, setIsLiquidating] = useState(false);
 
   useEffect(() => {
-    if (initialized && assets.length > 0 && !selectedAsset) {
-      setSelectedAsset(assets[0].currency);
+    if (initialized && assets.length > 0 && !selectedAssetId) {
+      setSelectedAssetId(assets[0].id);
     }
-  }, [initialized, assets, selectedAsset]);
+  }, [initialized, assets, selectedAssetId]);
 
   const handleWithdrawClick = async () => {
-    const asset = assets.find(a => a.currency === selectedAsset);
+    const asset = assets.find(a => a.id === selectedAssetId);
     if (!asset || !asset.address) return;
 
     setIsRedirecting(true);
@@ -41,11 +41,14 @@ export default function WithdrawPage() {
       if (clientSecret) {
         window.open(`https://buy.stripe.com/crypto-onramp?client_secret=${clientSecret}`, '_blank');
       } else {
-        const offrampUrl = `https://crypto.link.com/sell?wallet=${asset.address}&asset=${selectedAsset.toLowerCase()}`;
+        const offrampUrl = `https://crypto.link.com/sell?wallet=${asset.address}&asset=${asset.currency.toLowerCase()}`;
         window.open(offrampUrl, '_blank', 'noopener,noreferrer');
       }
     } catch (e) {
-      window.open(`https://crypto.link.com/sell?wallet=${asset.address}&asset=${selectedAsset.toLowerCase()}`, '_blank');
+      const asset = assets.find(a => a.id === selectedAssetId);
+      if (asset) {
+        window.open(`https://crypto.link.com/sell?wallet=${asset.address}&asset=${asset.currency.toLowerCase()}`, '_blank');
+      }
     } finally {
       setIsRedirecting(false);
     }
@@ -66,7 +69,7 @@ export default function WithdrawPage() {
     );
   }
 
-  const asset = assets.find(a => a.currency === selectedAsset);
+  const asset = assets.find(a => a.id === selectedAssetId);
   const canWithdraw = !!asset && asset.amount > 0;
 
   return (
@@ -126,17 +129,20 @@ export default function WithdrawPage() {
             <CardContent className="space-y-8 pt-8 px-8 pb-8">
               <div className="space-y-4">
                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Source Wallet Endpoint</Label>
-                <Select value={selectedAsset} onValueChange={setSelectedAsset}>
+                <Select value={selectedAssetId} onValueChange={setSelectedAssetId}>
                   <SelectTrigger className="h-16 text-lg font-bold bg-background/50 border-2 rounded-2xl transition-all hover:border-primary/50">
                     <SelectValue placeholder="Select asset" />
                   </SelectTrigger>
                   <SelectContent className="rounded-2xl p-2 shadow-2xl">
                     {assets.map(a => (
-                      <SelectItem key={a.id} value={a.currency} className="rounded-xl h-14 mb-1">
+                      <SelectItem key={a.id} value={a.id} className="rounded-xl h-14 mb-1">
                         <div className="flex items-center justify-between w-full min-w-[300px]">
                           <div className="flex items-center gap-3">
-                            <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-xs font-black border">{a.currency}</div>
-                            <span className="font-bold">{a.currency} Wallet</span>
+                            <div className="h-8 w-8 rounded-lg bg-primary/5 flex items-center justify-center text-[10px] font-black border">{a.currency}</div>
+                            <div className="flex flex-col text-left">
+                              <span className="font-bold text-sm">{a.currency} Wallet</span>
+                              <span className="text-[9px] opacity-40 font-mono">{a.address.slice(0, 10)}...</span>
+                            </div>
                           </div>
                           <span className="text-[10px] font-mono text-muted-foreground font-bold">Bal: {a.amount.toFixed(4)}</span>
                         </div>

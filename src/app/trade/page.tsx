@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, useRef, memo } from "react";
@@ -59,10 +60,17 @@ TradingViewWidget.displayName = "TradingViewWidget";
 
 export default function TradePage() {
   const { assets, updateBalance, addTransaction, initialized } = useWalletStore();
-  const [fromAsset, setFromAsset] = useState("USDC");
+  const [fromAssetId, setFromAssetId] = useState("");
   const [toAsset, setToAsset] = useState("BTC");
   const [amount, setAmount] = useState("");
   const [isSwapping, setIsSwapping] = useState(false);
+
+  useEffect(() => {
+    if (initialized && assets.length > 0 && !fromAssetId) {
+      const usdc = assets.find(a => a.currency === 'USDC');
+      setFromAssetId(usdc?.id || assets[0].id);
+    }
+  }, [initialized, assets, fromAssetId]);
 
   const rates: Record<string, number> = {
     "BTC": 64000,
@@ -71,8 +79,9 @@ export default function TradePage() {
     "USDC": 1
   };
 
-  const fromData = assets.find(a => a.currency === fromAsset);
-  const exchangeRate = (rates[fromAsset] || 1) / (rates[toAsset] || 1);
+  const fromData = assets.find(a => a.id === fromAssetId);
+  const fromCurrency = fromData?.currency || "USDC";
+  const exchangeRate = (rates[fromCurrency] || 1) / (rates[toAsset] || 1);
   const estimatedReceive = amount ? parseFloat(amount) * exchangeRate : 0;
 
   const handleSwap = () => {
@@ -85,15 +94,15 @@ export default function TradePage() {
     setIsSwapping(true);
     
     // Direct execution
-    updateBalance(fromAsset, -val, rates[fromAsset] || 1);
+    updateBalance(fromCurrency, -val, rates[fromCurrency] || 1);
     updateBalance(toAsset, estimatedReceive, rates[toAsset] || 1);
     
     addTransaction({
       type: 'trade',
-      currency: `${fromAsset} → ${toAsset}`,
+      currency: `${fromCurrency} → ${toAsset}`,
       amount: val,
-      fiatValueUSD: val * (rates[fromAsset] || 1),
-      description: `Direct swap: ${val} ${fromAsset} for ${estimatedReceive.toFixed(6)} ${toAsset}`
+      fiatValueUSD: val * (rates[fromCurrency] || 1),
+      description: `Direct swap: ${val} ${fromCurrency} for ${estimatedReceive.toFixed(6)} ${toAsset}`
     });
 
     setIsSwapping(false);
@@ -159,23 +168,25 @@ export default function TradePage() {
                     onChange={(e) => setAmount(e.target.value)}
                     className="text-base sm:text-lg font-bold h-12 sm:h-14 bg-background/50 rounded-xl"
                   />
-                  <Select value={fromAsset} onValueChange={setFromAsset}>
+                  <Select value={fromAssetId} onValueChange={setFromAssetId}>
                     <SelectTrigger className="w-24 sm:w-32 h-12 sm:h-14 font-bold rounded-xl shrink-0">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {assets.length > 0 ? assets.map(a => <SelectItem key={a.id} value={a.currency}>{a.currency}</SelectItem>) : <SelectItem value="USDC">USDC</SelectItem>}
+                      {assets.length > 0 ? assets.map(a => (
+                        <SelectItem key={a.id} value={a.id}>
+                          {a.currency} ({a.address.slice(0, 4)}...)
+                        </SelectItem>
+                      )) : (
+                        <SelectItem value="USDC">USDC</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
               <div className="flex justify-center -my-3 sm:-my-4 relative z-10">
-                <Button variant="outline" size="icon" className="rounded-full h-8 w-8 sm:h-10 sm:w-10 bg-card shadow-lg border-2 border-primary/20 hover:scale-110 transition-transform" onClick={() => {
-                  const temp = fromAsset;
-                  setFromAsset(toAsset);
-                  setToAsset(temp);
-                }}>
+                <Button variant="outline" size="icon" className="rounded-full h-8 w-8 sm:h-10 sm:w-10 bg-card shadow-lg border-2 border-primary/20 hover:scale-110 transition-transform">
                   <ArrowLeftRight className="h-4 w-4 rotate-90" />
                 </Button>
               </div>
@@ -204,7 +215,7 @@ export default function TradePage() {
               <div className="p-3 sm:p-4 bg-primary/5 rounded-xl border border-dashed border-primary/20 space-y-1 sm:space-y-2">
                 <div className="flex justify-between text-[10px] sm:text-xs font-medium">
                   <span className="text-muted-foreground">Rate:</span>
-                  <span className="font-bold">1 {fromAsset} ≈ {exchangeRate.toFixed(4)} {toAsset}</span>
+                  <span className="font-bold">1 {fromCurrency} ≈ {exchangeRate.toFixed(4)} {toAsset}</span>
                 </div>
                 <div className="flex justify-between text-[10px] sm:text-xs font-medium">
                   <span className="text-muted-foreground">Fee:</span>

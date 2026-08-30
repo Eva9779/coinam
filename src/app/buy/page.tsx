@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -31,19 +32,19 @@ const stripeOnrampPromise = loadStripeOnramp("pk_live_51SxgIgEvvi2LpIks4TBzOf2rL
 
 export default function BuyCryptoPage() {
   const { assets, initialized } = useWalletStore();
-  const [selectedAsset, setSelectedAsset] = useState<string>('');
+  const [selectedAssetId, setSelectedAssetId] = useState<string>('');
   const [clientSecret, setClientSecret] = useState<string>('');
   const [isInitializing, setIsInitializing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (initialized && assets.length > 0 && !selectedAsset) {
-      setSelectedAsset(assets[0].currency);
+    if (initialized && assets.length > 0 && !selectedAssetId) {
+      setSelectedAssetId(assets[0].id);
     }
-  }, [initialized, assets, selectedAsset]);
+  }, [initialized, assets, selectedAssetId]);
 
   const handleFetchClientSecret = useCallback(async () => {
-    const asset = assets.find(a => a.currency === selectedAsset);
+    const asset = assets.find(a => a.id === selectedAssetId);
     if (!asset || !asset.address) return;
 
     setIsInitializing(true);
@@ -51,7 +52,7 @@ export default function BuyCryptoPage() {
     setError(null);
     
     try {
-      const result = await createOnrampSession(asset.address, '50.00', selectedAsset);
+      const result = await createOnrampSession(asset.address, '50.00', asset.currency);
       
       if (result.clientSecret) {
         setClientSecret(result.clientSecret);
@@ -63,13 +64,13 @@ export default function BuyCryptoPage() {
     } finally {
       setIsInitializing(false);
     }
-  }, [selectedAsset, assets]);
+  }, [selectedAssetId, assets]);
 
   useEffect(() => {
-    if (selectedAsset && assets.length > 0) {
+    if (selectedAssetId && assets.length > 0) {
       handleFetchClientSecret();
     }
-  }, [selectedAsset, assets.length, handleFetchClientSecret]);
+  }, [selectedAssetId, assets.length, handleFetchClientSecret]);
 
   const onOnrampSessionChange = useCallback(({ session }: any) => {
     if (session.status === 'fulfillment_complete') {
@@ -89,14 +90,14 @@ export default function BuyCryptoPage() {
     );
   }
 
-  const currentAsset = assets.find(a => a.currency === selectedAsset);
+  const currentAsset = assets.find(a => a.id === selectedAssetId);
   
   const onramperUrl = currentAsset?.address 
-    ? `https://buy.onramper.com/?themeName=dark&containerColor=020617&primaryColor=3f51b5&walletAddress=${currentAsset.address}&defaultCrypto=${selectedAsset.toLowerCase()}`
+    ? `https://buy.onramper.com/?themeName=dark&containerColor=020617&primaryColor=3f51b5&walletAddress=${currentAsset.address}&defaultCrypto=${currentAsset.currency.toLowerCase()}`
     : "https://buy.onramper.com/";
 
   const coindiscoUrl = currentAsset?.address
-    ? `https://coindisco.com/?address=${currentAsset.address}&symbol=${selectedAsset.toUpperCase()}`
+    ? `https://coindisco.com/?address=${currentAsset.address}&symbol=${currentAsset.currency.toUpperCase()}`
     : "https://coindisco.com/";
 
   return (
@@ -136,13 +137,13 @@ export default function BuyCryptoPage() {
             <CardContent className="pt-8 px-8 pb-8 space-y-8">
               <div className="space-y-4">
                 <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Target Wallet Address</Label>
-                <Select value={selectedAsset} onValueChange={setSelectedAsset}>
+                <Select value={selectedAssetId} onValueChange={setSelectedAssetId}>
                   <SelectTrigger className="h-16 text-lg font-bold bg-background/50 border-2 rounded-2xl transition-all hover:border-primary/50">
                     <SelectValue placeholder="Select asset" />
                   </SelectTrigger>
                   <SelectContent className="rounded-2xl p-2 border-2 shadow-2xl">
                     {assets.map(a => (
-                      <SelectItem key={a.id} value={a.currency} className="rounded-xl h-14 mb-1">
+                      <SelectItem key={a.id} value={a.id} className="rounded-xl h-14 mb-1">
                         <div className="flex items-center gap-4">
                           <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center text-xs font-black border uppercase">{a.currency}</div>
                           <div className="flex flex-col text-left">
