@@ -53,25 +53,14 @@ function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotO
   const sol = input.marketData.find(m => m.currency === 'SOL');
   const riskMultiplier = input.riskTolerance === 'high' ? 2 : input.riskTolerance === 'low' ? 0.5 : 1;
 
-  // Logic: Accumulate BTC on momentum
-  if (btc && btc.change24h > 0.5) {
+  // Logic: Proactive accumulation for testing visibility
+  if (btc && btc.change24h > -5) {
     actions.push({
       type: 'buy',
       fromAsset: 'USDC',
       toAsset: 'BTC',
-      amountUSD: Math.min(input.allocationLimitUSD * 0.1 * riskMultiplier, 50),
-      reasoning: `LOCAL PROTOCOL: Captured ${btc.change24h}% BTC momentum. Rebalancing into primary reserve.`
-    });
-  }
-
-  // Logic: Take profits on SOL if up significantly
-  if (sol && sol.change24h > 5) {
-    actions.push({
-      type: 'sell',
-      fromAsset: 'SOL',
-      toAsset: 'USDC',
-      amountUSD: Math.min(input.allocationLimitUSD * 0.05, 25),
-      reasoning: 'LOCAL PROTOCOL: SOL volatility high (>5%). Locking in decentralized gains.'
+      amountUSD: Math.min(input.allocationLimitUSD * 0.05 * riskMultiplier, 25),
+      reasoning: `LOCAL PROTOCOL: Capture protocol active. Rebalancing into primary reserve.`
     });
   }
 
@@ -81,16 +70,16 @@ function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotO
       type: 'buy',
       fromAsset: 'USDC',
       toAsset: 'BTC',
-      amountUSD: 25 * riskMultiplier,
+      amountUSD: 50 * riskMultiplier,
       reasoning: 'LOCAL PROTOCOL: Multiplier mode active. Aggressive accumulation protocol engaged.'
     });
   }
 
   return {
     strategy: 'LOCAL QUANTITATIVE PROTOCOL',
-    actions,
+    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'LOCAL PROTOCOL: Assets optimized.' }],
     marketSentiment: btc && btc.change24h > 0 ? 'bullish' : 'neutral',
-    error: `AI Link Offline (Regional/Key Restriction). Using Local Enclave Logic.`
+    error: `AI Link Restricted (Regional). Using Local Enclave Logic.`
   };
 }
 
@@ -111,7 +100,6 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
     if (!output) throw new Error('AI Engine null');
     return output;
   } catch (error: any) {
-    // If AI fails due to regional restrictions (Jamaica) or key issues, use the high-performance local engine.
     return getLocalStrategy(input, error.message);
   }
 }

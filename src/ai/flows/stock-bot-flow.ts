@@ -49,13 +49,13 @@ export type StockBotOutput = z.infer<typeof StockBotOutputSchema>;
 function getLocalRWAStrategy(input: StockBotInput, errorMsg: string): StockBotOutput {
   const actions: any[] = [];
   
-  // Logic: Low Risk always rotates into Bonds for yield safety
-  if (input.riskTolerance === 'low') {
+  // Logic: Medium/Low Risk rotate into Bonds for yield safety
+  if (input.riskTolerance === 'low' || input.riskTolerance === 'medium') {
     actions.push({
       type: 'buy',
       asset: 'AMEX:BND',
-      amount: 5,
-      reasoning: 'LOCAL PROTOCOL: Low risk detected. Securing yield in tokenized treasury bonds.'
+      amount: 2,
+      reasoning: 'LOCAL PROTOCOL: Capturing alpha in tokenized treasury bonds.'
     });
   }
 
@@ -65,7 +65,7 @@ function getLocalRWAStrategy(input: StockBotInput, errorMsg: string): StockBotOu
       type: 'buy',
       asset: 'NASDAQ:AAPL',
       amount: 1,
-      reasoning: 'LOCAL PROTOCOL: Institutional growth detected. Capturing alpha in tokenized tech equities.'
+      reasoning: 'LOCAL PROTOCOL: Growth detected. Securing tokenized tech equities.'
     });
   }
 

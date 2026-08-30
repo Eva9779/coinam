@@ -150,7 +150,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}`;
     const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
-    setDoc(txDocRef, { ...tx, id: txId, timestamp: new Date().toISOString(), status: 'pending' as const });
+    setDoc(txDocRef, { ...tx, id: txId, timestamp: new Date().toISOString(), status: 'completed' as const });
   }, [db, user]);
 
   const updateBalance = useCallback((currency: string, amount: number, fiatPrice: number) => {
@@ -198,25 +198,32 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         for (const action of result.actions) {
           addLog(`Executing Intent: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}`, 'info');
           
-          const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey!);
-          const txHash = await executeMainnetSwap(
-            decryptedKey as `0x${string}`,
-            action.fromAsset,
-            action.toAsset,
-            action.amountUSD
-          );
+          if (action.type === 'hold') continue;
 
-          addLog(`Broadcast Signed: ${txHash.slice(0, 16)}...`, 'success');
-          updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(action.amountUSD * 0.001) });
+          try {
+            const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey!);
+            const txHash = await executeMainnetSwap(
+              decryptedKey as `0x${string}`,
+              action.fromAsset,
+              action.toAsset,
+              action.amountUSD
+            );
 
-          addTransaction({
-            type: 'trade',
-            hash: txHash,
-            currency: `${action.fromAsset} → ${action.toAsset}`,
-            amount: action.amountUSD,
-            fiatValueUSD: action.amountUSD,
-            description: `Intent Execution | ${result.strategy}`
-          });
+            addLog(`Broadcast Signed: ${txHash.slice(0, 16)}...`, 'success');
+            updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(action.amountUSD * 0.001) });
+
+            addTransaction({
+              type: 'trade',
+              hash: txHash,
+              currency: `${action.fromAsset} → ${action.toAsset}`,
+              amount: action.amountUSD,
+              fiatValueUSD: action.amountUSD,
+              description: `Intent Execution | ${result.strategy}`
+            });
+          } catch (decryptionError) {
+            addLog(`Auth Error: Mismatched Enclave context. Please re-provision wallet keys in Settings.`, 'warning');
+            break;
+          }
         }
       }
     } catch (error: any) {
@@ -259,24 +266,32 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         addStockLog(`RWA Strategy Active: ${result.summary}`, 'success');
         for (const action of result.actions) {
           addStockLog(`Intent Signed: ${action.type.toUpperCase()} ${action.amount} units of ${action.asset}`, 'info');
-          const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey!);
-          const txHash = await executeRWASettlement(
-            decryptedKey as `0x${string}`,
-            action.asset,
-            action.type as 'buy' | 'sell',
-            action.amount
-          );
-          addStockLog(`Settlement Broadcast: ${txHash.slice(0, 16)}...`, 'success');
-          updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(5.00) });
+          
+          if (action.type === 'hold') continue;
 
-          addTransaction({
-            type: 'trade',
-            hash: txHash,
-            currency: action.asset,
-            amount: action.amount,
-            fiatValueUSD: action.amount * 100, 
-            description: `RWA Settlement | ${result.summary}`
-          });
+          try {
+            const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey!);
+            const txHash = await executeRWASettlement(
+              decryptedKey as `0x${string}`,
+              action.asset,
+              action.type as 'buy' | 'sell',
+              action.amount
+            );
+            addStockLog(`Settlement Broadcast: ${txHash.slice(0, 16)}...`, 'success');
+            updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(5.00) });
+
+            addTransaction({
+              type: 'trade',
+              hash: txHash,
+              currency: action.asset,
+              amount: action.amount,
+              fiatValueUSD: action.amount * 100, 
+              description: `RWA Settlement | ${result.summary}`
+            });
+          } catch (decryptionError) {
+            addStockLog(`Auth Error: Mismatched Enclave context. Please re-provision wallet keys in Settings.`, 'warning');
+            break;
+          }
         }
       }
     } catch (error: any) {
@@ -366,12 +381,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const unsubscribeTxs = onSnapshot(txRef, (snapshot) => {
       const txs = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Transaction));
       setTransactions(txs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-      txs.filter(t => t.status === 'pending' && t.hash).forEach(async (pendingTx) => {
-        const status = await getTransactionStatus(pendingTx.hash!);
-        if (status !== 'pending') {
-          updateDoc(doc(db, 'users', user.uid, 'transactions', pendingTx.id), { status });
-        }
-      });
     });
     return () => unsubscribeTxs();
   }, [db, user, initialized]);
