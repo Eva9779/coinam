@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for the Antigravity Equity Agent.
@@ -58,31 +57,26 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
       error.status === 429 || 
       error.message?.toLowerCase().includes('quota');
 
-    const isNotFound = errorStr.includes('404') || errorStr.includes('not found') || errorStr.includes('not supported');
-
     if (retries > 0 && isRateLimit) {
       console.warn(`AI Rate Limit hit (RWA). Retrying in ${delay / 1000}s...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return withRetry(fn, retries - 1, delay * 2);
     }
 
-    if (isNotFound) {
-      throw new Error("RWA Engine Model Not Found. Please ensure your API key is active in Google AI Studio and assigned to GOOGLE_GENAI_API_KEY.");
-    }
-    
+    // Throw the raw error for institutional diagnostics in the UI
     throw error;
   }
 }
 
 export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBotOutput> {
   try {
-    // Institutional Diagnostic: Check for API Key presence
-    if (!process.env.GOOGLE_GENAI_API_KEY && !process.env.GEMINI_API_KEY) {
+    const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
       return {
         summary: 'CONFIG ERROR',
         actions: [],
         sentiment: 'neutral',
-        error: 'RWA Protocol Key Missing. Please check your .env file for GOOGLE_GENAI_API_KEY.'
+        error: 'Institutional RWA Key Missing: GOOGLE_GENAI_API_KEY not found.'
       };
     }
     return await withRetry(() => stockBotFlow(input));

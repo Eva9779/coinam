@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
@@ -59,31 +58,26 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
       error.status === 429 || 
       error.message?.toLowerCase().includes('quota');
 
-    const isNotFound = errorStr.includes('404') || errorStr.includes('not found') || errorStr.includes('not supported');
-
     if (retries > 0 && isRateLimit) {
       console.warn(`AI Rate Limit hit. Retrying in ${delay / 1000}s...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return withRetry(fn, retries - 1, delay * 2);
     }
     
-    if (isNotFound) {
-      throw new Error("Neural Link Model Not Found. Please ensure GOOGLE_GENAI_API_KEY is set in your .env file and active in Google AI Studio.");
-    }
-
+    // Pass the raw error back to the UI for better institutional diagnostics
     throw error;
   }
 }
 
 export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<TradingBotOutput> {
   try {
-    // Institutional Diagnostic: Check for API Key presence
-    if (!process.env.GOOGLE_GENAI_API_KEY && !process.env.GEMINI_API_KEY) {
+    const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey) {
       return {
         strategy: 'CONFIG ERROR',
         actions: [],
         marketSentiment: 'neutral',
-        error: 'Neural Link Key Missing. Please check your .env file for GOOGLE_GENAI_API_KEY.'
+        error: 'Institutional Key Missing: GOOGLE_GENAI_API_KEY not found in environment.'
       };
     }
 
