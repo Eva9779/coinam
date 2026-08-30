@@ -1,7 +1,8 @@
+
 'use server';
 /**
- * @fileOverview This file defines a Genkit flow for the Google Antigravity AI Strategy Agent.
- * High-performance institutional rebalancing bot focused on real-world DEX alpha capture.
+ * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
+ * High-performance bot focused on profit capture and liquidity protection.
  */
 
 import { ai } from '@/ai/genkit';
@@ -42,9 +43,6 @@ const TradingBotOutputSchema = z.object({
 });
 export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
-/**
- * Utility function to handle rate limiting with exponential backoff.
- */
 async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 2000): Promise<T> {
   try {
     return await fn();
@@ -65,30 +63,30 @@ const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `You are an institutional quantitative strategy agent for Google Antigravity. 
-Your primary directive is Alpha capture (profit) and portfolio optimization through direct Decentralized Exchange (DEX) swaps.
+  prompt: `You are an institutional quantitative strategy agent. 
+Your primary directive is Alpha capture (maximum profit) and rigorous capital protection.
+
+DIRECTIVES:
+1. YIELD MAXIMIZATION: Identify assets with momentum (2.5%+ growth) and capture profits by rebalancing into stable assets (USDC).
+2. PRICE IMPACT AVOIDANCE: Only suggest trades where liquidity is sufficient. Avoid low-volume assets to prevent slippage losses.
+3. INSTITUTIONAL ALPHA: Prioritize high-quality trades with clear momentum signals.
+4. BITCOIN MULTIPLIER: If strategy is 'bitcoin_multiplier', accumulate BTC on pullbacks, but only if profitability is projected.
 
 Strategy: {{{strategyType}}}
 Risk Profile: {{{riskTolerance}}}
 Capital Cap: $ {{{allocationLimitUSD}}}
 
-Market Data:
+Market Snapshot:
 {{#each marketData}}
 - {{{currency}}}: $ {{{price}}} ({{{change24h}}}% 24h)
 {{/each}}
 
-User Assets:
+User Portfolio:
 {{#each assets}}
 - {{{currency}}}: Value $ {{{fiatValue}}}
 {{/each}}
 
-Execution Directives:
-1. DEX PROTOCOL: Recommend direct swaps between assets (e.g., ETH to USDC) to capture profit during volatility.
-2. MOMENTUM SCALING: Identify assets with 2.5%+ gains for rebalancing.
-3. PROFIT TAKING: When an asset surges, recommend selling a portion into stable assets (USDC) to lock in gains.
-4. BITCOIN MULTIPLIER: If strategy is 'bitcoin_multiplier', prioritize accumulating BTC during dips.
-
-Your output will trigger internal settlement on the user's cryptographic enclave. Capture maximum yield.`,
+Evaluate liquidity and sentiment. Only output actions if a clear profit capture or hedging opportunity exists.`,
 });
 
 const tradingBotFlow = ai.defineFlow(
