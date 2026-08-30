@@ -64,10 +64,14 @@ const SmartAlertsOutputSchema = z.object({
 export type SmartAlertsOutput = z.infer<typeof SmartAlertsOutputSchema>;
 
 /**
- * Utility function to handle rate limiting with exponential backoff.
+ * Institutional error recovery with API diagnostics.
  */
 async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): Promise<T> {
   try {
+    const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey || !apiKey.startsWith('AIzaSy')) {
+      throw new Error("NEURAL LINK FAILURE: Missing or Invalid API Key. Please obtain a key starting with 'AIzaSy' from Google AI Studio.");
+    }
     return await fn();
   } catch (error: any) {
     const errorStr = error.toString().toLowerCase();

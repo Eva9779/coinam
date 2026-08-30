@@ -44,15 +44,18 @@ const TradingBotOutputSchema = z.object({
 export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
 /**
- * Enhanced retry logic for stability in high-traffic environments.
+ * Institutional error recovery with API diagnostics.
  */
 async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): Promise<T> {
   try {
+    const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
+    if (!apiKey || !apiKey.startsWith('AIzaSy')) {
+      throw new Error("NEURAL LINK FAILURE: Missing or Invalid API Key. Please obtain a key starting with 'AIzaSy' from Google AI Studio.");
+    }
     return await fn();
   } catch (error: any) {
     const errorStr = error.toString().toLowerCase();
     
-    // Check for specific API Key / Model errors
     if (errorStr.includes('404') || errorStr.includes('not found')) {
       throw new Error("RWA Engine Model Not Found. Please ensure your API key starts with 'AIzaSy' and is active in Google AI Studio.");
     }
@@ -64,7 +67,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
       error.message?.toLowerCase().includes('quota');
 
     if (retries > 0 && isRateLimit) {
-      console.warn(`AI Rate Limit hit. Retrying in ${delay / 1000}s...`);
+      console.warn(`AI Rate Limit hit (Trading). Retrying in ${delay / 1000}s...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return withRetry(fn, retries - 1, delay * 2);
     }
