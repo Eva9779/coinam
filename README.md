@@ -1,3 +1,4 @@
+
 # Coin A,M | Asset Security
 
 This is a high-performance cryptocurrency and tokenized equity wallet prototype built with Next.js, React, and Genkit.
@@ -37,12 +38,13 @@ If you see the error `error: The following untracked working tree files would be
 - **Security**: Mandatory HTTPS connection. In Studio Preview (http), native wallets are hidden for your security.
 - **Regional Note**: Stripe Crypto is restricted to US/EU. Users in **Jamaica** should use the **Coindisco** or **Aggregator** tabs.
 
+## AI Strategy Agents (Mainnet Execution)
+- **Strategy Agent**: Quantitative crypto rebalancing via Mainnet broadcasts.
+- **Equity Agent**: Tokenized Real World Asset (RWA) analysis for Stocks and Bonds.
+- **DEX Integration**: The bot is currently set to broadcast "Intents" to the mainnet. Full commercial production requires encoding DEX Router data (Uniswap/1inch) into the `executeMainnetSwap` function in `lib/blockchain.ts`.
+
 ## Tech Stack
 - **Framework**: Next.js 15 (App Router / Turbopack)
 - **AI**: Genkit (Google Gemini 1.5 Flash)
 - **Database/Auth**: Firebase Firestore & Authentication
 - **Blockchain**: Viem (Mainnet RPC)
-
-## AI Agents
-- **Strategy Agent**: Quantitative crypto rebalancing.
-- **Equity Agent**: Tokenized Real World Asset (RWA) analysis for Stocks and Bonds.

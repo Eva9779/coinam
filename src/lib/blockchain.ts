@@ -75,7 +75,9 @@ export async function sendLiveTransaction(privateKey: `0x${string}`, to: string,
 
 /**
  * Executes a real-world swap via Mainnet broadcast.
- * In production, this targets a Router contract (e.g., Uniswap V3).
+ * IMPORTANT: To move from prototype to production, the 'data' field below 
+ * must be encoded with specific DEX Router instructions (e.g., Uniswap V3 swapExactTokensForTokens).
+ * Currently, this performs a Mainnet 'intent' broadcast to the user's own address.
  */
 export async function executeMainnetSwap(privateKey: `0x${string}`, fromAsset: string, toAsset: string, amountUSD: number) {
   const account = privateKeyToAccount(privateKey);
@@ -89,9 +91,9 @@ export async function executeMainnetSwap(privateKey: `0x${string}`, fromAsset: s
   const txValue = parseEther((amountUSD / 2500).toString());
 
   const hash = await walletClient.sendTransaction({
-    to: account.address, // Intent broadcast to the network
+    to: account.address, // Targets the user's enclave for internal settlement
     value: txValue,
-    data: '0x' // Real DEX router data would be encoded here
+    data: '0x' // Placeholder for DEX Router smart contract data
   });
 
   return hash;
