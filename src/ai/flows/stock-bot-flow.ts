@@ -43,8 +43,7 @@ const StockBotOutputSchema = z.object({
 export type StockBotOutput = z.infer<typeof StockBotOutputSchema>;
 
 /**
- * Enhanced retry logic for Gemini Free Tier stability.
- * Uses 30s delay to clear rate limits.
+ * Enhanced retry logic for institutional stability.
  */
 async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): Promise<T> {
   try {
@@ -63,22 +62,12 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
       return withRetry(fn, retries - 1, delay * 2);
     }
 
-    // Throw the raw error for institutional diagnostics in the UI
     throw error;
   }
 }
 
 export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBotOutput> {
   try {
-    const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return {
-        summary: 'CONFIG ERROR',
-        actions: [],
-        sentiment: 'neutral',
-        error: 'Institutional RWA Key Missing: GOOGLE_GENAI_API_KEY not found.'
-      };
-    }
     return await withRetry(() => stockBotFlow(input));
   } catch (error: any) {
     console.error('Stock Bot Flow Error:', error);
@@ -93,6 +82,7 @@ export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBo
 
 const stockBotPrompt = ai.definePrompt({
   name: 'stockBotPrompt',
+  model: 'googleai/gemini-1.5-flash',
   input: { schema: StockBotInputSchema },
   output: { schema: StockBotOutputSchema },
   prompt: `You are an institutional RWA Strategy Agent at Google Antigravity. 

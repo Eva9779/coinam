@@ -138,7 +138,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     stockBotStateRef.current = { active: stockBotActive, risk: stockBotRisk };
   }, [stockBotActive, stockBotRisk]);
 
-  // HOISTED HELPER FUNCTIONS
+  // CORE DATA MUTATIONS (Defined early to prevent ReferenceErrors)
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
@@ -199,7 +199,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
       if (result && result.actions.length > 0) {
         addLog(`STRATEGY IDENTIFIED: ${result.strategy}`, 'success');
-        
         const gasPrice = await getLiveGasPrice();
 
         for (const action of result.actions) {
@@ -210,7 +209,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
 
           addLog(`EXECUTING ALPHA CAPTURE: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}`, 'info');
-          
           const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey!);
           const txHash = await executeMainnetSwap(
             decryptedKey as `0x${string}`,
@@ -220,10 +218,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           );
 
           addLog(`CAPTURE SUCCESS: Broadcast Hash ${txHash.slice(0, 16)}...`, 'success');
-          
-          updateDoc(doc(db, 'users', user.uid), {
-            totalBotEarnings: increment(action.amountUSD * 0.001) 
-          });
+          updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(action.amountUSD * 0.001) });
 
           addTransaction({
             type: 'trade',
@@ -277,24 +272,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
       if (result && result.actions.length > 0) {
         addStockLog(`YIELD OPTIMIZATION: ${result.summary}`, 'success');
-        
         for (const action of result.actions) {
           addStockLog(`RWA BROADCAST: ${action.type.toUpperCase()} ${action.amount} units of ${action.asset}`, 'info');
-          
           const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey!);
-
           const txHash = await executeRWASettlement(
             decryptedKey as `0x${string}`,
             action.asset,
             action.type as 'buy' | 'sell',
             action.amount
           );
-
           addStockLog(`SETTLEMENT SIGNED: Hash ${txHash.slice(0, 16)}...`, 'success');
-          
-          updateDoc(doc(db, 'users', user.uid), {
-            totalBotEarnings: increment(5.00) 
-          });
+          updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(5.00) });
 
           addTransaction({
             type: 'trade',
@@ -329,7 +317,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const pKey = generatePrivateKey();
       const account = privateKeyToAccount(pKey);
       const encryptedKey = await encryptKey(user.uid, pKey);
-
       await setDoc(doc(db, 'users', user.uid), { 
         uid: user.uid, 
         email: user.email, 
@@ -345,7 +332,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         isLive: true,
         privateKey: encryptedKey 
       };
-      
       await setDoc(doc(db, 'users', user.uid, 'assets', customId), newAsset);
       return account.address;
     } catch (e) {
@@ -357,7 +343,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!db || !user) return;
-
     const userRef = doc(db, 'users', user.uid);
     const unsubscribe = onSnapshot(userRef, (snapshot) => {
       if (snapshot.exists()) {
@@ -372,7 +357,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setKycStatus(data.kycStatus || 'unverified');
       }
     });
-
     return () => unsubscribe();
   }, [db, user]);
 
@@ -381,7 +365,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setAssets([]);
       return;
     }
-
     const assetsRefCol = collection(db, 'users', user.uid, 'assets');
     const unsubscribeAssets = onSnapshot(assetsRefCol, (snapshot) => {
       const assetsData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
@@ -389,18 +372,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setInitialized(true);
       setIsSyncing(false);
     });
-
     return () => unsubscribeAssets();
   }, [db, user]);
 
   useEffect(() => {
     if (!db || !user || !initialized) return;
-
     const txRef = collection(db, 'users', user.uid, 'transactions');
     const unsubscribeTxs = onSnapshot(txRef, (snapshot) => {
       const txs = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Transaction));
       setTransactions(txs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-
       txs.filter(t => t.status === 'pending' && t.hash).forEach(async (pendingTx) => {
         const status = await getTransactionStatus(pendingTx.hash!);
         if (status !== 'pending') {
@@ -408,7 +388,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       });
     });
-
     return () => unsubscribeTxs();
   }, [db, user, initialized]);
 

@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for generating smart alerts for Coin A,M users.
@@ -66,7 +65,6 @@ export type SmartAlertsOutput = z.infer<typeof SmartAlertsOutputSchema>;
 
 /**
  * Utility function to handle rate limiting with exponential backoff.
- * Uses 30s initial delay for free tier stability.
  */
 async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): Promise<T> {
   try {
@@ -94,6 +92,7 @@ export async function generateSmartAlerts(input: SmartAlertsInput): Promise<Smar
 
 const smartAlertsPrompt = ai.definePrompt({
   name: 'smartAlertsPrompt',
+  model: 'googleai/gemini-1.5-flash',
   input: { schema: SmartAlertsInputSchema },
   output: { schema: SmartAlertsOutputSchema },
   prompt: `You are an expert financial analyst for Coin A,M, a secure cryptocurrency wallet application.

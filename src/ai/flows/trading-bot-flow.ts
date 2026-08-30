@@ -44,8 +44,7 @@ const TradingBotOutputSchema = z.object({
 export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
 /**
- * Enhanced retry logic for Gemini Free Tier stability.
- * Uses 30s delay to clear rate limits.
+ * Enhanced retry logic for stability in high-traffic environments.
  */
 async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): Promise<T> {
   try {
@@ -64,23 +63,12 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
       return withRetry(fn, retries - 1, delay * 2);
     }
     
-    // Pass the raw error back to the UI for better institutional diagnostics
     throw error;
   }
 }
 
 export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<TradingBotOutput> {
   try {
-    const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return {
-        strategy: 'CONFIG ERROR',
-        actions: [],
-        marketSentiment: 'neutral',
-        error: 'Institutional Key Missing: GOOGLE_GENAI_API_KEY not found in environment.'
-      };
-    }
-
     return await withRetry(() => tradingBotFlow(input));
   } catch (error: any) {
     console.error('Trading Bot Flow Error:', error);
@@ -95,6 +83,7 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
 
 const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
+  model: 'googleai/gemini-1.5-flash',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
   prompt: `You are an institutional quantitative strategy agent. 
