@@ -146,11 +146,10 @@ export async function executeMainnetSwap(privateKey: `0x${string}`, fromAsset: s
   const tokenOut = TOKENS[toAsset as keyof typeof TOKENS] || TOKENS.WETH;
   
   // Convert USD to internal Wei/Unit value
-  // Assuming 18 decimals for simplicity in this prototype rebalance logic
+  // In a real swap, you would fetch real-time price impact here
   const amountIn = parseEther((amountUSD / 2500).toString()); 
 
-  // 1. Approve Uniswap Router to spend tokens (if not ETH)
-  // In production, you would check existing allowance first
+  // 1. Approve Uniswap Router to spend tokens (if not native ETH)
   if (fromAsset !== 'ETH') {
     const approveData = encodeFunctionData({
       abi: ERC20_ABI,
@@ -176,7 +175,7 @@ export async function executeMainnetSwap(privateKey: `0x${string}`, fromAsset: s
       recipient: account.address,
       deadline,
       amountIn,
-      amountOutMinimum: 0n, // In production, calculate slippage protection
+      amountOutMinimum: 0n, // slippage protection should be handled in production
       sqrtPriceLimitX96: 0n,
     }],
   });
