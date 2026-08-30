@@ -143,6 +143,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     stockBotStateRef.current = { active: stockBotActive, risk: stockBotRisk };
   }, [stockBotActive, stockBotRisk]);
 
+  // Utility functions
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
@@ -150,6 +151,23 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const addStockLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
     setStockBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
+
+  const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'timestamp' | 'status'>) => {
+    if (!db || !user) return;
+    const txId = `tx_${Date.now()}`;
+    const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
+    setDoc(txDocRef, { ...tx, id: txId, timestamp: new Date().toISOString(), status: 'pending' as const });
+  }, [db, user]);
+
+  const updateBalance = useCallback((currency: string, amount: number, fiatPrice: number) => {
+    if (!db || !user) return;
+    const asset = assetsRef.current.find(a => a.currency === currency);
+    if (!asset) return;
+    updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
+      amount: increment(amount),
+      fiatValueUSD: increment(amount * fiatPrice)
+    });
+  }, [db, user]);
 
   const runBotCycle = useCallback(async (forceActive: boolean = false) => {
     const { active, risk, allocation, strategy: strategyType } = botStateRef.current;
@@ -395,23 +413,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       toast({ title: "Compliance Approved" });
     }, 2000);
   };
-
-  const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'timestamp' | 'status'>) => {
-    if (!db || !user) return;
-    const txId = `tx_${Date.now()}`;
-    const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
-    setDoc(txDocRef, { ...tx, id: txId, timestamp: new Date().toISOString(), status: 'pending' as const });
-  }, [db, user]);
-
-  const updateBalance = useCallback((currency: string, amount: number, fiatPrice: number) => {
-    if (!db || !user) return;
-    const asset = assetsRef.current.find(a => a.currency === currency);
-    if (!asset) return;
-    updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
-      amount: increment(amount),
-      fiatValueUSD: increment(amount * fiatPrice)
-    });
-  }, [db, user]);
 
   const updateBotSettings = (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: 'standard' | 'bitcoin_multiplier') => {
     if (!db || !user) return;
