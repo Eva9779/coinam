@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -9,13 +8,9 @@ import {
   doc, 
   setDoc, 
   onSnapshot, 
-  query, 
-  orderBy, 
   updateDoc,
   increment
 } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 import { toast } from '@/hooks/use-toast';
 import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
 import { analyzeEquityMarket } from '@/ai/flows/stock-bot-flow';
@@ -143,7 +138,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     stockBotStateRef.current = { active: stockBotActive, risk: stockBotRisk };
   }, [stockBotActive, stockBotRisk]);
 
-  // Utility functions defined first to avoid ReferenceError
+  // HOISTED HELPER FUNCTIONS
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
@@ -169,7 +164,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     });
   }, [db, user]);
 
-  // Bot cycle functions that depend on the utilities above
+  // BOT CYCLE LOGIC
   const runBotCycle = useCallback(async (forceActive: boolean = false) => {
     const { active, risk, allocation, strategy: strategyType } = botStateRef.current;
     if ((!active && !forceActive) || !user || !db || isAnalyzing) return;
@@ -202,8 +197,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         addLog(`STRATEGY IDENTIFIED: ${strategyResult.strategy}`, 'success');
         
         for (const action of strategyResult.actions) {
-          // PROFIT SHIELD: Validate Trade vs Gas Cost
-          const estimatedGasUSD = (250000 * gasPrice) / 1e9 * 2500; // Rough estimate at $2500 ETH
+          const estimatedGasUSD = (250000 * gasPrice) / 1e9 * 2500; 
           if (action.amountUSD * 0.05 < estimatedGasUSD) {
             addLog(`TRADE ABORTED: Transaction costs exceed profit potential for ${action.toAsset}.`, 'warning');
             continue;
@@ -222,7 +216,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           addLog(`CAPTURE SUCCESS: Broadcast Hash ${txHash.slice(0, 16)}...`, 'success');
           
           updateDoc(doc(db, 'users', user.uid), {
-            totalBotEarnings: increment(action.amountUSD * 0.001) // Projected alpha gain
+            totalBotEarnings: increment(action.amountUSD * 0.001) 
           });
 
           addTransaction({
