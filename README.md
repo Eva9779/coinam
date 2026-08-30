@@ -4,18 +4,29 @@ This is a high-performance cryptocurrency and tokenized equity wallet prototype 
 
 ## 🚀 Troubleshooting GitHub Push Errors
 
-If you see the error `! [rejected] main -> main (non-fast-forward)` or `fatal: cannot rename the current branch while not on any`, follow these steps in your PowerShell terminal:
+If you see the error `error: The following untracked working tree files would be overwritten by merge`, follow these exact steps in your PowerShell terminal:
 
 1. **Abort any stuck process**:
    ```powershell
    git rebase --abort
    ```
-2. **Synchronize with the remote repository**:
+2. **Track your current changes**:
    ```powershell
-   git pull origin main --allow-unrelated-histories
+   git add .
    ```
-   *(If a text editor opens for a merge message, just save and close it).*
-3. **Push your changes**:
+3. **Move local changes to a temporary shelf**:
+   ```powershell
+   git stash
+   ```
+4. **Pull and integrate remote changes**:
+   ```powershell
+   git pull origin main --rebase
+   ```
+5. **Bring your local changes back**:
+   ```powershell
+   git stash pop
+   ```
+6. **Push to GitHub**:
    ```powershell
    git push -u origin main
    ```
