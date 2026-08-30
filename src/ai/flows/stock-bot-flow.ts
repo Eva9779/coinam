@@ -57,7 +57,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
     const errorStr = error.toString().toLowerCase();
     
     if (errorStr.includes('404') || errorStr.includes('not found')) {
-      throw new Error("RWA Engine Model Not Found. This usually indicates a regional availability issue. Ensure your 'AQ.' key is active.");
+      throw new Error("RWA Engine Model Not Found. Please ensure your 'AQ.' key is active in AI Studio and 'gemini-1.5-flash' is supported.");
     }
 
     const isRateLimit = 

@@ -58,7 +58,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
     const errorStr = error.toString().toLowerCase();
     
     if (errorStr.includes('404') || errorStr.includes('not found')) {
-      throw new Error("Model Not Found. This may occur if the API region is restricted. Please verify your 'AQ.' key at Google AI Studio.");
+      throw new Error("Model Not Found. Please verify your 'AQ.' key is active in AI Studio and maps to 'gemini-1.5-flash'.");
     }
 
     const isRateLimit = 

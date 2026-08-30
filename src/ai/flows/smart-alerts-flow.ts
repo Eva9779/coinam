@@ -78,7 +78,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
     const errorStr = error.toString().toLowerCase();
 
     if (errorStr.includes('404') || errorStr.includes('not found')) {
-      throw new Error("AI Alerts Engine Not Found. Please verify your 'AQ.' key and ensuring 'gemini-1.5-flash' is available in your region.");
+      throw new Error("AI Alerts Engine Not Found. Please verify your Gemini key is active and supports 'gemini-1.5-flash'.");
     }
 
     const isRateLimit = 
