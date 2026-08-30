@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for the Google Antigravity AI Strategy Agent.
- * High-performance institutional rebalancing bot focused on profit capture.
+ * High-performance institutional rebalancing bot focused on real-world DEX alpha capture.
  */
 
 import { ai } from '@/ai/genkit';
@@ -37,7 +37,7 @@ const TradingActionSchema = z.object({
 
 const TradingBotOutputSchema = z.object({
   strategy: z.string().describe('Institutional strategy summary.'),
-  actions: z.array(TradingActionSchema).describe('List of rebalancing actions to capture profit.'),
+  actions: z.array(TradingActionSchema).describe('List of rebalancing actions to capture profit via DEX execution.'),
   marketSentiment: z.enum(['bullish', 'bearish', 'neutral']),
 });
 export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
@@ -61,12 +61,12 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
   return withRetry(() => tradingBotFlow(input));
 }
 
-// Define prompt before use, ensuring schema is initialized
 const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `You are an institutional quantitative strategy agent for Google Antigravity. Your primary directive is Alpha capture (profit) and portfolio optimization.
+  prompt: `You are an institutional quantitative strategy agent for Google Antigravity. 
+Your primary directive is Alpha capture (profit) and portfolio optimization through direct Decentralized Exchange (DEX) swaps.
 
 Strategy: {{{strategyType}}}
 Risk Profile: {{{riskTolerance}}}
@@ -82,13 +82,13 @@ User Assets:
 - {{{currency}}}: Value $ {{{fiatValue}}}
 {{/each}}
 
-Instructions for Maximum Intelligence:
-1. ANALYZE MOMENTUM: Identify assets with 24h gains above 2.5% as momentum candidates.
-2. REBALANCE FOR PROFIT: If an asset has surged, recommend partial profit taking (sell) to move capital into stable or high-conviction growth assets.
-3. BITCOIN MULTIPLIER: If strategy is 'bitcoin_multiplier', aggressively rebalance secondary assets into BTC during bullish trends to capitalize on the primary market mover.
-4. EXECUTION: Every action must be backed by institutional-grade reasoning. Avoid "Hold" unless the portfolio is perfectly balanced for the current volatility.
+Execution Directives:
+1. DEX PROTOCOL: Recommend direct swaps between assets (e.g., ETH to USDC) to capture profit during volatility.
+2. MOMENTUM SCALING: Identify assets with 2.5%+ gains for rebalancing.
+3. PROFIT TAKING: When an asset surges, recommend selling a portion into stable assets (USDC) to lock in gains.
+4. BITCOIN MULTIPLIER: If strategy is 'bitcoin_multiplier', prioritize accumulating BTC during dips.
 
-Your goal is to increase the 'Total Value' of the portfolio through strategic swaps.`,
+Your output will trigger internal settlement on the user's cryptographic enclave. Capture maximum yield.`,
 });
 
 const tradingBotFlow = ai.defineFlow(

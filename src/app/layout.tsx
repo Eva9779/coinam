@@ -71,9 +71,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
     return (
       <div className="flex h-screen overflow-hidden">
-        <AppContent onSignOut={handleSignOut} userEmail={user.email || 'User'} userId={user.uid}>
-          {children}
-        </AppContent>
+        <WalletProvider>
+          <AppContent onSignOut={handleSignOut} userEmail={user.email || 'User'} userId={user.uid}>
+            {children}
+          </AppContent>
+        </WalletProvider>
       </div>
     );
   }
@@ -223,11 +225,9 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased bg-background text-foreground overflow-x-hidden">
         <FirebaseClientProvider>
-          <WalletProvider>
-            <AuthGuard>
-              {children}
-            </AuthGuard>
-          </WalletProvider>
+          <AuthGuard>
+            {children}
+          </AuthGuard>
         </FirebaseClientProvider>
         <Toaster />
       </body>

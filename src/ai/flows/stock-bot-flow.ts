@@ -1,8 +1,7 @@
-
 'use server';
 /**
  * @fileOverview This file defines a Genkit flow for the Antigravity Equity Agent.
- * Specialized in Tokenized Real World Asset (RWA) rebalancing for institutional yields.
+ * Specialized in Tokenized Real World Asset (RWA) settlement and yield optimization.
  */
 
 import { ai } from '@/ai/genkit';
@@ -37,7 +36,7 @@ const StockBotActionSchema = z.object({
 
 const StockBotOutputSchema = z.object({
   summary: z.string().describe('RWA protocol strategy summary.'),
-  actions: z.array(StockBotActionSchema).describe('Recommended tokenized rebalancing actions.'),
+  actions: z.array(StockBotActionSchema).describe('Recommended tokenized RWA rebalancing actions.'),
   sentiment: z.enum(['bullish', 'bearish', 'neutral']),
 });
 export type StockBotOutput = z.infer<typeof StockBotOutputSchema>;
@@ -62,7 +61,8 @@ const stockBotPrompt = ai.definePrompt({
   name: 'stockBotPrompt',
   input: { schema: StockBotInputSchema },
   output: { schema: StockBotOutputSchema },
-  prompt: `You are an institutional RWA Strategy Agent at Google Antigravity. Your goal is decentralized capital allocation across Tokenized Stocks and Bonds.
+  prompt: `You are an institutional RWA Strategy Agent at Google Antigravity. 
+Your goal is decentralized capital allocation across Tokenized Stocks and Bonds.
 
 Risk Profile: {{{riskTolerance}}}
 
@@ -80,13 +80,13 @@ Portfolio Snapshot:
 NO CURRENT TOKENIZED EQUITY EXPOSURE.
 {{/if}}
 
-Intelligence Directives:
-1. DECENTRALIZED SETTLEMENT: All actions rebalance tokenized assets directly within the user's cryptographic enclave.
-2. DIVERSIFICATION: Balance Tech-heavy tokenized stocks with Bond-backed tokens based on risk profile.
-3. ALPHA CAPTURE: Identify momentum in tokenized markets to increase the total portfolio valuation.
-4. REASONING: Provide data-driven reasoning for every recommended swap to maximize user trust in the RWA protocol.
+Institutional Intelligence Directives:
+1. TOKENIZED SETTLEMENT: Recommend actions to swap between Bond-backed tokens and Stock-backed tokens.
+2. ALPHA CAPTURE: Increase exposure to Tech-heavy tokens (AAPL, GOOGL) during bullish sentiment.
+3. HEDGING: Shift to Bond tokens (BND) when volatility increases, according to risk profile.
+4. REASONING: Provide institutional-grade reasoning for every rebalance.
 
-Captured yield and profit should be the primary outcome of these actions.`,
+Your strategy will result in captured yield for the cryptographic enclave.`,
 });
 
 const stockBotFlow = ai.defineFlow(
