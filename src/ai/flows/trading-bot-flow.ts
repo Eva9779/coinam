@@ -51,6 +51,12 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
     return await fn();
   } catch (error: any) {
     const errorStr = error.toString().toLowerCase();
+    
+    // Check for specific API Key / Model errors
+    if (errorStr.includes('404') || errorStr.includes('not found')) {
+      throw new Error("RWA Engine Model Not Found. Please ensure your API key starts with 'AIzaSy' and is active in Google AI Studio.");
+    }
+
     const isRateLimit = 
       errorStr.includes('429') || 
       errorStr.includes('resource_exhausted') || 

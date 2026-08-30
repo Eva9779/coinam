@@ -70,7 +70,12 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 3, delay = 30000): P
   try {
     return await fn();
   } catch (error: any) {
-    const errorStr = error.toString();
+    const errorStr = error.toString().toLowerCase();
+
+    if (errorStr.includes('404') || errorStr.includes('not found')) {
+      throw new Error("AI Alerts Engine Not Found. Please ensure your API key starts with 'AIzaSy' and is active in Google AI Studio.");
+    }
+
     const isRateLimit = 
       errorStr.includes('429') || 
       errorStr.includes('RESOURCE_EXHAUSTED') || 
