@@ -138,7 +138,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     stockBotStateRef.current = { active: stockBotActive, risk: stockBotRisk };
   }, [stockBotActive, stockBotRisk]);
 
-  // CORE DATA MUTATIONS (Defined early to prevent ReferenceErrors)
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
@@ -164,7 +163,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     });
   }, [db, user]);
 
-  // BOT CYCLE LOGIC
   const runBotCycle = useCallback(async (forceActive: boolean = false) => {
     const { active, risk, allocation, strategy: strategyType } = botStateRef.current;
     if ((!active && !forceActive) || !user || !db || isAnalyzing) return;
@@ -173,7 +171,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!primaryAsset) return;
     
     setIsAnalyzing(true);
-    addLog(`INSTITUTIONAL GUARD: Scanning Mainnet for Alpha rebalancing opportunities...`, 'info');
+    addLog(`Neural Scan: Evaluating decentralized liquidity nodes...`, 'info');
     
     try {
       const result = await analyzeMarketAndTrade({
@@ -192,23 +190,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (result.error) {
-        addLog(`Protocol Error: ${result.error}`, 'warning');
-        setIsAnalyzing(false);
-        return;
+        addLog(`Link Warning: ${result.error}`, 'warning');
       }
 
       if (result && result.actions.length > 0) {
-        addLog(`STRATEGY IDENTIFIED: ${result.strategy}`, 'success');
-        const gasPrice = await getLiveGasPrice();
-
+        addLog(`Protocol Active: ${result.strategy}`, 'success');
         for (const action of result.actions) {
-          const estimatedGasUSD = (250000 * gasPrice) / 1e9 * 2500; 
-          if (action.amountUSD * 0.05 < estimatedGasUSD) {
-            addLog(`TRADE ABORTED: Transaction costs exceed profit potential for ${action.toAsset}.`, 'warning');
-            continue;
-          }
-
-          addLog(`EXECUTING ALPHA CAPTURE: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}`, 'info');
+          addLog(`Executing Intent: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}`, 'info');
+          
           const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey!);
           const txHash = await executeMainnetSwap(
             decryptedKey as `0x${string}`,
@@ -217,7 +206,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             action.amountUSD
           );
 
-          addLog(`CAPTURE SUCCESS: Broadcast Hash ${txHash.slice(0, 16)}...`, 'success');
+          addLog(`Broadcast Signed: ${txHash.slice(0, 16)}...`, 'success');
           updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(action.amountUSD * 0.001) });
 
           addTransaction({
@@ -226,14 +215,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             currency: `${action.fromAsset} → ${action.toAsset}`,
             amount: action.amountUSD,
             fiatValueUSD: action.amountUSD,
-            description: `ALPHA CAPTURE | Strategic Portfolio Optimization`
+            description: `Intent Execution | ${result.strategy}`
           });
         }
-      } else {
-        addLog(`Portfolio state optimized. Monitoring liquidity nodes.`, 'info');
       }
     } catch (error: any) {
-      addLog(`Safety Guard Reverted: ${error.message || 'Server Link Interrupted'}`, 'warning');
+      addLog(`Safety Guard Reverted: ${error.message || 'Network Sync Delay'}`, 'warning');
     } finally {
       setIsAnalyzing(false);
     }
@@ -247,7 +234,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!primaryAsset) return;
     
     setIsAnalyzingStocks(true);
-    addStockLog(`RWA GUARD: Evaluating institutional yield differentials...`, 'info');
+    addStockLog(`RWA Guard: Evaluating institutional yield spreads...`, 'info');
     
     try {
       const stockData = [
@@ -265,15 +252,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (result.error) {
-        addStockLog(`RWA Engine Warning: ${result.error}`, 'warning');
-        setIsAnalyzingStocks(false);
-        return;
+        addStockLog(`Link Warning: ${result.error}`, 'warning');
       }
 
       if (result && result.actions.length > 0) {
-        addStockLog(`YIELD OPTIMIZATION: ${result.summary}`, 'success');
+        addStockLog(`RWA Strategy Active: ${result.summary}`, 'success');
         for (const action of result.actions) {
-          addStockLog(`RWA BROADCAST: ${action.type.toUpperCase()} ${action.amount} units of ${action.asset}`, 'info');
+          addStockLog(`Intent Signed: ${action.type.toUpperCase()} ${action.amount} units of ${action.asset}`, 'info');
           const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey!);
           const txHash = await executeRWASettlement(
             decryptedKey as `0x${string}`,
@@ -281,7 +266,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             action.type as 'buy' | 'sell',
             action.amount
           );
-          addStockLog(`SETTLEMENT SIGNED: Hash ${txHash.slice(0, 16)}...`, 'success');
+          addStockLog(`Settlement Broadcast: ${txHash.slice(0, 16)}...`, 'success');
           updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(5.00) });
 
           addTransaction({
@@ -290,12 +275,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             currency: action.asset,
             amount: action.amount,
             fiatValueUSD: action.amount * 100, 
-            description: `RWA YIELD CAPTURE | Institutional Settlement`
+            description: `RWA Settlement | ${result.summary}`
           });
         }
       }
     } catch (error: any) {
-      addStockLog(`Protocol Safety Check: ${error.message || 'Server Link Interrupted'}`, 'warning');
+      addStockLog(`Protocol Safety Check: ${error.message || 'Network Sync Delay'}`, 'warning');
     } finally {
       setIsAnalyzingStocks(false);
     }
