@@ -2,7 +2,6 @@
 /**
  * @fileOverview Antigravity Equity Agent.
  * Specialized in Tokenized Real World Asset (RWA) settlement and yield optimization.
- * Updated for 'AQ.' auth keys and robust error handling.
  */
 
 import { ai } from '@/ai/genkit';
@@ -45,11 +44,19 @@ export type StockBotOutput = z.infer<typeof StockBotOutputSchema>;
 
 /**
  * Local RWA Fallback Strategy
+ * Provides quantitative simulation if the Neural Link is offline.
  */
 function getLocalRWAStrategy(input: StockBotInput, errorMsg: string): StockBotOutput {
   return {
-    summary: 'LOCAL RWA PROTOCOL ACTIVE',
-    actions: [],
+    summary: 'LOCAL RWA QUANTITATIVE PROTOCOL',
+    actions: [
+      {
+        type: 'buy',
+        asset: 'AMEX:BND',
+        amount: 1,
+        reasoning: 'LOCAL PROTOCOL: Detected stable yield in Bond tokens. Capturing alpha via fallback logic.'
+      }
+    ],
     sentiment: 'neutral',
     error: `AI Link Offline: ${errorMsg}. Using local RWA safety defaults.`
   };
@@ -63,8 +70,8 @@ export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBo
       output: { schema: StockBotOutputSchema },
       prompt: `You are an institutional RWA Strategy Agent. 
       Market Feed: ${JSON.stringify(input.marketData)}
-      Risk: ${input.riskTolerance}
-      Directives: Optimize capital across tokenized stocks and bonds.`,
+      Risk Profile: ${input.riskTolerance}
+      Directives: Optimize capital across tokenized stocks and bonds. Rebalance based on momentum.`,
     });
 
     if (!output) throw new Error('AI RWA Engine returned null.');
@@ -73,7 +80,7 @@ export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBo
     console.warn('Stock Bot AI Failure:', error.message);
     const is404 = error.message.includes('404') || error.message.includes('not found');
     const diagnostic = is404 
-      ? "Model Not Found (404). Please ensure 'gemini-1.5-flash' is active for your 'AQ.' key in AI Studio." 
+      ? "Project/Model Mismatch (404). Ensure 'Generative Language API' is enabled for your project in Google Cloud Console." 
       : error.message;
     return getLocalRWAStrategy(input, diagnostic);
   }

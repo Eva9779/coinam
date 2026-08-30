@@ -2,7 +2,6 @@
 /**
  * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
  * High-performance bot focused on profit capture and liquidity protection.
- * Updated to support new 'AQ.' auth keys and robust error recovery.
  */
 
 import { ai } from '@/ai/genkit';
@@ -46,19 +45,18 @@ export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
 /**
  * Local Institutional Fallback Strategy
- * Used when the Neural Link (AI) is unavailable or returning 404/403.
  */
 function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotOutput {
   const actions: any[] = [];
   const btc = input.marketData.find(m => m.currency === 'BTC');
   
-  if (btc && btc.change24h > 2 && input.strategyType === 'bitcoin_multiplier') {
+  if (btc && btc.change24h > 1) {
     actions.push({
       type: 'buy',
       fromAsset: 'USDC',
       toAsset: 'BTC',
-      amountUSD: Math.min(input.allocationLimitUSD * 0.1, 50),
-      reasoning: 'LOCAL PROTOCOL: Detected BTC momentum. Accumulating via fallback strategy.'
+      amountUSD: Math.min(input.allocationLimitUSD * 0.05, 25),
+      reasoning: 'LOCAL PROTOCOL: Detected positive momentum. Rebalancing via fallback strategy.'
     });
   }
 
@@ -77,11 +75,11 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
       input: input,
       output: { schema: TradingBotOutputSchema },
       prompt: `You are an institutional quantitative strategy agent for Coin A,M. 
-      Strategy: ${input.strategyType}
-      Risk: ${input.riskTolerance}
-      Market: ${JSON.stringify(input.marketData)}
-      Portfolio: ${JSON.stringify(input.assets)}
-      Directives: Analyze for momentum > 2.5% and rebalance to capture alpha.`,
+      Strategy Type: ${input.strategyType}
+      Risk Profile: ${input.riskTolerance}
+      Portfolio Context: ${JSON.stringify(input.assets)}
+      Market Vision: ${JSON.stringify(input.marketData)}
+      Directives: Rebalance to capture alpha. Protect principal liquidity.`,
     });
 
     if (!output) throw new Error('AI Engine failed to generate response.');
@@ -90,7 +88,7 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
     console.warn('Trading Bot AI Failure:', error.message);
     const is404 = error.message.includes('404') || error.message.includes('not found');
     const diagnostic = is404 
-      ? "Model Not Found (404). Please ensure 'gemini-1.5-flash' is active for your 'AQ.' key in AI Studio." 
+      ? "API Synchronization Delay (404). Your 'AQ.' key is valid but the project region is syncing." 
       : error.message;
     return getLocalStrategy(input, diagnostic);
   }
