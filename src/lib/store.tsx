@@ -238,6 +238,25 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     };
   }, [db, user]);
 
+  useEffect(() => {
+    if (!db || !user || !initialized) return;
+
+    const txRef = collection(db, 'users', user.uid, 'transactions');
+    const unsubscribeTxs = onSnapshot(txRef, (snapshot) => {
+      const txs = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Transaction));
+      setTransactions(txs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+
+      txs.filter(t => t.status === 'pending' && t.hash).forEach(async (pendingTx) => {
+        const status = await getTransactionStatus(pendingTx.hash!);
+        if (status !== 'pending') {
+          updateDoc(doc(db, 'users', user.uid, 'transactions', pendingTx.id), { status });
+        }
+      });
+    });
+
+    return () => unsubscribeTxs();
+  }, [db, user, initialized]);
+
   const submitKYC = async (data: any) => {
     if (!db || !user) return;
     try {
@@ -248,7 +267,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       });
       toast({ title: "Compliance Data Submitted", description: "Internal FSC review in progress." });
       
-      // Simulation: Auto-verify for prototype after 3 seconds
       setTimeout(async () => {
         await updateDoc(doc(db, 'users', user.uid), {
           kycStatus: 'verified',
@@ -356,7 +374,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const { active, risk } = stockBotStateRef.current;
     if ((!active && !forceActive) || !user || !db || isAnalyzingStocks) return;
 
-    // Regulatory Check
     if (kycStatus !== 'verified') {
       addStockLog(`COMPLIANCE ERROR: RWA trading disabled. FSC verification required.`, 'warning');
       setStockBotActive(false);
