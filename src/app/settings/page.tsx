@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,8 +13,6 @@ import {
   Mail, 
   Lock, 
   Loader2, 
-  AlertCircle, 
-  CheckCircle2,
   Key,
   Fingerprint,
   ShieldAlert,
@@ -22,9 +21,9 @@ import {
   Eye,
   EyeOff,
   Copy,
-  AlertTriangle,
   Terminal,
-  Cpu
+  Settings,
+  ArrowRight
 } from 'lucide-react';
 import { 
   Dialog, 
@@ -39,7 +38,8 @@ import { useAuth, useUserHook } from '@/firebase';
 import { updateEmail, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 import { useWalletStore } from '@/lib/store';
-import { cn } from '@/lib/utils';
+import { decryptKey } from '@/lib/encryption';
+import Link from 'next/link';
 
 export default function SettingsPage() {
   const auth = useAuth();
@@ -57,7 +57,8 @@ export default function SettingsPage() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importKey, setImportKey] = useState("");
   const [importLoading, setImportLoading] = useState(false);
-  const [revealedKeys, setRevealedKeys] = useState<Record<string, boolean>>({});
+  const [decryptedKeys, setDecryptedKeys] = useState<Record<string, string>>({});
+  const [revealedStates, setRevealedStates] = useState<Record<string, boolean>>({});
 
   const handleUpdateEmail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,17 +72,10 @@ export default function SettingsPage() {
       }
       
       await updateEmail(user, email);
-      toast({
-        title: "Endpoint Updated",
-        description: "Your verified email has been updated on the network.",
-      });
+      toast({ title: "Endpoint Updated" });
       setCurrentPassword('');
     } catch (error: any) {
-      toast({
-        title: "Update Failed",
-        description: error.message || "A secure session is required. Please re-authenticate.",
-        variant: "destructive"
-      });
+      toast({ title: "Update Failed", description: error.message, variant: "destructive" });
     } finally {
       setLoadingEmail(false);
     }
@@ -92,11 +86,7 @@ export default function SettingsPage() {
     if (!user) return;
     
     if (newPassword !== confirmPassword) {
-      toast({
-        title: "Validation Error",
-        description: "Passphrases do not match.",
-        variant: "destructive"
-      });
+      toast({ title: "Validation Error", description: "Passphrases do not match.", variant: "destructive" });
       return;
     }
 
@@ -108,19 +98,12 @@ export default function SettingsPage() {
       }
 
       await updatePassword(user, newPassword);
-      toast({
-        title: "Security Hardened",
-        description: "Your wallet passphrase has been updated successfully.",
-      });
+      toast({ title: "Security Hardened" });
       setNewPassword('');
       setConfirmPassword('');
       setCurrentPassword('');
     } catch (error: any) {
-      toast({
-        title: "Security Violation",
-        description: error.message || "Failed to update security credentials.",
-        variant: "destructive"
-      });
+      toast({ title: "Security Violation", description: error.message, variant: "destructive" });
     } finally {
       setLoadingPassword(false);
     }
@@ -128,42 +111,44 @@ export default function SettingsPage() {
 
   const handleGenerate = async () => {
     setIsGenerating(true);
-    generateNewWallet('ETH');
+    await generateNewWallet('ETH');
     setIsGenerating(false);
-    toast({
-      title: "Key Provisioned",
-      description: "A new cryptographic endpoint is now live in your wallet.",
-    });
+    toast({ title: "Key Provisioned" });
   };
 
   const handleImport = async () => {
     if (!importKey.startsWith('0x') || importKey.length !== 66) {
-      toast({ title: "Invalid Key Format", description: "Private keys must be 66 characters long and start with 0x.", variant: "destructive" });
+      toast({ title: "Invalid Key Format", variant: "destructive" });
+      return;
+    }
+    setImportLoading(true);
+    try {
+      await importPrivateKey('ETH', importKey);
+      setIsImportOpen(false);
+      setImportKey("");
+    } catch (e) { } finally { setImportLoading(false); }
+  };
+
+  const handleToggleReveal = async (address: string, encryptedKey?: string) => {
+    if (!encryptedKey || !user) return;
+    
+    if (revealedStates[address]) {
+      setRevealedStates(prev => ({ ...prev, [address]: false }));
       return;
     }
 
-    setImportLoading(true);
     try {
-      await importPrivateKey('ETH', importKey as `0x${string}`);
-      setIsImportOpen(false);
-      setImportKey("");
+      const decrypted = await decryptKey(user.uid, encryptedKey);
+      setDecryptedKeys(prev => ({ ...prev, [address]: decrypted }));
+      setRevealedStates(prev => ({ ...prev, [address]: true }));
     } catch (e) {
-      // Error handled in store
-    } finally {
-      setImportLoading(false);
+      toast({ title: "Decryption Failed", variant: "destructive" });
     }
-  };
-
-  const toggleRevealKey = (address: string) => {
-    setRevealedKeys(prev => ({ ...prev, [address]: !prev[address] }));
   };
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
-    toast({
-      title: `${label} Copied`,
-      description: "Stored in secure clipboard.",
-    });
+    toast({ title: `${label} Copied` });
   };
 
   if (userLoading) {
@@ -193,7 +178,6 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          {/* Identity Update Card */}
           <Card className="shadow-2xl border-primary/5 bg-card/50 backdrop-blur-xl rounded-[2rem] overflow-hidden">
             <CardHeader className="bg-muted/20 pb-6 border-b">
               <div className="flex items-center gap-3">
@@ -215,12 +199,12 @@ export default function SettingsPage() {
                     value={email} 
                     onChange={(e) => setEmail(e.target.value)} 
                     placeholder="name@company.com"
-                    className="h-12 rounded-xl font-medium"
+                    className="h-12 rounded-xl"
                   />
                 </div>
                 <div className="p-4 bg-amber-500/5 border border-dashed border-amber-500/20 rounded-xl flex items-start gap-3">
                   <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                  <p className="text-[10px] text-amber-700 font-bold uppercase tracking-tight leading-relaxed">
+                  <p className="text-[10px] text-amber-700 font-bold uppercase tracking-tight">
                     Identity changes require your current passphrase for network verification.
                   </p>
                 </div>
@@ -230,8 +214,7 @@ export default function SettingsPage() {
                     type="password" 
                     value={currentPassword} 
                     onChange={(e) => setCurrentPassword(e.target.value)} 
-                    placeholder="••••••••"
-                    className="h-12 rounded-xl font-medium"
+                    className="h-12 rounded-xl"
                     required
                   />
                 </div>
@@ -242,7 +225,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          {/* Password Update Card */}
           <Card className="shadow-2xl border-primary/5 bg-card/50 backdrop-blur-xl rounded-[2rem] overflow-hidden">
             <CardHeader className="bg-muted/20 pb-6 border-b">
               <div className="flex items-center gap-3">
@@ -259,34 +241,19 @@ export default function SettingsPage() {
               <form onSubmit={handleUpdatePassword} className="space-y-4">
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">New Wallet Passphrase</Label>
-                  <Input 
-                    type="password" 
-                    value={newPassword} 
-                    onChange={(e) => setNewPassword(e.target.value)} 
-                    placeholder="Min. 8 characters"
-                    className="h-12 rounded-xl font-medium"
-                    required
-                  />
+                  <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="h-12 rounded-xl" required />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Verify New Passphrase</Label>
-                  <Input 
-                    type="password" 
-                    value={confirmPassword} 
-                    onChange={(e) => setConfirmPassword(e.target.value)} 
-                    placeholder="••••••••"
-                    className="h-12 rounded-xl font-medium"
-                    required
-                  />
+                  <Input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="h-12 rounded-xl" required />
                 </div>
-                <Button disabled={loadingPassword} className="w-full h-12 rounded-xl font-bold shadow-lg bg-secondary text-secondary-foreground hover:bg-secondary/90">
+                <Button disabled={loadingPassword} className="w-full h-12 rounded-xl font-bold bg-secondary text-secondary-foreground">
                   {loadingPassword ? <Loader2 className="h-4 w-4 animate-spin" /> : "Authorize Rotation"}
                 </Button>
               </form>
             </CardContent>
           </Card>
 
-          {/* Wallet Key Management Card */}
           <Card className="shadow-2xl border-primary/5 bg-card/50 backdrop-blur-xl rounded-[2rem] overflow-hidden">
             <CardHeader className="bg-muted/20 pb-6 border-b flex flex-row items-center justify-between">
               <div className="flex items-center gap-3">
@@ -295,46 +262,36 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <CardTitle className="text-lg font-bold">Wallet Credentials</CardTitle>
-                  <CardDescription className="text-xs">Manage your non-custodial cryptographic keys.</CardDescription>
+                  <CardDescription className="text-xs">Manage your encrypted non-custodial keys.</CardDescription>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex gap-2">
                  <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
                     <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-9 gap-1.5 rounded-lg font-bold text-[10px] uppercase">
-                        <Download className="h-3.5 w-3.5" /> Import
+                      <Button variant="outline" size="sm" className="h-9 font-bold text-[10px] uppercase">
+                        <Download className="h-3.5 w-3.5 mr-1.5" /> Import
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="rounded-[2rem] max-w-md">
+                    <DialogContent className="rounded-[2rem]">
                       <DialogHeader>
-                        <DialogTitle className="text-xl font-black tracking-tight flex items-center gap-2">
-                          <Terminal className="h-5 w-5 text-secondary" />
-                          Restore Wallet
-                        </DialogTitle>
-                        <DialogDescription className="text-sm font-medium">
-                          Enter an existing private key to restore your assets.
-                        </DialogDescription>
+                        <DialogTitle className="text-xl font-black flex gap-2"><Terminal className="h-5 w-5" /> Restore Wallet</DialogTitle>
+                        <DialogDescription>Enter an existing private key to restore your assets.</DialogDescription>
                       </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Private Key (0x...)</Label>
-                          <Textarea 
-                            placeholder="0x..." 
-                            className="font-mono text-xs min-h-[100px] rounded-xl bg-muted/30"
-                            value={importKey}
-                            onChange={(e) => setImportKey(e.target.value)}
-                          />
-                        </div>
-                      </div>
+                      <Textarea 
+                        placeholder="0x..." 
+                        className="font-mono text-xs min-h-[100px] rounded-xl"
+                        value={importKey}
+                        onChange={(e) => setImportKey(e.target.value)}
+                      />
                       <DialogFooter>
-                        <Button className="w-full h-12 font-bold rounded-xl" onClick={handleImport} disabled={importLoading}>
+                        <Button className="w-full h-12 font-bold" onClick={handleImport} disabled={importLoading}>
                           {importLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Authorize Restore"}
                         </Button>
                       </DialogFooter>
                     </DialogContent>
                  </Dialog>
-                 <Button onClick={handleGenerate} disabled={isGenerating} size="sm" className="h-9 gap-1.5 rounded-lg font-bold text-[10px] uppercase">
-                   <Plus className="h-3.5 w-3.5" /> Generate
+                 <Button onClick={handleGenerate} disabled={isGenerating} size="sm" className="h-9 font-bold text-[10px] uppercase">
+                   <Plus className="h-3.5 w-3.5 mr-1.5" /> Generate
                  </Button>
               </div>
             </CardHeader>
@@ -343,71 +300,40 @@ export default function SettingsPage() {
                 <div key={idx} className="p-5 border-2 border-primary/5 rounded-2xl bg-muted/10 space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center font-bold text-xs border uppercase">
-                        {asset.currency}
-                      </div>
+                      <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center font-bold text-xs uppercase">{asset.currency}</div>
                       <div>
                         <div className="font-bold text-sm">{asset.currency} Wallet Key</div>
-                        <div className="text-[10px] text-muted-foreground font-mono truncate max-w-[150px]">{asset.address}</div>
+                        <div className="text-[10px] text-muted-foreground font-mono">{asset.address}</div>
                       </div>
                     </div>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 gap-1.5 rounded-lg font-bold text-[10px] uppercase hover:bg-primary/10 text-primary">
-                          <Key className="h-3 w-3" /> Reveal Key
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="rounded-[2rem] max-w-md">
-                        <DialogHeader>
-                          <DialogTitle className="text-xl font-black">Secret Key Exposure</DialogTitle>
-                          <DialogDescription className="text-sm font-medium">
-                            Absolute control over your <span className="text-primary font-bold">{asset.currency}</span> assets.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="mt-6 space-y-6">
-                          <div className="p-5 bg-slate-950 rounded-2xl border border-white/10 relative overflow-hidden">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-secondary mb-3">Private Cryptographic Key</p>
-                            <div className="font-mono text-xs break-all text-white/90 leading-relaxed min-h-[40px] flex items-center">
-                              {revealedKeys[asset.address] ? (
-                                asset.privateKey || "Key not found in enclave."
-                              ) : (
-                                <span className="opacity-30 tracking-[0.3em]">••••••••••••••••••••••••••••••••</span>
-                              )}
-                            </div>
-                            <div className="absolute top-4 right-4 flex gap-2">
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-8 w-8 text-white/50 hover:text-white"
-                                onClick={() => toggleRevealKey(asset.address)}
-                              >
-                                {revealedKeys[asset.address] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                              </Button>
-                              {revealedKeys[asset.address] && asset.privateKey && (
-                                <Button 
-                                  variant="ghost" 
-                                  size="icon" 
-                                  className="h-8 w-8 text-white/50 hover:text-white"
-                                  onClick={() => copyToClipboard(asset.privateKey!, "Private Key")}
-                                >
-                                  <Copy className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                          <div className="p-4 bg-amber-500/10 rounded-xl border border-dashed border-amber-500/20 flex gap-3 items-start">
-                            <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0" />
-                            <p className="text-[10px] text-amber-700 font-bold uppercase tracking-tight leading-relaxed">
-                              NEVER share this key. Platform engineers cannot recover it if lost.
-                            </p>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => handleToggleReveal(asset.address, asset.privateKey)}
+                      className="h-8 font-bold text-[10px] uppercase text-primary"
+                    >
+                      <Key className="h-3 w-3 mr-1.5" /> {revealedStates[asset.address] ? 'Hide Key' : 'Reveal Key'}
+                    </Button>
                   </div>
+                  {revealedStates[asset.address] && (
+                    <div className="p-4 bg-slate-950 rounded-xl border border-white/10 relative overflow-hidden">
+                       <p className="text-[9px] font-black uppercase tracking-widest text-secondary mb-2">Decrypted Cryptographic Key</p>
+                       <div className="font-mono text-[10px] break-all text-white/90 pr-10">
+                         {decryptedKeys[asset.address]}
+                       </div>
+                       <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="absolute right-2 top-8 text-white/50"
+                        onClick={() => copyToClipboard(decryptedKeys[asset.address], "Private Key")}
+                       >
+                         <Copy className="h-4 w-4" />
+                       </Button>
+                    </div>
+                  )}
                 </div>
               )) : (
-                <div className="py-12 text-center text-muted-foreground border-2 border-dashed rounded-3xl opacity-50 font-bold uppercase text-[10px] tracking-widest">
+                <div className="py-12 text-center opacity-50 font-bold uppercase text-[10px] tracking-widest border-2 border-dashed rounded-3xl">
                   No active endpoints provisioned.
                 </div>
               )}
@@ -416,63 +342,31 @@ export default function SettingsPage() {
         </div>
 
         <div className="space-y-6">
-          <Card className="bg-slate-950 text-white border-none shadow-2xl relative overflow-hidden rounded-[2rem] p-4">
+          <Card className="bg-slate-950 text-white rounded-[2rem] p-6 shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
               <Fingerprint className="h-48 w-48" />
             </div>
-            <CardHeader className="relative z-10 pb-4">
-              <CardTitle className="text-sm font-black uppercase tracking-widest text-secondary flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4" />
-                Security Status
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-8 relative z-10">
-              <div className="p-6 bg-white/5 rounded-2xl space-y-6 backdrop-blur-3xl border border-white/10 shadow-inner">
-                <div className="space-y-4">
-                   <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                         <Fingerprint className="h-4 w-4 text-secondary" />
-                         <span className="text-[10px] font-black uppercase tracking-widest text-white/70">Biometric Enclave</span>
-                      </div>
-                      <Badge className="bg-green-500 text-white border-none text-[8px] font-black">LOCKED</Badge>
-                   </div>
-                   <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                         <ShieldCheck className="h-4 w-4 text-secondary" />
-                         <span className="text-[10px] font-black uppercase tracking-widest text-white/70">Hardware Isolation</span>
-                      </div>
-                      <Badge className="bg-green-500 text-white border-none text-[8px] font-black">ACTIVE</Badge>
-                   </div>
-                </div>
-
-                <div className="h-px bg-white/10 w-full" />
-                
-                <div className="space-y-2">
-                  <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Master Key Integrity</div>
-                  <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-secondary w-full" />
-                  </div>
-                </div>
-              </div>
-              
-              <Button variant="outline" className="w-full font-black h-14 shadow-2xl flex items-center gap-2 rounded-2xl border-white/10 hover:bg-white/5 text-white group" asChild>
-                <Link href="/settings">
-                   <Settings className="h-5 w-5 text-secondary transition-transform group-hover:rotate-90" />
-                   Manage Wallet Security
-                   <ArrowRight className="h-4 w-4 ml-auto opacity-50" />
-                </Link>
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="rounded-[2rem] border-dashed border-2 bg-muted/20 p-6 space-y-4">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-4 w-4 text-primary" />
-              <h4 className="text-xs font-black uppercase tracking-tight">Access Protocol</h4>
+            <h3 className="text-sm font-black uppercase tracking-widest text-secondary flex items-center gap-2 mb-6">
+              <ShieldCheck className="h-4 w-4" /> Security Status
+            </h3>
+            <div className="space-y-4 relative z-10">
+               <div className="flex justify-between items-center text-[10px] uppercase font-bold text-white/60">
+                 <span>Encryption Protocol</span>
+                 <Badge className="bg-green-500 text-white text-[8px]">AES-GCM-256</Badge>
+               </div>
+               <div className="flex justify-between items-center text-[10px] uppercase font-bold text-white/60">
+                 <span>Key Storage</span>
+                 <Badge className="bg-green-500 text-white text-[8px]">ENCRYPTED-REST</Badge>
+               </div>
+               <div className="h-px bg-white/10" />
+               <Button variant="outline" className="w-full text-white border-white/10 rounded-xl h-12 text-[10px] uppercase font-black gap-2 group" asChild>
+                  <Link href="/settings">
+                    <Settings className="h-4 w-4 text-secondary group-hover:rotate-90 transition-transform" />
+                    Manage Protocol
+                    <ArrowRight className="h-3 w-3 ml-auto" />
+                  </Link>
+               </Button>
             </div>
-            <p className="text-[10px] font-medium text-muted-foreground leading-relaxed">
-              Loss of your master passphrase and recovery materials will result in permanent loss of assets. Keep backups in offline locations.
-            </p>
           </Card>
         </div>
       </div>

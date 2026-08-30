@@ -12,8 +12,7 @@ import {
   query, 
   orderBy, 
   updateDoc,
-  increment,
-  writeBatch
+  increment
 } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
@@ -22,6 +21,7 @@ import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
 import { analyzeEquityMarket } from '@/ai/flows/stock-bot-flow';
 import { INITIAL_MARKET_DATA } from '@/lib/data';
 import { getLiveBalance, executeMainnetSwap, executeRWASettlement } from '@/lib/blockchain';
+import { encryptKey, decryptKey } from '@/lib/encryption';
 
 export interface WalletAsset {
   id: string;
@@ -30,7 +30,7 @@ export interface WalletAsset {
   fiatValueUSD: number;
   address: string;
   isLive: boolean;
-  privateKey?: `0x${string}`;
+  privateKey?: string; // Encrypted Key Blob
 }
 
 export interface StockAsset {
@@ -83,7 +83,7 @@ interface WalletContextType {
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp'>) => void;
   updateBalance: (currency: string, amount: number, fiatPrice: number) => void;
   generateNewWallet: (currency: string, customId?: string) => Promise<string | null>;
-  importPrivateKey: (currency: string, privateKey: `0x${string}`) => Promise<void>;
+  importPrivateKey: (currency: string, privateKey: string) => Promise<void>;
   updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: 'standard' | 'bitcoin_multiplier') => void;
   updateStockBotSettings: (active: boolean, risk: 'low' | 'medium' | 'high') => void;
   clearBotLogs: () => void;
@@ -157,6 +157,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const pKey = generatePrivateKey();
       const account = privateKeyToAccount(pKey);
       
+      // Encryption at Rest
+      const encryptedKey = await encryptKey(user.uid, pKey);
+
       await setDoc(doc(db, 'users', user.uid), { 
         uid: user.uid, 
         email: user.email, 
@@ -170,7 +173,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         fiatValueUSD: 0,
         address: account.address,
         isLive: true,
-        privateKey: pKey
+        privateKey: encryptedKey
       };
       
       await setDoc(doc(db, 'users', user.uid, 'assets', customId), newAsset);
@@ -309,10 +312,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if ((!active && !forceActive) || !user || !db || isAnalyzing) return;
 
     const primaryAsset = assetsRef.current.find(a => a.privateKey);
-    if (!primaryAsset) {
-      addLog(`Wallet Endpoint STANDBY: Awaiting hardware-isolated key.`, 'warning');
-      return;
-    }
+    if (!primaryAsset) return;
     
     setIsAnalyzing(true);
     addLog(`AI MAINNET BROADCAST: Analyzing global alpha rebalancing targets...`, 'info');
@@ -339,8 +339,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         for (const action of strategyResult.actions) {
           addLog(`EXECUTING BROADCAST: ${action.type.toUpperCase()} $${action.amountUSD.toFixed(2)} of ${action.toAsset}`, 'info');
           
+          // Decrypt Key for Signing
+          const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey!);
+          
           const txHash = await executeMainnetSwap(
-            primaryAsset.privateKey!,
+            decryptedKey as `0x${string}`,
             action.fromAsset,
             action.toAsset,
             action.amountUSD
@@ -405,8 +408,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         for (const action of result.actions) {
           addStockLog(`BROADCASTING RWA ${action.type.toUpperCase()}: ${action.amount} units of ${action.asset}`, 'info');
           
+          const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey!);
+
           const txHash = await executeRWASettlement(
-            primaryAsset.privateKey!,
+            decryptedKey as `0x${string}`,
             action.asset,
             action.type as 'buy' | 'sell',
             action.amount
@@ -462,13 +467,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const clearBotLogs = () => setBotLogs([]);
   const clearStockBotLogs = () => setStockBotLogs([]);
 
-  const importPrivateKey = async (currency: string, privateKey: `0x${string}`) => {
+  const importPrivateKey = async (currency: string, privateKey: string) => {
     if (!db || !user) return;
     try {
-      const account = privateKeyToAccount(privateKey);
+      const account = privateKeyToAccount(privateKey as `0x${string}`);
+      
+      // Encrypt Key at Rest
+      const encryptedKey = await encryptKey(user.uid, privateKey);
+
       const assetId = `imported_${Date.now()}`;
       await setDoc(doc(db, 'users', user.uid, 'assets', assetId), {
-        id: assetId, currency, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: privateKey
+        id: assetId, currency, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey
       });
       toast({ title: "Wallet Restored" });
     } catch (error) {
