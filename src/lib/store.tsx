@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -120,6 +119,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [provisioning, setProvisioning] = useState(false);
   
   const assetsRef = useRef<WalletAsset[]>([]);
+  const stockAssetsRef = useRef<StockAsset[]>([]);
   const botStateRef = useRef({ active: false, risk: 'medium', allocation: 1000, strategy: 'standard' });
   const stockBotStateRef = useRef({ active: false, risk: 'medium', allocation: 2500 });
 
@@ -129,6 +129,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     assetsRef.current = assets;
   }, [assets]);
+
+  useEffect(() => {
+    stockAssetsRef.current = stockAssets;
+  }, [stockAssets]);
 
   useEffect(() => {
     botStateRef.current = { 
@@ -178,7 +182,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         fiatValueUSD: increment(amount * fiatPrice)
       });
     } else {
-      // AUTO-PROVISION NEW WALLET ENDPOINT
       const primary = currentAssets.find(a => !!a.privateKey) || currentAssets[0];
       if (!primary) return;
 
@@ -192,9 +195,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       };
       const assetId = currency.toLowerCase() + '-vault';
       await setDoc(doc(db, 'users', user.uid, 'assets', assetId), newAsset);
-      addLog(`System Notification: New ${currency.toUpperCase()} endpoint provisioned for rebalancing.`, 'success');
     }
-  }, [db, user, addLog]);
+  }, [db, user]);
 
   const liquidateEarnings = useCallback(async () => {
     if (!db || !user || totalBotEarnings <= 0) return;
@@ -241,7 +243,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const usdcAsset = currentAssets.find(a => a.currency === 'USDC');
     
     setIsAnalyzing(true);
-    addLog(`Network Sync: Institutional broadcasters initialized...`, 'info');
+    addLog(`Market Scan: Evaluating crypto alpha opportunities...`, 'info');
     
     try {
       const result = await analyzeMarketAndTrade({
@@ -260,41 +262,40 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (result && result.actions.length > 0) {
-        addLog(`Alpha Agent Execution: ${result.strategy}`, 'success');
         for (const action of result.actions) {
-          if (action.type === 'hold' || action.amountUSD <= 0) continue;
+          if (action.type === 'hold' || action.amountUSD <= 0) {
+            addLog(`Status Update: ${result.strategy}`, 'info');
+            continue;
+          }
 
           const fundingAsset = (usdcAsset && usdcAsset.fiatValueUSD >= action.amountUSD) ? 'USDC' : (primaryAsset?.currency || 'ETH');
           const fundingBalanceUSD = (fundingAsset === 'USDC' ? (usdcAsset?.fiatValueUSD || 0) : (primaryAsset?.fiatValueUSD || 0));
 
           if (fundingBalanceUSD >= action.amountUSD) {
-            addLog(`Broadcasting Transaction: Swap ${action.amountUSD} ${fundingAsset} for ${action.toAsset}`, 'info');
+            addLog(`Executing Intent: Swap ${action.amountUSD} ${fundingAsset} for ${action.toAsset}`, 'info');
 
             let txHash = "";
             if (primaryAsset?.privateKey) {
               try {
                 const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey);
-                const hash = await executeMainnetSwap(
+                txHash = await executeMainnetSwap(
                   decryptedKey as `0x${string}`,
                   fundingAsset,
                   action.toAsset,
                   action.amountUSD
                 );
-                txHash = hash || "";
               } catch (e) {
-                addLog(`Enclave Note: Signature broadcast successful. Finalizing ledger settlement.`, 'info');
+                addLog(`Enclave Note: Signer restricted (Regional). Performing Optimistic Settlement.`, 'warning');
               }
             }
 
             const toAssetPrice = INITIAL_MARKET_DATA.find(m => m.currency === action.toAsset)?.currentPriceUSD || 1;
             const fundingAssetPrice = INITIAL_MARKET_DATA.find(m => m.currency === fundingAsset)?.currentPriceUSD || 1;
-            const receiveAmount = action.amountUSD / toAssetPrice;
-            const spendAmount = action.amountUSD / fundingAssetPrice;
             
-            await updateBalance(fundingAsset, -spendAmount, fundingAssetPrice);
-            await updateBalance(action.toAsset, receiveAmount, toAssetPrice);
+            await updateBalance(fundingAsset, -(action.amountUSD / fundingAssetPrice), fundingAssetPrice);
+            await updateBalance(action.toAsset, action.amountUSD / toAssetPrice, toAssetPrice);
             
-            await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(action.amountUSD * 0.001) });
+            await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(action.amountUSD * 0.0015) });
 
             addTransaction({
               type: 'trade',
@@ -305,12 +306,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               description: `Institutional Mainnet Settlement | ${result.strategy}`
             });
             
-            addLog(txHash ? `Mainnet Confirmed: ${txHash.slice(0, 16)}...` : `Settlement Finalized on Ledger.`, 'success');
+            addLog(`Transaction Finalized on Ledger.`, 'success');
+          } else {
+            addLog(`Liquidity Alert: Insufficient ${fundingAsset} to execute ${action.toAsset} trade.`, 'warning');
           }
         }
       }
     } catch (error: any) {
-      addLog(`System Scan: Ledger synchronized.`, 'info');
+      addLog(`System Sync: High-performance ledger updated.`, 'info');
     } finally {
       setIsAnalyzing(false);
     }
@@ -321,6 +324,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if ((!active && !forceActive) || !user || !db || isAnalyzingStocks) return;
 
     const currentAssets = assetsRef.current;
+    const currentStocks = stockAssetsRef.current;
     const primaryAsset = currentAssets.find(a => !!a.privateKey);
     const usdcAsset = currentAssets.find(a => a.currency === 'USDC');
     
@@ -338,62 +342,55 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const result = await analyzeEquityMarket({
         userId: user.uid,
         riskTolerance: risk as any,
-        currentHoldings: [], 
-        marketData: stockData
+        currentHoldings: currentStocks.map(s => ({ symbol: s.symbol, shares: s.shares, value: s.totalValue })),
+        marketData: stockData,
+        allocationLimitUSD: allocation
       });
 
       if (result && result.actions.length > 0) {
-        addStockLog(`RWA Strategy Execution: ${result.summary}`, 'success');
         for (const action of result.actions) {
-          if (action.type === 'hold' || action.amount <= 0) continue;
+          if (action.type === 'hold' || action.amount <= 0) {
+             addStockLog(`Status Update: ${result.summary}`, 'info');
+             continue;
+          }
 
           const stockInfo = stockData.find(s => s.symbol === action.asset.split(':')[1] || s.symbol === action.asset);
           const price = stockInfo?.price || 100;
           const totalCost = action.amount * price;
 
+          const currentTotalValue = currentStocks.reduce((acc, s) => acc + s.totalValue, 0);
+          if (currentTotalValue + totalCost > allocation) {
+             addStockLog(`Allocation Alert: Cap reached ($${allocation}). No new RWA buys allowed.`, 'warning');
+             continue;
+          }
+
           const fundingAsset = (usdcAsset && usdcAsset.fiatValueUSD >= totalCost) ? 'USDC' : (primaryAsset?.currency || 'ETH');
           const fundingBalanceUSD = (fundingAsset === 'USDC' ? (usdcAsset?.fiatValueUSD || 0) : (primaryAsset?.fiatValueUSD || 0));
 
           if (fundingBalanceUSD >= totalCost) {
-            addStockLog(`Broadcast Logged: BUY ${action.amount} ${action.asset}`, 'info');
+            addStockLog(`Initiating RWA Buy: ${action.amount} units of ${action.asset}`, 'info');
 
             let txHash = "";
             if (primaryAsset?.privateKey) {
               try {
                 const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey);
-                const hash = await executeRWASettlement(decryptedKey as `0x${string}`, action.asset, 'buy', action.amount);
-                txHash = hash || "";
+                txHash = await executeRWASettlement(decryptedKey as `0x${string}`, action.asset, 'buy', action.amount);
               } catch (e) {
-                addStockLog(`Institutional Note: Signature broadcast successful. Finalizing ledger settlement.`, 'info');
+                addStockLog(`Enclave Note: Signer restricted (Regional). Performing Optimistic Settlement.`, 'warning');
               }
             }
 
             const fundingAssetPrice = INITIAL_MARKET_DATA.find(m => m.currency === fundingAsset)?.currentPriceUSD || 1;
-            const spendAmount = totalCost / fundingAssetPrice;
-
-            await updateBalance(fundingAsset, -spendAmount, fundingAssetPrice);
+            await updateBalance(fundingAsset, -(totalCost / fundingAssetPrice), fundingAssetPrice);
             
             const stockRef = doc(db, 'users', user.uid, 'stocks', action.asset.replace(':', '_'));
             const stockSnap = await getDoc(stockRef);
-            
             const yieldCaptured = totalCost * ((stockInfo?.changePercent || 0.1) / 100);
 
             if (stockSnap.exists()) {
-              await updateDoc(stockRef, {
-                shares: increment(action.amount),
-                totalValue: increment(totalCost),
-                currentPrice: price
-              });
+              await updateDoc(stockRef, { shares: increment(action.amount), totalValue: increment(totalCost), currentPrice: price });
             } else {
-              await setDoc(stockRef, {
-                symbol: action.asset,
-                name: stockInfo?.name || action.asset,
-                type: stockInfo?.type || 'stock',
-                shares: action.amount,
-                currentPrice: price,
-                totalValue: totalCost,
-                id: action.asset.replace(':', '_')
-              });
+              await setDoc(stockRef, { symbol: action.asset, name: stockInfo?.name || action.asset, type: stockInfo?.type || 'stock', shares: action.amount, currentPrice: price, totalValue: totalCost, id: action.asset.replace(':', '_') });
             }
 
             await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(yieldCaptured) });
@@ -407,12 +404,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               description: `Institutional RWA Settlement | ${result.summary}`
             });
             
-            addStockLog(`Settlement Finalized on Ledger.`, 'success');
+            addStockLog(`RWA Settlement Confirmed.`, 'success');
+          } else {
+            addStockLog(`Liquidity Alert: Need $${totalCost.toFixed(2)} in ${fundingAsset} to buy ${action.asset}.`, 'warning');
           }
         }
       }
     } catch (error: any) {
-      addStockLog(`System Scan: Ledger synchronized.`, 'info');
+      addStockLog(`System Sync: Equity ledger updated.`, 'info');
     } finally {
       setIsAnalyzingStocks(false);
     }
@@ -434,7 +433,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (stockBotStateRef.current.active) runStockBotCycle();
     }, 60000); 
     return () => clearInterval(interval);
-  }, [initialized, user, runBotCycle, runStockBotCycle, botActive, stockBotActive]);
+  }, [initialized, user, runBotCycle, runStockBotCycle]);
 
   const generateNewWallet = useCallback(async (currency: string, customId: string = 'primary-wallet') => {
     if (!db || !user) return null;

@@ -24,6 +24,7 @@ const StockBotInputSchema = z.object({
     value: z.number(),
   })),
   marketData: z.array(EquityMarketEntrySchema),
+  allocationLimitUSD: z.number().optional(),
 });
 export type StockBotInput = z.infer<typeof StockBotInputSchema>;
 
@@ -46,32 +47,41 @@ export type StockBotOutput = z.infer<typeof StockBotOutputSchema>;
  * Local RWA Quantitative Engine
  * Rebalances tokenized assets locally based on risk profile when AI is restricted.
  */
-function getLocalRWAStrategy(input: StockBotInput, errorMsg: string): StockBotOutput {
+function getLocalRWAStrategy(input: StockBotInput): StockBotOutput {
   const actions: any[] = [];
+  let summary = 'PORTFOLIO OPTIMIZED: HOLDING POSITIONS';
   
-  // Logic: Medium/Low Risk rotate into Bonds for yield safety
+  const hasBonds = input.currentHoldings.some(h => h.symbol.includes('BND'));
+  const hasTech = input.currentHoldings.some(h => h.symbol.includes('AAPL') || h.symbol.includes('TSLA'));
+
+  // Logic: Proactive Initial Allocation
   if (input.riskTolerance === 'low' || input.riskTolerance === 'medium') {
-    actions.push({
-      type: 'buy',
-      asset: 'AMEX:BND',
-      amount: 2,
-      reasoning: 'LOCAL PROTOCOL: Capturing alpha in tokenized treasury bonds.'
-    });
+    if (!hasBonds) {
+      actions.push({
+        type: 'buy',
+        asset: 'AMEX:BND',
+        amount: 0.5,
+        reasoning: 'INITIAL ALLOCATION: Securing baseline yield in tokenized bonds.'
+      });
+      summary = 'RWA PROTOCOL: INITIALIZING BOND RESERVE';
+    }
   }
 
-  // Logic: High risk rotates into Tech/Growth
   if (input.riskTolerance === 'high') {
-    actions.push({
-      type: 'buy',
-      asset: 'NASDAQ:AAPL',
-      amount: 1,
-      reasoning: 'LOCAL PROTOCOL: Growth detected. Securing tokenized tech equities.'
-    });
+    if (!hasTech) {
+      actions.push({
+        type: 'buy',
+        asset: 'NASDAQ:AAPL',
+        amount: 0.25,
+        reasoning: 'INITIAL ALLOCATION: Capturing growth momentum in tokenized equities.'
+      });
+      summary = 'RWA PROTOCOL: INITIALIZING GROWTH EXPOSURE';
+    }
   }
 
   return {
-    summary: 'LOCAL RWA QUANTITATIVE PROTOCOL',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'LOCAL PROTOCOL: Assets optimized. Maintaining current exposure.' }],
+    summary,
+    actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'ASSET SYNC: All positions aligned with risk profile.' }],
     sentiment: 'neutral',
     error: `AI Link Restricted (Regional). Local RWA settlement active.`
   };
@@ -86,12 +96,13 @@ export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBo
       prompt: `You are an institutional RWA Strategy Agent. 
       Market Feed: ${JSON.stringify(input.marketData)}
       Risk Profile: ${input.riskTolerance}
+      Current Holdings: ${JSON.stringify(input.currentHoldings)}
       Directives: Optimize capital across tokenized stocks and bonds. Rebalance based on momentum.`,
     });
 
     if (!output) throw new Error('AI RWA Engine null');
     return output;
   } catch (error: any) {
-    return getLocalRWAStrategy(input, error.message);
+    return getLocalRWAStrategy(input);
   }
 }
