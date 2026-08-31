@@ -181,14 +181,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user || totalBotEarnings <= 0) return;
     
     let usdcAsset = assetsRef.current.find(a => a.currency === 'USDC');
-    
-    // If no USDC wallet exists, attempt to find a primary wallet
-    if (!usdcAsset) {
-      usdcAsset = assetsRef.current.find(a => a.id === 'primary-wallet');
-    }
+    if (!usdcAsset) usdcAsset = assetsRef.current[0];
 
     if (!usdcAsset) {
-      toast({ title: "No Liquidity Wallet Found", description: "Please generate a wallet to liquidate profits.", variant: "destructive" });
+      toast({ title: "No Wallet Found", description: "Please generate a wallet to liquidate profits.", variant: "destructive" });
       return;
     }
 
@@ -211,7 +207,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         description: `Liquidated Strategy Agent Earnings to ${targetCurrency} Vault`
       });
       
-      toast({ title: "Earnings Liquidated", description: `$${earningsToLiquidate.toFixed(2)} moved to ${targetCurrency} wallet.` });
+      toast({ title: "Earnings Liquidated", description: `$${earningsToLiquidate.toFixed(2)} moved to wallet.` });
     } catch (e) {
       toast({ title: "Liquidation Failed", variant: "destructive" });
     }
@@ -443,13 +439,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       };
       await setDoc(doc(db, 'users', user.uid, 'assets', customId), newAsset);
 
-      // Automatically provision USDC for earnings liquidity
       if (currency !== 'USDC') {
         const usdcAsset = {
           currency: 'USDC',
           amount: 0,
           fiatValueUSD: 0,
-          address: account.address, // Same address, different coin context
+          address: account.address,
           isLive: true,
           privateKey: encryptedKey
         };

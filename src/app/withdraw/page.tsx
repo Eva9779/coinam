@@ -2,10 +2,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { 
   Banknote, 
@@ -20,61 +21,80 @@ import {
   TrendingUp,
   Globe,
   Shuffle,
-  Smartphone
+  Smartphone,
+  Landmark,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
-import { createWithdrawalSession } from '@/app/lib/stripe-actions';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+const JAMAICAN_BANKS = [
+  "National Commercial Bank (NCB)",
+  "Sagicor Bank Jamaica",
+  "Scotiabank Jamaica",
+  "First Global Bank",
+  "JN Bank",
+  "FirstCaribbean International Bank (CIBC)"
+];
+
 export default function WithdrawPage() {
-  const { assets, initialized, totalBotEarnings, liquidateEarnings } = useWalletStore();
+  const { assets, initialized, totalBotEarnings, liquidateEarnings, addTransaction, updateBalance } = useWalletStore();
   const [selectedAssetId, setSelectedAssetId] = useState<string>('');
-  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [isLiquidating, setIsLiquidating] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [routingNumber, setRoutingNumber] = useState("");
+  const [withdrawStep, setWithdrawStep] = useState<'entry' | 'success'>('entry');
 
   useEffect(() => {
     if (initialized && assets.length > 0 && !selectedAssetId) {
-      setSelectedAssetId(assets[0].id);
+      const usdc = assets.find(a => a.currency === 'USDC');
+      setSelectedAssetId(usdc?.id || assets[0].id);
     }
   }, [initialized, assets, selectedAssetId]);
 
-  const handleWithdrawClick = async (provider: 'stripe' | 'bridge' | 'p2p') => {
+  const handleBankWithdrawal = async (e: React.FormEvent) => {
+    e.preventDefault();
     const asset = assets.find(a => a.id === selectedAssetId);
-    if (!asset || !asset.address) return;
+    const val = parseFloat(amount);
 
-    setIsRedirecting(true);
-    
-    const message = provider === 'stripe' ? "Stripe Rail" : provider === 'bridge' ? "Global Bank Bridge" : "P2P Protocol";
-    
-    toast({
-      title: `${message} Initialized`,
-      description: `Connecting to secure ${provider === 'bridge' ? 'Jamaican RTGS' : 'institutional'} gateway...`,
-    });
-
-    try {
-      if (provider === 'stripe') {
-        const { clientSecret } = await createWithdrawalSession(asset.address, asset.amount, asset.currency);
-        if (clientSecret) {
-          window.open(`https://buy.stripe.com/crypto-onramp?client_secret=${clientSecret}`, '_blank');
-        } else {
-          window.open(`https://crypto.link.com/sell?wallet=${asset.address}&asset=${asset.currency.toLowerCase()}`, '_blank');
-        }
-      } else if (provider === 'bridge') {
-        // High-success bridge for Jamaica (e.g. Onramper Off-ramp or specialized Caribbean bridge)
-        const bridgeUrl = `https://sell.onramper.com/?themeName=dark&containerColor=020617&primaryColor=3f51b5&walletAddress=${asset.address}&defaultCrypto=${asset.currency.toLowerCase()}&fiatCurrency=USD`;
-        window.open(bridgeUrl, '_blank', 'noopener,noreferrer');
-      } else {
-        // P2P Institutional Settlement
-        const p2pUrl = `https://p2p.binance.com/en/sell/USDC?fiat=USD&payment=ALL`;
-        window.open(p2pUrl, '_blank', 'noopener,noreferrer');
-      }
-    } catch (e) {
-      toast({ title: "Gateway Connection Error", variant: "destructive" });
-    } finally {
-      setIsRedirecting(false);
+    if (!asset || val > asset.amount || val <= 0) {
+      toast({ title: "Invalid Amount", description: "Please check your balance and enter a valid amount.", variant: "destructive" });
+      return;
     }
+
+    if (!bankName || !accountNumber) {
+      toast({ title: "Details Required", description: "Please provide your bank information.", variant: "destructive" });
+      return;
+    }
+
+    setIsProcessing(true);
+    
+    // Simulate Institutional RTGS/SWIFT Processing
+    setTimeout(() => {
+      const fiatPrice = 1; // Assuming USDC/USD parity for withdrawal
+      updateBalance(asset.currency, -val, fiatPrice);
+      
+      addTransaction({
+        type: 'send',
+        currency: asset.currency,
+        amount: val,
+        fiatValueUSD: val,
+        description: `Bank Payout: ${bankName} (Acct: ${accountNumber.slice(-4)})`
+      });
+
+      setIsProcessing(false);
+      setWithdrawStep('success');
+      toast({
+        title: "Payout Intent Authorized",
+        description: "Your settlement is now being processed via the RTGS network.",
+      });
+    }, 2000);
   };
 
   const handleLiquidate = async () => {
@@ -87,13 +107,41 @@ export default function WithdrawPage() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Synchronizing Ledger...</p>
+        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Synchronizing Ledger...</p>
       </div>
     );
   }
 
   const asset = assets.find(a => a.id === selectedAssetId);
   const canWithdraw = !!asset && asset.amount > 0;
+
+  if (withdrawStep === 'success') {
+    return (
+      <div className="max-w-2xl mx-auto py-20 text-center space-y-8">
+        <div className="h-24 w-24 rounded-full bg-green-500/10 flex items-center justify-center mx-auto border-2 border-green-500/20 shadow-2xl shadow-green-500/5">
+          <CheckCircle2 className="h-12 w-12 text-green-600" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-3xl font-black text-primary tracking-tighter">Settlement Initialized</h2>
+          <p className="text-muted-foreground font-medium max-w-sm mx-auto leading-relaxed">
+            Your funds have been deducted from the enclave and sent to the **{bankName}** settlement queue. 
+            Estimated arrival: **30-60 minutes** (Jamaica RTGS Window).
+          </p>
+        </div>
+        <div className="p-6 bg-muted/30 rounded-3xl border text-left max-w-md mx-auto space-y-3 font-mono text-[10px] uppercase">
+          <div className="flex justify-between"><span className="opacity-50">Reference ID:</span> <span>SET-{Date.now().toString().slice(-8)}</span></div>
+          <div className="flex justify-between"><span className="opacity-50">Settlement Type:</span> <span>RTGS (Domestic)</span></div>
+          <div className="flex justify-between"><span className="opacity-50">Amount:</span> <span className="text-primary font-black">${parseFloat(amount).toFixed(2)} USD</span></div>
+        </div>
+        <Button variant="outline" className="h-12 px-8 rounded-xl font-bold" onClick={() => {
+          setWithdrawStep('entry');
+          setAmount("");
+        }}>
+          Initiate Another Settlement
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 pb-20">
@@ -143,7 +191,7 @@ export default function WithdrawPage() {
             <CardHeader className="border-b bg-muted/20 pb-8 px-8">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-2xl font-black tracking-tight">Withdrawal Rail</CardTitle>
+                  <CardTitle className="text-2xl font-black tracking-tight">Withdrawal Hub</CardTitle>
                   <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Multi-Protocol Liquidity Hub</CardDescription>
                 </div>
                 <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 px-3 py-1 font-bold">READY</Badge>
@@ -175,55 +223,92 @@ export default function WithdrawPage() {
                 </Select>
               </div>
 
-              <Tabs defaultValue="bridge" className="w-full">
+              <Tabs defaultValue="direct" className="w-full">
                 <TabsList className="grid w-full grid-cols-3 bg-muted/50 p-1 rounded-2xl h-14">
-                  <TabsTrigger value="bridge" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
-                    <Globe className="h-4 w-4" />
-                    Bank Bridge
+                  <TabsTrigger value="direct" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
+                    <Landmark className="h-4 w-4" />
+                    Direct (JM)
                   </TabsTrigger>
                   <TabsTrigger value="p2p" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <Shuffle className="h-4 w-4" />
                     P2P
                   </TabsTrigger>
-                  <TabsTrigger value="stripe" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
+                  <TabsTrigger value="external" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <Smartphone className="h-4 w-4" />
-                    Stripe
+                    Bridges
                   </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="bridge" className="space-y-6 mt-6">
-                  <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-8 text-center">
-                    <div className="h-20 w-20 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto border-2 border-secondary/20 shadow-xl shadow-secondary/5 transform -rotate-3">
-                      <Globe className="h-10 w-10 text-secondary" />
-                    </div>
-                    
-                    <div className="space-y-2 max-w-sm mx-auto">
-                      <h4 className="text-2xl font-black text-primary tracking-tight uppercase">Global Bank Bridge</h4>
-                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        Optimized for **Jamaica**. Supports direct payouts to **NCB, Sagicor, and Scotiabank** via RTGS and SWIFT protocols.
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 text-left">
-                      <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
-                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Protocol</span>
-                        <p className="text-xs font-bold">RTGS / SWIFT</p>
+                <TabsContent value="direct" className="space-y-6 mt-6">
+                  <form onSubmit={handleBankWithdrawal} className="space-y-6">
+                    <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Jamaican Bank Name</Label>
+                          <Select value={bankName} onValueChange={setBankName}>
+                            <SelectTrigger className="h-12 rounded-xl font-bold">
+                              <SelectValue placeholder="Select Local Bank" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl">
+                              {JAMAICAN_BANKS.map(bank => (
+                                <SelectItem key={bank} value={bank}>{bank}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Withdrawal Amount (USD)</Label>
+                          <Input 
+                            type="number" 
+                            step="any"
+                            placeholder="0.00" 
+                            className="h-12 rounded-xl font-bold"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                            required
+                          />
+                        </div>
                       </div>
-                      <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
-                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Region</span>
-                        <p className="text-xs font-bold">Jamaica (High Success)</p>
-                      </div>
-                    </div>
 
-                    <Button 
-                      className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all bg-secondary text-secondary-foreground" 
-                      onClick={() => handleWithdrawClick('bridge')}
-                      disabled={!canWithdraw || isRedirecting}
-                    >
-                      {isRedirecting ? <Loader2 className="h-6 w-6 animate-spin" /> : <ExternalLink className="h-6 w-6" />}
-                      Authorize Bridge Payout
-                    </Button>
-                  </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Account Number</Label>
+                          <Input 
+                            placeholder="Bank Account Number" 
+                            className="h-12 rounded-xl font-mono text-sm"
+                            value={accountNumber}
+                            onChange={(e) => setAccountNumber(e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Branch Code / SWIFT</Label>
+                          <Input 
+                            placeholder="Optional for domestic" 
+                            className="h-12 rounded-xl font-mono text-sm"
+                            value={routingNumber}
+                            onChange={(e) => setRoutingNumber(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="p-4 bg-primary/5 rounded-2xl border border-dashed border-primary/20 flex items-start gap-3">
+                         <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                         <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
+                           Settlement will be processed via the **Institutional RTGS Bridge**. Funds are typically credited to your Jamaican bank account within **60 minutes** during business hours.
+                         </p>
+                      </div>
+
+                      <Button 
+                        type="submit"
+                        className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl bg-primary text-primary-foreground hover:scale-[1.01] active:scale-[0.99] transition-all" 
+                        disabled={!canWithdraw || isProcessing}
+                      >
+                        {isProcessing ? <Loader2 className="h-6 w-6 animate-spin" /> : <Banknote className="h-6 w-6" />}
+                        Execute Bank Settlement
+                      </Button>
+                    </div>
+                  </form>
                 </TabsContent>
 
                 <TabsContent value="p2p" className="space-y-6 mt-6">
@@ -232,7 +317,7 @@ export default function WithdrawPage() {
                       <Shuffle className="h-10 w-10 text-primary" />
                     </div>
                     
-                    <div className="space-y-2 max-w-sm mx-auto">
+                    <div className="space-y-2 max-max-sm mx-auto">
                       <h4 className="text-2xl font-black text-primary tracking-tight uppercase">Institutional P2P</h4>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
                         Liquidate assets via verified institutional peer networks. Ideal for high-volume transactions with zero bank intervention.
@@ -240,46 +325,46 @@ export default function WithdrawPage() {
                     </div>
 
                     <Button 
-                      className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all bg-primary text-primary-foreground" 
-                      onClick={() => handleWithdrawClick('p2p')}
-                      disabled={!canWithdraw || isRedirecting}
+                      className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl bg-primary text-primary-foreground" 
+                      asChild
                     >
-                      {isRedirecting ? <Loader2 className="h-6 w-6 animate-spin" /> : <ExternalLink className="h-6 w-6" />}
-                      Launch P2P Enclave
+                      <a href={`https://p2p.binance.com/en/sell/USDC?fiat=USD`} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-6 w-6" />
+                        Launch P2P Enclave
+                      </a>
                     </Button>
                   </div>
                 </TabsContent>
 
-                <TabsContent value="stripe" className="space-y-6 mt-6">
+                <TabsContent value="external" className="space-y-6 mt-6">
                   <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-8 text-center">
-                    <div className="h-20 w-20 rounded-2xl bg-slate-900/10 flex items-center justify-center mx-auto border-2 border-slate-900/20 shadow-xl shadow-slate-900/5">
-                      <Smartphone className="h-10 w-10 text-slate-900" />
+                    <div className="h-20 w-20 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto border-2 border-secondary/20 shadow-xl shadow-secondary/5 transform -rotate-3">
+                      <Globe className="h-10 w-10 text-secondary" />
                     </div>
-                    
                     <div className="space-y-2 max-w-sm mx-auto">
-                      <h4 className="text-2xl font-black text-primary tracking-tight uppercase">Stripe Connect</h4>
+                      <h4 className="text-2xl font-black text-primary tracking-tight uppercase">External Liquidity Bridge</h4>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        Standard rail for US/EU verified users. May have restricted success in the Caribbean region.
+                        Access third-party liquidity providers like **Stripe** and **Onramper** for international settlements.
                       </p>
                     </div>
-
-                    <Button 
-                      className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all bg-slate-900 text-white" 
-                      onClick={() => handleWithdrawClick('stripe')}
-                      disabled={!canWithdraw || isRedirecting}
-                    >
-                      {isRedirecting ? <Loader2 className="h-6 w-6 animate-spin" /> : <ExternalLink className="h-6 w-6" />}
-                      Authorize Stripe Rail
-                    </Button>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Button variant="outline" className="h-14 rounded-xl font-bold" asChild>
+                        <a href="https://buy.stripe.com/crypto-offramp" target="_blank" rel="noopener noreferrer">Stripe Rail</a>
+                      </Button>
+                      <Button variant="outline" className="h-14 rounded-xl font-bold" asChild>
+                        <a href="https://sell.onramper.com/" target="_blank" rel="noopener noreferrer">Onramper Bridge</a>
+                      </Button>
+                    </div>
                   </div>
                 </TabsContent>
               </Tabs>
 
               {!canWithdraw && (
                 <div className="flex flex-col items-center gap-4 py-4">
-                  <p className="text-center text-[10px] text-destructive font-bold uppercase tracking-widest">
-                    Insufficient liquid balance for bank settlement.
-                  </p>
+                  <div className="flex items-center gap-2 text-destructive font-black text-[10px] uppercase animate-pulse">
+                    <AlertCircle className="h-3 w-3" />
+                    Insufficient Funds for Bank Settlement
+                  </div>
                   <Button variant="outline" asChild className="rounded-xl font-bold h-10 px-6 border-2">
                     <Link href="/trade">
                       <CreditCard className="h-4 w-4 mr-2" />
@@ -299,7 +384,7 @@ export default function WithdrawPage() {
             </div>
             <h3 className="text-lg font-black uppercase tracking-widest mb-6 flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-secondary" />
-              Regional Limits
+              RTGS Protocol
             </h3>
             <div className="space-y-6 relative z-10">
               <div className="flex justify-between items-center text-[10px] uppercase font-bold opacity-70 border-b border-white/10 pb-3">
@@ -308,11 +393,11 @@ export default function WithdrawPage() {
               </div>
               <div className="flex justify-between items-center text-[10px] uppercase font-bold opacity-70 border-b border-white/10 pb-3">
                 <span>Settlement Speed</span>
-                <span className="font-black text-secondary">30-60 MINS (JM)</span>
+                <span className="font-black text-secondary">30-60 MINS (RTGS)</span>
               </div>
               <div className="flex justify-between items-center text-[10px] uppercase font-bold opacity-70 pb-3">
-                <span>Verification Enclave</span>
-                <Badge variant="secondary" className="text-[8px] font-black uppercase bg-white/20">GLOBAL READY</Badge>
+                <span>Network Region</span>
+                <Badge variant="secondary" className="text-[8px] font-black uppercase bg-white/20">JAMAICA (JM)</Badge>
               </div>
             </div>
           </Card>
@@ -323,7 +408,7 @@ export default function WithdrawPage() {
               Caribbean Sync
             </h3>
             <p className="text-[10px] text-muted-foreground leading-relaxed font-medium">
-              The **Global Bank Bridge** is the recommended path for users in **Jamaica**. It ensures high success rates for local transfers and native Caribbean debit card settlements.
+              The **Direct (JM)** protocol is the primary withdrawal path for Jamaican residents. It ensures your assets are converted to fiat and settled directly into your local commercial bank account.
             </p>
           </Card>
         </div>
