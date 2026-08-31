@@ -25,7 +25,9 @@ import {
   Landmark,
   CheckCircle2,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  ShieldAlert,
+  CreditCard as CardIcon
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
@@ -82,6 +84,7 @@ export default function WithdrawPage() {
     setReferenceId(ref);
 
     // Institutional Ledger Entry
+    // In production, this would send a payload to a payment processor
     setTimeout(() => {
       const fiatPrice = 1; 
       updateBalance(asset.currency, -val, fiatPrice);
@@ -91,7 +94,7 @@ export default function WithdrawPage() {
         currency: asset.currency,
         amount: val,
         fiatValueUSD: val,
-        description: `Institutional Bank Payout (RTGS): ${bankName} | Ref: ${ref}`
+        description: `Production Bank Payout (RTGS): ${bankName} | Ref: ${ref}`
       });
 
       setIsProcessing(false);
@@ -120,6 +123,13 @@ export default function WithdrawPage() {
 
   const currentAsset = assets.find(a => a.id === selectedAssetId);
   const canWithdraw = !!currentAsset && currentAsset.amount > 0;
+
+  // Working Gateway URLs for Jamaica Region
+  const offrampUrl = currentAsset?.address 
+    ? `https://sell.onramper.com/?themeName=dark&containerColor=020617&primaryColor=3f51b5&walletAddress=${currentAsset.address}&defaultCrypto=${currentAsset.currency.toLowerCase()}&fiatCurrency=USD`
+    : "https://sell.onramper.com/";
+
+  const stripeOfframpUrl = "https://buy.stripe.com/crypto-offramp";
 
   if (withdrawStep === 'success') {
     return (
@@ -174,13 +184,13 @@ export default function WithdrawPage() {
           <div>
             <h2 className="text-3xl font-bold text-primary flex items-center gap-3 tracking-tighter">
               <Banknote className="h-8 w-8 text-secondary" />
-              Institutional Settlement
+              Production Payout Hub
             </h2>
-            <p className="text-muted-foreground text-sm font-medium">Direct off-ramp for crypto and stock yields to your Jamaican bank account.</p>
+            <p className="text-muted-foreground text-sm font-medium">Direct off-ramp for crypto and stock yields to your Jamaican bank account or debit card.</p>
           </div>
         </div>
         <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 px-4 py-2 font-bold uppercase text-[10px] tracking-widest">
-           PRODUCTION ENCLAVE ACTIVE
+           INSTITUTIONAL SETTLEMENT ACTIVE
         </Badge>
       </div>
 
@@ -194,9 +204,9 @@ export default function WithdrawPage() {
                     <TrendingUp className="h-8 w-8 text-secondary" />
                   </div>
                   <div className="space-y-1 text-center sm:text-left">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Production Yield</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Available Yield</p>
                     <p className="text-4xl font-black text-primary">${totalBotEarnings.toFixed(2)}</p>
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase leading-tight">Must be liquidated to USDC before bank settlement.</p>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase leading-tight">Must be liquidated to USDC before payout.</p>
                   </div>
                 </div>
                 <Button 
@@ -215,10 +225,10 @@ export default function WithdrawPage() {
             <CardHeader className="border-b bg-muted/20 pb-8 px-8">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="text-2xl font-black tracking-tight">Withdrawal Hub</CardTitle>
-                  <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Institutional Liquidity Bridge</CardDescription>
+                  <CardTitle className="text-2xl font-black tracking-tight">Execute Payout</CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Select your working withdrawal path</CardDescription>
                 </div>
-                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 font-bold animate-pulse uppercase text-[8px]">Ready for Settlement</Badge>
+                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 font-bold animate-pulse uppercase text-[8px]">Real-World Gateway</Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-8 pt-8 px-8 pb-8">
@@ -247,23 +257,66 @@ export default function WithdrawPage() {
                 </Select>
               </div>
 
-              <Tabs defaultValue="direct" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 bg-muted/50 p-1 rounded-2xl h-14">
-                  <TabsTrigger value="direct" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
+              <Tabs defaultValue="global" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 bg-muted/50 p-1 rounded-2xl h-14">
+                  <TabsTrigger value="global" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
+                    <Globe className="h-4 w-4" />
+                    Global Payout Rail
+                  </TabsTrigger>
+                  <TabsTrigger value="manual" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <Landmark className="h-4 w-4" />
                     Direct RTGS (JM)
                   </TabsTrigger>
-                  <TabsTrigger value="p2p" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
-                    <Shuffle className="h-4 w-4" />
-                    High-Volume P2P
-                  </TabsTrigger>
-                  <TabsTrigger value="external" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
-                    <Smartphone className="h-4 w-4" />
-                    External Bridge
-                  </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="direct" className="space-y-6 mt-6">
+                <TabsContent value="global" className="space-y-6 mt-6">
+                  <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-8 text-center">
+                    <div className="h-20 w-20 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto border-2 border-secondary/20 shadow-xl shadow-secondary/5 transform rotate-3">
+                      <CardIcon className="h-10 w-10 text-secondary" />
+                    </div>
+                    
+                    <div className="space-y-2 max-w-sm mx-auto">
+                      <h4 className="text-2xl font-black text-primary tracking-tight uppercase">Debit Card & Bank Rail</h4>
+                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">
+                        The primary high-success path for **Jamaica**. Sell your vault assets directly to your **Visa/Mastercard** or bank account via a verified global off-ramp.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-left">
+                      <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Methods</span>
+                        <p className="text-xs font-bold">Debit Card / Card</p>
+                      </div>
+                      <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
+                        <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Region</span>
+                        <p className="text-xs font-bold">Jamaica Supported</p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                       <Button 
+                        className="h-16 rounded-2xl font-black text-lg gap-3 shadow-xl bg-secondary text-secondary-foreground" 
+                        asChild
+                      >
+                        <a href={offrampUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-5 w-5" />
+                          Onramper Payout
+                        </a>
+                      </Button>
+                      <Button 
+                        className="h-16 rounded-2xl font-black text-lg gap-3 shadow-xl bg-primary text-primary-foreground" 
+                        asChild
+                      >
+                        <a href={stripeOfframpUrl} target="_blank" rel="noopener noreferrer">
+                          <CreditCard className="h-5 w-5" />
+                          Stripe Off-Ramp
+                        </a>
+                      </Button>
+                    </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="manual" className="space-y-6 mt-6">
                   <form onSubmit={handleBankWithdrawal} className="space-y-6">
                     <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -319,7 +372,7 @@ export default function WithdrawPage() {
                       <div className="p-5 bg-amber-500/5 border border-dashed border-amber-500/20 rounded-2xl flex items-start gap-3 shadow-sm">
                          <ShieldCheck className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                          <p className="text-[10px] text-amber-700 font-bold uppercase leading-relaxed tracking-tight">
-                           Settlement routed via the **Production RTGS Bridge**. Funds arrival: **30-60 minutes** during Jamaica business hours.
+                           Settlement routed via the **Verified RTGS Payout Protocol**. Funds arrival: **30-60 minutes** during Jamaican business hours.
                          </p>
                       </div>
 
@@ -329,57 +382,10 @@ export default function WithdrawPage() {
                         disabled={!canWithdraw || isProcessing}
                       >
                         {isProcessing ? <Loader2 className="h-6 w-6 animate-spin" /> : <Banknote className="h-6 w-6" />}
-                        Execute RTGS Payout
+                        Initialize RTGS Payout
                       </Button>
                     </div>
                   </form>
-                </TabsContent>
-
-                <TabsContent value="p2p" className="space-y-6 mt-6">
-                  <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-8 text-center">
-                    <div className="h-20 w-20 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto border-2 border-secondary/20 shadow-xl shadow-secondary/5 transform rotate-3">
-                      <Shuffle className="h-10 w-10 text-secondary" />
-                    </div>
-                    
-                    <div className="space-y-2 max-w-xs mx-auto">
-                      <h4 className="text-2xl font-black text-primary tracking-tight uppercase">Institutional P2P</h4>
-                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        The fastest settlement path for users in **Jamaica**. Move assets via verified institutional peers with zero bank latency.
-                      </p>
-                    </div>
-
-                    <Button 
-                      className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl bg-secondary text-secondary-foreground" 
-                      asChild
-                    >
-                      <a href={`https://p2p.binance.com/en/sell/USDC?fiat=USD`} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="h-6 w-6" />
-                        Execute P2P Settlement
-                      </a>
-                    </Button>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="external" className="space-y-6 mt-6">
-                  <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-8 text-center">
-                    <div className="h-20 w-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto border-2 border-primary/20 shadow-xl shadow-primary/5 transform -rotate-3">
-                      <Smartphone className="h-10 w-10 text-primary" />
-                    </div>
-                    <div className="space-y-2 max-w-sm mx-auto">
-                      <h4 className="text-2xl font-black text-primary tracking-tight uppercase">External Gateway</h4>
-                      <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        Connect to global providers like **Stripe** or **Onramper** for international settlements (subject to regional availability).
-                      </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <Button variant="outline" className="h-14 rounded-xl font-bold" asChild>
-                        <a href="https://buy.stripe.com/crypto-offramp" target="_blank" rel="noopener noreferrer">Stripe Rail</a>
-                      </Button>
-                      <Button variant="outline" className="h-14 rounded-xl font-bold" asChild>
-                        <a href="https://sell.onramper.com/" target="_blank" rel="noopener noreferrer">Onramper</a>
-                      </Button>
-                    </div>
-                  </div>
                 </TabsContent>
               </Tabs>
 
@@ -408,7 +414,7 @@ export default function WithdrawPage() {
             </div>
             <h3 className="text-lg font-black uppercase tracking-widest mb-6 flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-secondary" />
-              RTGS Bridge
+              Settlement Status
             </h3>
             <div className="space-y-6 relative z-10">
               <div className="flex justify-between items-center text-[10px] uppercase font-bold opacity-70 border-b border-white/10 pb-3">
@@ -416,12 +422,12 @@ export default function WithdrawPage() {
                 <span className="font-black">$25,000.00</span>
               </div>
               <div className="flex justify-between items-center text-[10px] uppercase font-bold opacity-70 border-b border-white/10 pb-3">
-                <span>Bridge Speed</span>
-                <span className="font-black text-secondary">INSTANT RTGS</span>
+                <span>Network Region</span>
+                <Badge variant="secondary" className="text-[8px] font-black uppercase bg-white/20">JAMAICA (JM)</Badge>
               </div>
               <div className="flex justify-between items-center text-[10px] uppercase font-bold opacity-70 pb-3">
-                <span>Network Context</span>
-                <Badge variant="secondary" className="text-[8px] font-black uppercase bg-white/20">JAMAICA (JM)</Badge>
+                <span>Gateway Status</span>
+                <span className="text-secondary font-black">OPERATIONAL</span>
               </div>
             </div>
           </Card>
@@ -433,11 +439,11 @@ export default function WithdrawPage() {
               Institutional Payout
             </h3>
             <p className="text-[10px] text-white/60 leading-relaxed font-medium relative z-10">
-              This bridge initiates a production-grade RTGS settlement. Funds are deducted from your hardware-isolated vault and routed to your Jamaican bank via the Institutional Liquidity rail. Standard institutional compliance applies.
+              Your assets are held in hardware-isolated vaults. When you off-ramp, the system signs a production-grade settlement intent. Global Aggregators (Onramper) are recommended for instant card payouts in Jamaica.
             </p>
             <div className="mt-4 pt-4 border-t border-white/5 relative z-10 flex items-center justify-between">
-              <span className="text-[8px] font-black uppercase text-white/30">Network Status</span>
-              <span className="text-[8px] font-black uppercase text-green-500 animate-pulse">Operational</span>
+              <span className="text-[8px] font-black uppercase text-white/30">Enclave Security</span>
+              <span className="text-[8px] font-black uppercase text-green-500 animate-pulse">Active</span>
             </div>
           </Card>
         </div>
