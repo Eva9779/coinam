@@ -7,27 +7,26 @@ import {
   ShieldCheck, 
   Activity,
   Zap,
-  CreditCard,
   Sparkles,
-  ChevronRight,
   RefreshCw,
-  Lock,
   Bot,
   BrainCircuit,
   Terminal,
-  BarChart3,
   TrendingUp,
   Briefcase,
-  Landmark
+  History,
+  ArrowUpRight,
+  ArrowDownLeft,
+  ChevronRight
 } from "lucide-react";
-import { useWalletStore } from "@/lib/store";
+import { useWalletStore, Transaction } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { INITIAL_MARKET_DATA } from "@/lib/data";
 
 export default function Dashboard() {
-  const { assets, stockAssets, transactions, initialized, botActive, stockBotActive, botLogs, isAnalyzing, totalBotEarnings } = useWalletStore();
+  const { assets, stockAssets, transactions, initialized, botActive, stockBotActive, botLogs, totalBotEarnings } = useWalletStore();
   const [marketData, setMarketData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -47,7 +46,6 @@ export default function Dashboard() {
     setLoading(true);
     try {
       const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false');
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const data = await res.json();
       if (Array.isArray(data)) setMarketData(data);
     } catch (err) {
@@ -72,21 +70,21 @@ export default function Dashboard() {
   if (!initialized || !mounted) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary"></div>
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-center">Synchronizing Production Wallet...</p>
+        <Loader2 className="h-10 w-10 animate-spin text-primary" />
+        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-center">Syncing Production Session...</p>
       </div>
     );
   }
   
   return (
-    <div className="space-y-6 sm:space-y-8 max-w-7xl mx-auto pb-10">
+    <div className="space-y-8 max-w-7xl mx-auto pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-primary flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-secondary" />
-            Antigravity Dashboard
+          <h2 className="text-3xl font-bold tracking-tight text-primary flex items-center gap-3">
+            <Sparkles className="h-8 w-8 text-secondary" />
+            Institutional Ledger
           </h2>
-          <p className="text-muted-foreground text-xs font-medium uppercase tracking-tight">Mainnet & Equity Session Verified</p>
+          <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Mainnet & Equity Protocol Active</p>
         </div>
         <div className="flex items-center gap-3">
           {(botActive || stockBotActive) && (
@@ -102,42 +100,45 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 sm:gap-6">
-        <Card className="shadow-sm border-primary/10 rounded-2xl md:col-span-1">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-              <Briefcase className="h-3 w-3 text-primary" />
-              Total Assets
-            </CardTitle>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <Card className="lg:col-span-1 shadow-2xl border-primary/5 bg-primary text-white rounded-[2rem] overflow-hidden relative">
+          <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none">
+            <Briefcase className="h-32 w-32" />
+          </div>
+          <CardHeader className="pb-2 relative z-10">
+            <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Unified Net Worth</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-black tracking-tight text-primary">
+          <CardContent className="relative z-10">
+            <div className="text-4xl font-black tracking-tighter">
               ${liveTotalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <p className="text-[9px] font-bold text-muted-foreground mt-1 uppercase">Unified Portfolio Valuation</p>
+            <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
+               <span className="text-[9px] font-bold uppercase opacity-60">Strategy Yield</span>
+               <span className="text-sm font-black text-secondary">${totalBotEarnings.toFixed(2)}</span>
+            </div>
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-3 shadow-sm border-primary/10 overflow-hidden rounded-2xl">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-            <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-              <TrendingUp className="h-3 w-3 text-secondary" />
-              Institutional Market Highlights
-            </CardTitle>
+        <Card className="lg:col-span-3 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden">
+          <CardHeader className="pb-4">
+             <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                <TrendingUp className="h-3 w-3 text-secondary" />
+                Live Market Pulse
+             </CardTitle>
           </CardHeader>
-          <CardContent className="flex items-center gap-8 overflow-x-auto pb-2 no-scrollbar">
+          <CardContent className="flex items-center gap-12 overflow-x-auto no-scrollbar pb-2">
             {loading ? (
               <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase animate-pulse">
                 <RefreshCw className="h-3 w-3 animate-spin" /> Synchronizing...
               </div>
-            ) : marketData.slice(0, 4).map((item) => (
-              <div key={item.id} className="flex items-center gap-3 shrink-0">
-                <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center font-black text-[10px] uppercase border overflow-hidden">
+            ) : marketData.slice(0, 5).map((item) => (
+              <div key={item.id} className="flex items-center gap-4 shrink-0">
+                <div className="h-10 w-10 rounded-full bg-muted border overflow-hidden">
                   <img src={item.image} alt={item.symbol} className="h-full w-full object-cover" />
                 </div>
                 <div>
-                  <div className="text-xs font-black">${item.current_price.toLocaleString()}</div>
-                  <div className={cn("text-[9px] font-bold uppercase", item.price_change_percentage_24h >= 0 ? "text-green-600" : "text-red-600")}>
+                  <div className="text-sm font-black">${item.current_price.toLocaleString()}</div>
+                  <div className={cn("text-[10px] font-bold uppercase", item.price_change_percentage_24h >= 0 ? "text-green-600" : "text-red-600")}>
                     {item.price_change_percentage_24h >= 0 ? '+' : ''}{item.price_change_percentage_24h?.toFixed(2)}%
                   </div>
                 </div>
@@ -147,71 +148,103 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8">
-        <div className="space-y-4">
-          <h3 className="text-lg font-black flex items-center gap-2 text-primary px-1">
-            <Briefcase className="h-5 w-5 text-secondary" />
-            Equity & Cryptography
-          </h3>
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        <div className="xl:col-span-2 space-y-6">
+          <div className="flex items-center justify-between px-2">
+            <h3 className="text-lg font-black text-primary flex items-center gap-2">
+              <History className="h-5 w-5 text-secondary" />
+              Recent Network Activity
+            </h3>
+            <Button variant="ghost" size="sm" asChild className="text-[10px] font-black uppercase tracking-widest gap-1">
+               <Link href="/transactions">View Full Ledger <ChevronRight className="h-3 w-3" /></Link>
+            </Button>
+          </div>
+          
           <div className="grid gap-3">
-            {assets.map((asset) => (
-              <Card key={asset.id} className="hover:border-secondary transition-all cursor-pointer shadow-sm border-primary/5 rounded-2xl">
-                <CardContent className="p-5 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-xl bg-primary/5 flex items-center justify-center font-black text-xs text-primary border uppercase">
-                      {asset.currency}
-                    </div>
-                    <div>
-                      <div className="font-bold text-sm">{asset.currency} Wallet</div>
-                      <div className="text-xs text-muted-foreground font-medium">{asset.amount.toFixed(4)} {asset.currency}</div>
-                    </div>
-                  </div>
-                  <div className="text-right font-bold text-primary">${asset.fiatValueUSD.toLocaleString()}</div>
+            {transactions.length > 0 ? transactions.slice(0, 5).map((tx) => (
+              <Card key={tx.id} className="shadow-sm border-primary/5 hover:border-secondary/20 transition-all rounded-2xl overflow-hidden">
+                <CardContent className="p-4 flex items-center justify-between">
+                   <div className="flex items-center gap-4">
+                      <div className={cn(
+                        "h-12 w-12 rounded-xl flex items-center justify-center border-2",
+                        tx.type === 'receive' ? "bg-green-500/10 text-green-600 border-green-500/20" : 
+                        tx.type === 'send' ? "bg-blue-500/10 text-blue-600 border-blue-500/20" : "bg-purple-500/10 text-purple-600 border-purple-500/20"
+                      )}>
+                         {tx.type === 'receive' ? <ArrowDownLeft className="h-5 w-5" /> : 
+                          tx.type === 'send' ? <ArrowUpRight className="h-5 w-5" /> : <Zap className="h-5 w-5" />}
+                      </div>
+                      <div>
+                        <div className="font-bold text-sm">{tx.description}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">
+                          {tx.currency} • {new Date(tx.timestamp).toLocaleDateString()}
+                        </div>
+                      </div>
+                   </div>
+                   <div className="text-right">
+                      <div className={cn("font-black text-sm", tx.type === 'receive' ? "text-green-600" : "text-primary")}>
+                        {tx.type === 'receive' ? '+' : '-'}{tx.amount.toFixed(4)} {tx.currency.split(' ')[0]}
+                      </div>
+                      <div className="text-[10px] font-bold text-muted-foreground">${tx.fiatValueUSD.toLocaleString()}</div>
+                   </div>
                 </CardContent>
               </Card>
-            ))}
-            {stockAssets.map((stock) => (
-              <Card key={stock.id} className="hover:border-secondary transition-all cursor-pointer shadow-sm border-primary/5 rounded-2xl">
-                <CardContent className="p-5 flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-xl bg-secondary/5 flex items-center justify-center font-black text-xs text-secondary border uppercase">
-                      {stock.type === 'stock' ? 'STK' : 'BND'}
-                    </div>
-                    <div>
-                      <div className="font-bold text-sm">{stock.name} ({stock.symbol})</div>
-                      <div className="text-xs text-muted-foreground font-medium">{stock.shares} units</div>
-                    </div>
-                  </div>
-                  <div className="text-right font-bold text-primary">${stock.totalValue.toLocaleString()}</div>
-                </CardContent>
-              </Card>
-            ))}
+            )) : (
+              <div className="py-20 text-center border-2 border-dashed rounded-[2rem] opacity-30">
+                 <History className="h-12 w-12 mx-auto mb-4" />
+                 <p className="text-xs font-black uppercase tracking-widest">No activity detected on ledger</p>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="space-y-4">
-          <h3 className="text-lg font-black flex items-center gap-2 text-primary px-1">
+        <div className="space-y-6">
+          <h3 className="text-lg font-black text-primary flex items-center gap-2 px-2">
             <Terminal className="h-5 w-5 text-secondary" />
-            Quantum Intelligence Feed
+            AI Strategy Feed
           </h3>
-          <Card className="shadow-sm border-primary/5 overflow-hidden rounded-[2rem] bg-slate-950 text-slate-100 min-h-[300px]">
-            <CardContent className="p-6 space-y-3 font-mono text-xs max-h-[400px] overflow-y-auto no-scrollbar">
-              {botLogs.slice(-5).map((log, i) => (
-                <div key={i} className={cn("flex gap-2", log.type === 'success' ? "text-green-400" : log.type === 'warning' ? "text-amber-400" : "text-blue-300")}>
-                  <span>[{new Date(log.timestamp).toLocaleTimeString()}]</span>
-                  <span>{log.msg}</span>
-                </div>
-              ))}
-              {botLogs.length === 0 && (
-                <div className="py-12 text-center opacity-30 flex flex-col items-center">
-                  <Bot className="h-8 w-8 mb-2" />
-                  <p className="uppercase tracking-widest text-[10px]">Awaiting signals</p>
-                </div>
-              )}
-            </CardContent>
+          <Card className="shadow-2xl border-none bg-slate-950 text-white rounded-[2rem] overflow-hidden min-h-[400px]">
+             <CardHeader className="border-b border-white/10">
+                <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Real-Time Analysis</CardTitle>
+             </CardHeader>
+             <CardContent className="p-6 space-y-4 font-mono text-[10px] max-h-[450px] overflow-y-auto no-scrollbar">
+                {botLogs.slice(-10).map((log, i) => (
+                  <div key={i} className={cn(
+                    "flex gap-2 leading-relaxed",
+                    log.type === 'success' ? "text-green-400" : log.type === 'warning' ? "text-amber-400" : "text-blue-300"
+                  )}>
+                    <span className="opacity-30 shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+                    <span>{log.msg}</span>
+                  </div>
+                ))}
+                {botLogs.length === 0 && (
+                  <div className="py-20 text-center opacity-20 flex flex-col items-center gap-4">
+                    <Bot className="h-10 w-10" />
+                    <p className="uppercase font-black tracking-widest">Awaiting Alpha Signals</p>
+                  </div>
+                )}
+             </CardContent>
           </Card>
         </div>
       </div>
     </div>
+  );
+}
+
+function Loader2(props: any) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      {...props}
+    >
+      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+    </svg>
   );
 }
