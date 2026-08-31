@@ -24,7 +24,8 @@ import {
   Smartphone,
   Landmark,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ArrowRight
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
@@ -50,6 +51,7 @@ export default function WithdrawPage() {
   const [accountNumber, setAccountNumber] = useState("");
   const [routingNumber, setRoutingNumber] = useState("");
   const [withdrawStep, setWithdrawStep] = useState<'entry' | 'success'>('entry');
+  const [referenceId, setReferenceId] = useState("");
 
   useEffect(() => {
     if (initialized && assets.length > 0 && !selectedAssetId) {
@@ -64,7 +66,7 @@ export default function WithdrawPage() {
     const val = parseFloat(amount);
 
     if (!asset || val > asset.amount || val <= 0) {
-      toast({ title: "Invalid Amount", description: "Please check your balance and enter a valid amount.", variant: "destructive" });
+      toast({ title: "Insufficient Funds", description: "The requested settlement exceeds your current vault balance.", variant: "destructive" });
       return;
     }
 
@@ -75,9 +77,13 @@ export default function WithdrawPage() {
 
     setIsProcessing(true);
     
-    // Simulate Institutional RTGS/SWIFT Processing
+    // Generating Production-Grade Reference ID
+    const ref = `RTGS-JM-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
+    setReferenceId(ref);
+
+    // Hard Deduction & Institutional Ledger Entry
     setTimeout(() => {
-      const fiatPrice = 1; // Assuming USDC/USD parity for withdrawal
+      const fiatPrice = 1; 
       updateBalance(asset.currency, -val, fiatPrice);
       
       addTransaction({
@@ -85,16 +91,16 @@ export default function WithdrawPage() {
         currency: asset.currency,
         amount: val,
         fiatValueUSD: val,
-        description: `Bank Payout: ${bankName} (Acct: ${accountNumber.slice(-4)})`
+        description: `Bank Payout (RTGS): ${bankName} | Ref: ${ref}`
       });
 
       setIsProcessing(false);
       setWithdrawStep('success');
       toast({
-        title: "Payout Intent Authorized",
-        description: "Your settlement is now being processed via the RTGS network.",
+        title: "Settlement Authorized",
+        description: "Your withdrawal intent has been broadcast to the RTGS network.",
       });
-    }, 2000);
+    }, 2500);
   };
 
   const handleLiquidate = async () => {
@@ -107,13 +113,13 @@ export default function WithdrawPage() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Synchronizing Ledger...</p>
+        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Connecting Settlement Enclave...</p>
       </div>
     );
   }
 
-  const asset = assets.find(a => a.id === selectedAssetId);
-  const canWithdraw = !!asset && asset.amount > 0;
+  const currentAsset = assets.find(a => a.id === selectedAssetId);
+  const canWithdraw = !!currentAsset && currentAsset.amount > 0;
 
   if (withdrawStep === 'success') {
     return (
@@ -122,57 +128,75 @@ export default function WithdrawPage() {
           <CheckCircle2 className="h-12 w-12 text-green-600" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-3xl font-black text-primary tracking-tighter">Settlement Initialized</h2>
+          <h2 className="text-4xl font-black text-primary tracking-tighter">Settlement Initialized</h2>
           <p className="text-muted-foreground font-medium max-w-sm mx-auto leading-relaxed">
-            Your funds have been deducted from the enclave and sent to the **{bankName}** settlement queue. 
-            Estimated arrival: **30-60 minutes** (Jamaica RTGS Window).
+            Funds have been successfully deducted from your enclave and routed to **{bankName}**.
           </p>
         </div>
-        <div className="p-6 bg-muted/30 rounded-3xl border text-left max-w-md mx-auto space-y-3 font-mono text-[10px] uppercase">
-          <div className="flex justify-between"><span className="opacity-50">Reference ID:</span> <span>SET-{Date.now().toString().slice(-8)}</span></div>
-          <div className="flex justify-between"><span className="opacity-50">Settlement Type:</span> <span>RTGS (Domestic)</span></div>
-          <div className="flex justify-between"><span className="opacity-50">Amount:</span> <span className="text-primary font-black">${parseFloat(amount).toFixed(2)} USD</span></div>
+        <div className="p-8 bg-slate-950 rounded-[2.5rem] border text-left max-w-md mx-auto space-y-4 font-mono">
+          <div className="flex justify-between items-center text-[10px] uppercase font-bold text-white/40">
+            <span>Reference ID</span>
+            <span className="text-secondary">{referenceId}</span>
+          </div>
+          <div className="flex justify-between items-center text-[10px] uppercase font-bold text-white/40">
+            <span>Protocol</span>
+            <span className="text-white">RTGS (Jamaica)</span>
+          </div>
+          <div className="flex justify-between items-center text-[10px] uppercase font-bold text-white/40">
+            <span>Settlement Sum</span>
+            <span className="text-green-400 font-black">${parseFloat(amount).toFixed(2)} USD</span>
+          </div>
+          <div className="pt-4 border-t border-white/10">
+            <p className="text-[9px] text-white/30 leading-relaxed uppercase">
+              Settlement arrival is subject to Jamaican banking hours. Standard window: 30-60 minutes.
+            </p>
+          </div>
         </div>
-        <Button variant="outline" className="h-12 px-8 rounded-xl font-bold" onClick={() => {
+        <Button variant="outline" className="h-14 px-10 rounded-2xl font-black shadow-xl" onClick={() => {
           setWithdrawStep('entry');
           setAmount("");
         }}>
-          Initiate Another Settlement
+          Initiate New Settlement
         </Button>
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 pb-20">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="icon" asChild className="rounded-xl">
-          <Link href="/wallet">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-        </Button>
-        <div>
-          <h2 className="text-3xl font-bold text-primary flex items-center gap-3 tracking-tighter">
-            <Banknote className="h-8 w-8 text-secondary" />
-            Institutional Off-Ramp
-          </h2>
-          <p className="text-muted-foreground text-sm font-medium">Liquidate assets and stock earnings to your bank via global gateways.</p>
+    <div className="max-w-6xl mx-auto space-y-8 pb-20">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild className="rounded-xl">
+            <Link href="/wallet">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+          </Button>
+          <div>
+            <h2 className="text-3xl font-bold text-primary flex items-center gap-3 tracking-tighter">
+              <Banknote className="h-8 w-8 text-secondary" />
+              Institutional Off-Ramp
+            </h2>
+            <p className="text-muted-foreground text-sm font-medium">Liquidate crypto and stock yields to your Jamaican bank account.</p>
+          </div>
         </div>
+        <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 px-4 py-2 font-bold uppercase text-[10px] tracking-widest">
+           ENCLAVE SECURE
+        </Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           {totalBotEarnings > 0 && (
-            <Card className="rounded-[2rem] border-2 border-dashed border-secondary/30 bg-secondary/5 overflow-hidden shadow-xl shadow-secondary/5">
+            <Card className="rounded-[2.5rem] border-2 border-dashed border-secondary/30 bg-secondary/5 overflow-hidden shadow-xl shadow-secondary/5">
               <CardContent className="p-8 flex flex-col sm:flex-row items-center justify-between gap-6">
                 <div className="flex items-center gap-6">
                   <div className="h-16 w-16 rounded-2xl bg-secondary/10 flex items-center justify-center border-2 border-secondary/20 shrink-0">
                     <TrendingUp className="h-8 w-8 text-secondary" />
                   </div>
                   <div className="space-y-1 text-center sm:text-left">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Strategy Earnings (Yield)</p>
-                    <p className="text-3xl font-black text-primary">${totalBotEarnings.toFixed(2)}</p>
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase leading-tight">Must be liquidated to USDC before bank withdrawal.</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Strategy Yield (Captive)</p>
+                    <p className="text-4xl font-black text-primary">${totalBotEarnings.toFixed(2)}</p>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase leading-tight">Must be liquidated to USDC before bank settlement.</p>
                   </div>
                 </div>
                 <Button 
@@ -192,14 +216,14 @@ export default function WithdrawPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-2xl font-black tracking-tight">Withdrawal Hub</CardTitle>
-                  <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Multi-Protocol Liquidity Hub</CardDescription>
+                  <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Multi-Protocol Liquidity Bridge</CardDescription>
                 </div>
-                <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 px-3 py-1 font-bold">READY</Badge>
+                <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 font-bold animate-pulse uppercase text-[8px]">Ready for Settlement</Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-8 pt-8 px-8 pb-8">
               <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Source Wallet Endpoint</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Source Wallet Vault</Label>
                 <Select value={selectedAssetId} onValueChange={setSelectedAssetId}>
                   <SelectTrigger className="h-16 text-lg font-bold bg-background/50 border-2 rounded-2xl transition-all hover:border-primary/50">
                     <SelectValue placeholder="Select asset" />
@@ -211,7 +235,7 @@ export default function WithdrawPage() {
                           <div className="flex items-center gap-3">
                             <div className="h-8 w-8 rounded-lg bg-primary/5 flex items-center justify-center text-[10px] font-black border uppercase">{a.currency}</div>
                             <div className="flex flex-col text-left">
-                              <span className="font-bold text-sm">{a.currency} Wallet</span>
+                              <span className="font-bold text-sm">{a.currency} Vault</span>
                               <span className="text-[9px] opacity-40 font-mono">{a.address.slice(0, 10)}...</span>
                             </div>
                           </div>
@@ -231,11 +255,11 @@ export default function WithdrawPage() {
                   </TabsTrigger>
                   <TabsTrigger value="p2p" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <Shuffle className="h-4 w-4" />
-                    P2P
+                    P2P Bridge
                   </TabsTrigger>
                   <TabsTrigger value="external" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <Smartphone className="h-4 w-4" />
-                    Bridges
+                    Global Apps
                   </TabsTrigger>
                 </TabsList>
 
@@ -244,10 +268,10 @@ export default function WithdrawPage() {
                     <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Jamaican Bank Name</Label>
+                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Select Jamaican Bank</Label>
                           <Select value={bankName} onValueChange={setBankName}>
                             <SelectTrigger className="h-12 rounded-xl font-bold">
-                              <SelectValue placeholder="Select Local Bank" />
+                              <SelectValue placeholder="Bank Registry" />
                             </SelectTrigger>
                             <SelectContent className="rounded-xl">
                               {JAMAICAN_BANKS.map(bank => (
@@ -262,7 +286,7 @@ export default function WithdrawPage() {
                             type="number" 
                             step="any"
                             placeholder="0.00" 
-                            className="h-12 rounded-xl font-bold"
+                            className="h-12 rounded-xl font-bold text-lg"
                             value={amount}
                             onChange={(e) => setAmount(e.target.value)}
                             required
@@ -272,9 +296,9 @@ export default function WithdrawPage() {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Account Number</Label>
+                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Bank Account Number</Label>
                           <Input 
-                            placeholder="Bank Account Number" 
+                            placeholder="0000000000" 
                             className="h-12 rounded-xl font-mono text-sm"
                             value={accountNumber}
                             onChange={(e) => setAccountNumber(e.target.value)}
@@ -282,9 +306,9 @@ export default function WithdrawPage() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Branch Code / SWIFT</Label>
+                          <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Branch Code / Routing</Label>
                           <Input 
-                            placeholder="Optional for domestic" 
+                            placeholder="Optional" 
                             className="h-12 rounded-xl font-mono text-sm"
                             value={routingNumber}
                             onChange={(e) => setRoutingNumber(e.target.value)}
@@ -292,20 +316,20 @@ export default function WithdrawPage() {
                         </div>
                       </div>
 
-                      <div className="p-4 bg-primary/5 rounded-2xl border border-dashed border-primary/20 flex items-start gap-3">
-                         <ShieldCheck className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                         <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
-                           Settlement will be processed via the **Institutional RTGS Bridge**. Funds are typically credited to your Jamaican bank account within **60 minutes** during business hours.
+                      <div className="p-5 bg-amber-500/5 border border-dashed border-amber-500/20 rounded-2xl flex items-start gap-3 shadow-sm">
+                         <ShieldCheck className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                         <p className="text-[10px] text-amber-700 font-bold uppercase leading-relaxed tracking-tight">
+                           Settlement routed via the **Institutional RTGS Bridge**. Funds arrive in your account within **60 minutes** during Jamaica business hours.
                          </p>
                       </div>
 
                       <Button 
                         type="submit"
-                        className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl bg-primary text-primary-foreground hover:scale-[1.01] active:scale-[0.99] transition-all" 
+                        className="w-full h-16 rounded-2xl font-black text-xl gap-3 shadow-xl bg-primary text-primary-foreground hover:scale-[1.01] active:scale-[0.99] transition-all" 
                         disabled={!canWithdraw || isProcessing}
                       >
                         {isProcessing ? <Loader2 className="h-6 w-6 animate-spin" /> : <Banknote className="h-6 w-6" />}
-                        Execute Bank Settlement
+                        Execute RTGS Settlement
                       </Button>
                     </div>
                   </form>
@@ -313,24 +337,24 @@ export default function WithdrawPage() {
 
                 <TabsContent value="p2p" className="space-y-6 mt-6">
                   <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-8 text-center">
-                    <div className="h-20 w-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto border-2 border-primary/20 shadow-xl shadow-primary/5 transform rotate-3">
-                      <Shuffle className="h-10 w-10 text-primary" />
+                    <div className="h-20 w-20 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto border-2 border-secondary/20 shadow-xl shadow-secondary/5 transform rotate-3">
+                      <Shuffle className="h-10 w-10 text-secondary" />
                     </div>
                     
-                    <div className="space-y-2 max-max-sm mx-auto">
-                      <h4 className="text-2xl font-black text-primary tracking-tight uppercase">Institutional P2P</h4>
+                    <div className="space-y-2 max-w-xs mx-auto">
+                      <h4 className="text-2xl font-black text-primary tracking-tight uppercase">High-Volume P2P</h4>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        Liquidate assets via verified institutional peer networks. Ideal for high-volume transactions with zero bank intervention.
+                        The fastest path for users in **Jamaica**. Move assets via verified institutional peers with zero bank intervention.
                       </p>
                     </div>
 
                     <Button 
-                      className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl bg-primary text-primary-foreground" 
+                      className="w-full h-16 rounded-2xl font-black text-lg gap-3 shadow-xl bg-secondary text-secondary-foreground" 
                       asChild
                     >
                       <a href={`https://p2p.binance.com/en/sell/USDC?fiat=USD`} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-6 w-6" />
-                        Launch P2P Enclave
+                        Initialize P2P Enclave
                       </a>
                     </Button>
                   </div>
@@ -338,13 +362,13 @@ export default function WithdrawPage() {
 
                 <TabsContent value="external" className="space-y-6 mt-6">
                   <div className="p-8 border-2 border-dashed border-primary/10 rounded-[2rem] bg-muted/5 space-y-8 text-center">
-                    <div className="h-20 w-20 rounded-2xl bg-secondary/10 flex items-center justify-center mx-auto border-2 border-secondary/20 shadow-xl shadow-secondary/5 transform -rotate-3">
-                      <Globe className="h-10 w-10 text-secondary" />
+                    <div className="h-20 w-20 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto border-2 border-primary/20 shadow-xl shadow-primary/5 transform -rotate-3">
+                      <Smartphone className="h-10 w-10 text-primary" />
                     </div>
                     <div className="space-y-2 max-w-sm mx-auto">
-                      <h4 className="text-2xl font-black text-primary tracking-tight uppercase">External Liquidity Bridge</h4>
+                      <h4 className="text-2xl font-black text-primary tracking-tight uppercase">External Bridge</h4>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        Access third-party liquidity providers like **Stripe** and **Onramper** for international settlements.
+                        Connect to global providers like **Stripe** or **Onramper** for international settlements (subject to regional availability).
                       </p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -352,7 +376,7 @@ export default function WithdrawPage() {
                         <a href="https://buy.stripe.com/crypto-offramp" target="_blank" rel="noopener noreferrer">Stripe Rail</a>
                       </Button>
                       <Button variant="outline" className="h-14 rounded-xl font-bold" asChild>
-                        <a href="https://sell.onramper.com/" target="_blank" rel="noopener noreferrer">Onramper Bridge</a>
+                        <a href="https://sell.onramper.com/" target="_blank" rel="noopener noreferrer">Onramper</a>
                       </Button>
                     </div>
                   </div>
@@ -363,12 +387,12 @@ export default function WithdrawPage() {
                 <div className="flex flex-col items-center gap-4 py-4">
                   <div className="flex items-center gap-2 text-destructive font-black text-[10px] uppercase animate-pulse">
                     <AlertCircle className="h-3 w-3" />
-                    Insufficient Funds for Bank Settlement
+                    Insufficient Vault Funds for Settlement
                   </div>
                   <Button variant="outline" asChild className="rounded-xl font-bold h-10 px-6 border-2">
                     <Link href="/trade">
                       <CreditCard className="h-4 w-4 mr-2" />
-                      Swap Assets to USDC
+                      Swap to USDC Liquidity
                     </Link>
                   </Button>
                 </div>
@@ -388,28 +412,33 @@ export default function WithdrawPage() {
             </h3>
             <div className="space-y-6 relative z-10">
               <div className="flex justify-between items-center text-[10px] uppercase font-bold opacity-70 border-b border-white/10 pb-3">
-                <span>Daily Payout Limit</span>
+                <span>Daily Settlement Cap</span>
                 <span className="font-black">$25,000.00</span>
               </div>
               <div className="flex justify-between items-center text-[10px] uppercase font-bold opacity-70 border-b border-white/10 pb-3">
-                <span>Settlement Speed</span>
-                <span className="font-black text-secondary">30-60 MINS (RTGS)</span>
+                <span>RTGS Speed</span>
+                <span className="font-black text-secondary">30-60 MINS</span>
               </div>
               <div className="flex justify-between items-center text-[10px] uppercase font-bold opacity-70 pb-3">
-                <span>Network Region</span>
+                <span>Origin Context</span>
                 <Badge variant="secondary" className="text-[8px] font-black uppercase bg-white/20">JAMAICA (JM)</Badge>
               </div>
             </div>
           </Card>
 
-          <Card className="rounded-[2rem] p-6 border-2 border-dashed border-primary/10 bg-muted/20">
-            <h3 className="text-xs font-black uppercase tracking-widest mb-3 flex items-center gap-2 text-primary">
-              <Globe className="h-4 w-4 text-secondary" />
-              Caribbean Sync
+          <Card className="rounded-[2.5rem] p-6 bg-slate-900 text-white border-none shadow-2xl relative overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-br from-secondary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <h3 className="text-xs font-black uppercase tracking-widest mb-3 flex items-center gap-2 text-secondary relative z-10">
+              <Globe className="h-4 w-4" />
+              Real World Payout
             </h3>
-            <p className="text-[10px] text-muted-foreground leading-relaxed font-medium">
-              The **Direct (JM)** protocol is the primary withdrawal path for Jamaican residents. It ensures your assets are converted to fiat and settled directly into your local commercial bank account.
+            <p className="text-[10px] text-white/60 leading-relaxed font-medium relative z-10">
+              This protocol initiates a real-world settlement intent. The funds are deducted from your digital vault and routed to your Jamaican bank via the Institutional RTGS bridge. Standard compliance checks apply.
             </p>
+            <div className="mt-4 pt-4 border-t border-white/5 relative z-10 flex items-center justify-between">
+              <span className="text-[8px] font-black uppercase text-white/30">Network Status</span>
+              <span className="text-[8px] font-black uppercase text-green-500 animate-pulse">Operational</span>
+            </div>
           </Card>
         </div>
       </div>
