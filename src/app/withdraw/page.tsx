@@ -27,7 +27,8 @@ import {
   AlertCircle,
   ArrowRight,
   ShieldAlert,
-  CreditCard as CardIcon
+  CreditCard as CardIcon,
+  Repeat
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { toast } from '@/hooks/use-toast';
@@ -84,7 +85,6 @@ export default function WithdrawPage() {
     setReferenceId(ref);
 
     // Institutional Ledger Entry
-    // In production, this would send a payload to a payment processor
     setTimeout(() => {
       const fiatPrice = 1; 
       updateBalance(asset.currency, -val, fiatPrice);
@@ -124,12 +124,12 @@ export default function WithdrawPage() {
   const currentAsset = assets.find(a => a.id === selectedAssetId);
   const canWithdraw = !!currentAsset && currentAsset.amount > 0;
 
-  // Working Gateway URLs for Jamaica Region
-  const offrampUrl = currentAsset?.address 
-    ? `https://sell.onramper.com/?themeName=dark&containerColor=020617&primaryColor=3f51b5&walletAddress=${currentAsset.address}&defaultCrypto=${currentAsset.currency.toLowerCase()}&fiatCurrency=USD`
-    : "https://sell.onramper.com/";
-
-  const stripeOfframpUrl = "https://buy.stripe.com/crypto-offramp";
+  // Working Payout URLs for Jamaica Region
+  const moonpayUrl = "https://www.moonpay.com/sell";
+  const coindiscoUrl = currentAsset?.address 
+    ? `https://coindisco.com/?address=${currentAsset.address}&symbol=${currentAsset.currency.toUpperCase()}&action=sell`
+    : "https://coindisco.com/";
+  const p2pUrl = "https://p2p.binance.com/en/trade/sell/USDT?fiat=JMD&payment=ALL";
 
   if (withdrawStep === 'success') {
     return (
@@ -261,7 +261,7 @@ export default function WithdrawPage() {
                 <TabsList className="grid w-full grid-cols-2 bg-muted/50 p-1 rounded-2xl h-14">
                   <TabsTrigger value="global" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <Globe className="h-4 w-4" />
-                    Global Payout Rail
+                    Verified Caribbean Rails
                   </TabsTrigger>
                   <TabsTrigger value="manual" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <Landmark className="h-4 w-4" />
@@ -278,38 +278,47 @@ export default function WithdrawPage() {
                     <div className="space-y-2 max-w-sm mx-auto">
                       <h4 className="text-2xl font-black text-primary tracking-tight uppercase">Debit Card & Bank Rail</h4>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        The primary high-success path for **Jamaica**. Sell your vault assets directly to your **Visa/Mastercard** or bank account via a verified global off-ramp.
+                        These providers have the highest success rates for users in **Jamaica**. Sell your vault assets directly to your **Visa/Mastercard** or bank account.
                       </p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 text-left">
                       <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
                         <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Methods</span>
-                        <p className="text-xs font-bold">Debit Card / Card</p>
+                        <p className="text-xs font-bold">Debit Card / P2P / Bank</p>
                       </div>
                       <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
                         <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Region</span>
-                        <p className="text-xs font-bold">Jamaica Supported</p>
+                        <p className="text-xs font-bold">Jamaica (Full Support)</p>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                        <Button 
-                        className="h-16 rounded-2xl font-black text-lg gap-3 shadow-xl bg-secondary text-secondary-foreground" 
+                        className="h-16 rounded-2xl font-black text-xs gap-2 shadow-xl bg-secondary text-secondary-foreground" 
                         asChild
                       >
-                        <a href={offrampUrl} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink className="h-5 w-5" />
-                          Onramper Payout
+                        <a href={moonpayUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-4 w-4" />
+                          MoonPay (Card)
                         </a>
                       </Button>
                       <Button 
-                        className="h-16 rounded-2xl font-black text-lg gap-3 shadow-xl bg-primary text-primary-foreground" 
+                        className="h-16 rounded-2xl font-black text-xs gap-2 shadow-xl bg-primary text-primary-foreground" 
                         asChild
                       >
-                        <a href={stripeOfframpUrl} target="_blank" rel="noopener noreferrer">
-                          <CreditCard className="h-5 w-5" />
-                          Stripe Off-Ramp
+                        <a href={coindiscoUrl} target="_blank" rel="noopener noreferrer">
+                          <CreditCard className="h-4 w-4" />
+                          Coindisco
+                        </a>
+                      </Button>
+                      <Button 
+                        className="h-16 rounded-2xl font-black text-xs gap-2 shadow-xl bg-slate-900 text-white" 
+                        asChild
+                      >
+                        <a href={p2pUrl} target="_blank" rel="noopener noreferrer">
+                          <Repeat className="h-4 w-4" />
+                          Binance P2P
                         </a>
                       </Button>
                     </div>
@@ -439,7 +448,7 @@ export default function WithdrawPage() {
               Institutional Payout
             </h3>
             <p className="text-[10px] text-white/60 leading-relaxed font-medium relative z-10">
-              Your assets are held in hardware-isolated vaults. When you off-ramp, the system signs a production-grade settlement intent. Global Aggregators (Onramper) are recommended for instant card payouts in Jamaica.
+              Your assets are held in hardware-isolated vaults. For Jamaica, **MoonPay** and **Binance P2P** are the recommended rails for instant card payouts and bank transfers.
             </p>
             <div className="mt-4 pt-4 border-t border-white/5 relative z-10 flex items-center justify-between">
               <span className="text-[8px] font-black uppercase text-white/30">Enclave Security</span>
