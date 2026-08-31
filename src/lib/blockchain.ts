@@ -76,8 +76,14 @@ const ERC20_ABI = [
   },
 ] as const;
 
-// Redundant Institutional RPCs for high success rates in Jamaica
+/**
+ * Redundant Institutional RPC Mesh
+ * Aggregated node endpoints to ensure high-performance connectivity in Jamaica.
+ * Includes Coinbase, Cloudflare, Flashbots, and public gateways.
+ */
 const RPC_URLS = [
+  'https://cloudflare-eth.com',
+  'https://rpc.flashbots.net',
   'https://api.developer.coinbase.com/rpc/v1/mainnet/0TGjjV5EHjnHktxmAkRgECJwFYQa9AIV',
   'https://eth.llamarpc.com',
   'https://rpc.ankr.com/eth'
@@ -85,24 +91,33 @@ const RPC_URLS = [
 
 export const publicClient = createPublicClient({
   chain: mainnet,
-  transport: fallback(RPC_URLS.map(url => http(url))),
+  transport: fallback(RPC_URLS.map(url => http(url, { timeout: 10000 })), {
+    rank: true
+  }),
 });
 
 export async function getLiveBlockNumber() {
   try {
     return await publicClient.getBlockNumber();
   } catch (error) {
+    console.error("Block Sync Error:", error);
     return null;
   }
 }
 
+/**
+ * Fetches real-world balance from the Ethereum Mainnet.
+ * Throws errors explicitly to prevent '0' balance false-positives during network instability.
+ */
 export async function getLiveBalance(address: string) {
+  if (!address || !address.startsWith('0x')) return '0';
+  
   try {
-    if (!address || !address.startsWith('0x')) return '0';
     const balance = await publicClient.getBalance({ address: address as `0x${string}` });
     return formatEther(balance);
-  } catch (error) {
-    return '0';
+  } catch (error: any) {
+    console.error(`Balance Fetch Failure for ${address}:`, error.message);
+    throw new Error(`Mainnet Connection Interrupted. Could not verify balance.`);
   }
 }
 
