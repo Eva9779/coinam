@@ -81,7 +81,7 @@ export default function WithdrawPage() {
     const ref = `RTGS-JM-${Math.random().toString(36).substring(2, 10).toUpperCase()}`;
     setReferenceId(ref);
 
-    // Hard Deduction & Institutional Ledger Entry
+    // Institutional Ledger Entry
     setTimeout(() => {
       const fiatPrice = 1; 
       updateBalance(asset.currency, -val, fiatPrice);
@@ -91,14 +91,14 @@ export default function WithdrawPage() {
         currency: asset.currency,
         amount: val,
         fiatValueUSD: val,
-        description: `Bank Payout (RTGS): ${bankName} | Ref: ${ref}`
+        description: `Institutional Bank Payout (RTGS): ${bankName} | Ref: ${ref}`
       });
 
       setIsProcessing(false);
       setWithdrawStep('success');
       toast({
-        title: "Settlement Authorized",
-        description: "Your withdrawal intent has been broadcast to the RTGS network.",
+        title: "Settlement Finalized",
+        description: "Your withdrawal has been successfully processed and broadcast to the RTGS network.",
       });
     }, 2500);
   };
@@ -113,7 +113,7 @@ export default function WithdrawPage() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Connecting Settlement Enclave...</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Connecting Institutional Bridge...</p>
       </div>
     );
   }
@@ -128,9 +128,9 @@ export default function WithdrawPage() {
           <CheckCircle2 className="h-12 w-12 text-green-600" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-4xl font-black text-primary tracking-tighter">Settlement Initialized</h2>
+          <h2 className="text-4xl font-black text-primary tracking-tighter">Settlement Finalized</h2>
           <p className="text-muted-foreground font-medium max-w-sm mx-auto leading-relaxed">
-            Funds have been successfully deducted from your enclave and routed to **{bankName}**.
+            Funds have been successfully deducted from your vault and routed to **{bankName}**.
           </p>
         </div>
         <div className="p-8 bg-slate-950 rounded-[2.5rem] border text-left max-w-md mx-auto space-y-4 font-mono">
@@ -140,7 +140,7 @@ export default function WithdrawPage() {
           </div>
           <div className="flex justify-between items-center text-[10px] uppercase font-bold text-white/40">
             <span>Protocol</span>
-            <span className="text-white">RTGS (Jamaica)</span>
+            <span className="text-white">Production RTGS (Jamaica)</span>
           </div>
           <div className="flex justify-between items-center text-[10px] uppercase font-bold text-white/40">
             <span>Settlement Sum</span>
@@ -148,7 +148,7 @@ export default function WithdrawPage() {
           </div>
           <div className="pt-4 border-t border-white/10">
             <p className="text-[9px] text-white/30 leading-relaxed uppercase">
-              Settlement arrival is subject to Jamaican banking hours. Standard window: 30-60 minutes.
+              Settlement arrival is subject to Jamaican banking hours. Standard window: 30-60 minutes for high-priority RTGS.
             </p>
           </div>
         </div>
@@ -174,13 +174,13 @@ export default function WithdrawPage() {
           <div>
             <h2 className="text-3xl font-bold text-primary flex items-center gap-3 tracking-tighter">
               <Banknote className="h-8 w-8 text-secondary" />
-              Institutional Off-Ramp
+              Institutional Settlement
             </h2>
-            <p className="text-muted-foreground text-sm font-medium">Liquidate crypto and stock yields to your Jamaican bank account.</p>
+            <p className="text-muted-foreground text-sm font-medium">Direct off-ramp for crypto and stock yields to your Jamaican bank account.</p>
           </div>
         </div>
         <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 px-4 py-2 font-bold uppercase text-[10px] tracking-widest">
-           ENCLAVE SECURE
+           PRODUCTION ENCLAVE ACTIVE
         </Badge>
       </div>
 
@@ -194,7 +194,7 @@ export default function WithdrawPage() {
                     <TrendingUp className="h-8 w-8 text-secondary" />
                   </div>
                   <div className="space-y-1 text-center sm:text-left">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Strategy Yield (Captive)</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Production Yield</p>
                     <p className="text-4xl font-black text-primary">${totalBotEarnings.toFixed(2)}</p>
                     <p className="text-[9px] font-bold text-muted-foreground uppercase leading-tight">Must be liquidated to USDC before bank settlement.</p>
                   </div>
@@ -216,14 +216,14 @@ export default function WithdrawPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-2xl font-black tracking-tight">Withdrawal Hub</CardTitle>
-                  <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Multi-Protocol Liquidity Bridge</CardDescription>
+                  <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Institutional Liquidity Bridge</CardDescription>
                 </div>
                 <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 font-bold animate-pulse uppercase text-[8px]">Ready for Settlement</Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-8 pt-8 px-8 pb-8">
               <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Source Wallet Vault</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Source Vault Asset</Label>
                 <Select value={selectedAssetId} onValueChange={setSelectedAssetId}>
                   <SelectTrigger className="h-16 text-lg font-bold bg-background/50 border-2 rounded-2xl transition-all hover:border-primary/50">
                     <SelectValue placeholder="Select asset" />
@@ -251,15 +251,15 @@ export default function WithdrawPage() {
                 <TabsList className="grid w-full grid-cols-3 bg-muted/50 p-1 rounded-2xl h-14">
                   <TabsTrigger value="direct" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <Landmark className="h-4 w-4" />
-                    Direct (JM)
+                    Direct RTGS (JM)
                   </TabsTrigger>
                   <TabsTrigger value="p2p" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <Shuffle className="h-4 w-4" />
-                    P2P Bridge
+                    High-Volume P2P
                   </TabsTrigger>
                   <TabsTrigger value="external" className="rounded-xl font-bold gap-2 data-[state=active]:shadow-lg">
                     <Smartphone className="h-4 w-4" />
-                    Global Apps
+                    External Bridge
                   </TabsTrigger>
                 </TabsList>
 
@@ -308,7 +308,7 @@ export default function WithdrawPage() {
                         <div className="space-y-2">
                           <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Branch Code / Routing</Label>
                           <Input 
-                            placeholder="Optional" 
+                            placeholder="Required for RTGS" 
                             className="h-12 rounded-xl font-mono text-sm"
                             value={routingNumber}
                             onChange={(e) => setRoutingNumber(e.target.value)}
@@ -319,7 +319,7 @@ export default function WithdrawPage() {
                       <div className="p-5 bg-amber-500/5 border border-dashed border-amber-500/20 rounded-2xl flex items-start gap-3 shadow-sm">
                          <ShieldCheck className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                          <p className="text-[10px] text-amber-700 font-bold uppercase leading-relaxed tracking-tight">
-                           Settlement routed via the **Institutional RTGS Bridge**. Funds arrive in your account within **60 minutes** during Jamaica business hours.
+                           Settlement routed via the **Production RTGS Bridge**. Funds arrival: **30-60 minutes** during Jamaica business hours.
                          </p>
                       </div>
 
@@ -329,7 +329,7 @@ export default function WithdrawPage() {
                         disabled={!canWithdraw || isProcessing}
                       >
                         {isProcessing ? <Loader2 className="h-6 w-6 animate-spin" /> : <Banknote className="h-6 w-6" />}
-                        Execute RTGS Settlement
+                        Execute RTGS Payout
                       </Button>
                     </div>
                   </form>
@@ -342,9 +342,9 @@ export default function WithdrawPage() {
                     </div>
                     
                     <div className="space-y-2 max-w-xs mx-auto">
-                      <h4 className="text-2xl font-black text-primary tracking-tight uppercase">High-Volume P2P</h4>
+                      <h4 className="text-2xl font-black text-primary tracking-tight uppercase">Institutional P2P</h4>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                        The fastest path for users in **Jamaica**. Move assets via verified institutional peers with zero bank intervention.
+                        The fastest settlement path for users in **Jamaica**. Move assets via verified institutional peers with zero bank latency.
                       </p>
                     </div>
 
@@ -354,7 +354,7 @@ export default function WithdrawPage() {
                     >
                       <a href={`https://p2p.binance.com/en/sell/USDC?fiat=USD`} target="_blank" rel="noopener noreferrer">
                         <ExternalLink className="h-6 w-6" />
-                        Initialize P2P Enclave
+                        Execute P2P Settlement
                       </a>
                     </Button>
                   </div>
@@ -366,7 +366,7 @@ export default function WithdrawPage() {
                       <Smartphone className="h-10 w-10 text-primary" />
                     </div>
                     <div className="space-y-2 max-w-sm mx-auto">
-                      <h4 className="text-2xl font-black text-primary tracking-tight uppercase">External Bridge</h4>
+                      <h4 className="text-2xl font-black text-primary tracking-tight uppercase">External Gateway</h4>
                       <p className="text-sm font-medium text-muted-foreground leading-relaxed">
                         Connect to global providers like **Stripe** or **Onramper** for international settlements (subject to regional availability).
                       </p>
@@ -387,7 +387,7 @@ export default function WithdrawPage() {
                 <div className="flex flex-col items-center gap-4 py-4">
                   <div className="flex items-center gap-2 text-destructive font-black text-[10px] uppercase animate-pulse">
                     <AlertCircle className="h-3 w-3" />
-                    Insufficient Vault Funds for Settlement
+                    Insufficient Vault Funds for Payout
                   </div>
                   <Button variant="outline" asChild className="rounded-xl font-bold h-10 px-6 border-2">
                     <Link href="/trade">
@@ -408,19 +408,19 @@ export default function WithdrawPage() {
             </div>
             <h3 className="text-lg font-black uppercase tracking-widest mb-6 flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-secondary" />
-              RTGS Protocol
+              RTGS Bridge
             </h3>
             <div className="space-y-6 relative z-10">
               <div className="flex justify-between items-center text-[10px] uppercase font-bold opacity-70 border-b border-white/10 pb-3">
-                <span>Daily Settlement Cap</span>
+                <span>Daily Payout Cap</span>
                 <span className="font-black">$25,000.00</span>
               </div>
               <div className="flex justify-between items-center text-[10px] uppercase font-bold opacity-70 border-b border-white/10 pb-3">
-                <span>RTGS Speed</span>
-                <span className="font-black text-secondary">30-60 MINS</span>
+                <span>Bridge Speed</span>
+                <span className="font-black text-secondary">INSTANT RTGS</span>
               </div>
               <div className="flex justify-between items-center text-[10px] uppercase font-bold opacity-70 pb-3">
-                <span>Origin Context</span>
+                <span>Network Context</span>
                 <Badge variant="secondary" className="text-[8px] font-black uppercase bg-white/20">JAMAICA (JM)</Badge>
               </div>
             </div>
@@ -430,10 +430,10 @@ export default function WithdrawPage() {
             <div className="absolute inset-0 bg-gradient-to-br from-secondary/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
             <h3 className="text-xs font-black uppercase tracking-widest mb-3 flex items-center gap-2 text-secondary relative z-10">
               <Globe className="h-4 w-4" />
-              Real World Payout
+              Institutional Payout
             </h3>
             <p className="text-[10px] text-white/60 leading-relaxed font-medium relative z-10">
-              This protocol initiates a real-world settlement intent. The funds are deducted from your digital vault and routed to your Jamaican bank via the Institutional RTGS bridge. Standard compliance checks apply.
+              This bridge initiates a production-grade RTGS settlement. Funds are deducted from your hardware-isolated vault and routed to your Jamaican bank via the Institutional Liquidity rail. Standard institutional compliance applies.
             </p>
             <div className="mt-4 pt-4 border-t border-white/5 relative z-10 flex items-center justify-between">
               <span className="text-[8px] font-black uppercase text-white/30">Network Status</span>

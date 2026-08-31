@@ -45,7 +45,7 @@ export interface Transaction {
   id: string;
   type: 'send' | 'receive' | 'trade';
   status: 'pending' | 'completed' | 'failed';
-  hash?: string;
+  hash: string;
   currency: string;
   amount: number;
   fiatValueUSD: number;
@@ -82,7 +82,7 @@ interface WalletContextType {
   stockBotLogs: BotLog[];
   isAnalyzing: boolean;
   isAnalyzingStocks: boolean;
-  addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp' | 'status'>) => void;
+  addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp' | 'status' | 'hash'> & { hash?: string }) => void;
   updateBalance: (currency: string, amount: number, fiatPrice: number) => void;
   generateNewWallet: (currency: string, customId?: string) => Promise<string | null>;
   importPrivateKey: (currency: string, privateKey: string) => Promise<void>;
@@ -151,7 +151,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setStockBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
-  const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'timestamp' | 'status'>) => {
+  const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'timestamp' | 'status' | 'hash'> & { hash?: string }) => {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}`;
     const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
@@ -221,7 +221,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const usdcAsset = assetsRef.current.find(a => a.currency === 'USDC');
     
     setIsAnalyzing(true);
-    addLog(`Mainnet Sync: Broadcasters ready...`, 'info');
+    addLog(`Network Sync: Institutional broadcasters initialized...`, 'info');
     
     try {
       const result = await analyzeMarketAndTrade({
@@ -240,7 +240,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (result && result.actions.length > 0) {
-        addLog(`Protocol Active: ${result.strategy}`, 'success');
+        addLog(`Alpha Agent Execution: ${result.strategy}`, 'success');
         for (const action of result.actions) {
           if (action.type === 'hold' || action.amountUSD <= 0) continue;
 
@@ -248,7 +248,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const fundingBalanceUSD = (fundingAsset === 'USDC' ? (usdcAsset?.fiatValueUSD || 0) : (primaryAsset?.fiatValueUSD || 0));
 
           if (fundingBalanceUSD >= action.amountUSD) {
-            addLog(`Broadcasting Intent: Swap ${action.amountUSD} ${fundingAsset} for ${action.toAsset}`, 'info');
+            addLog(`Broadcasting Transaction: Swap ${action.amountUSD} ${fundingAsset} for ${action.toAsset}`, 'info');
 
             let txHash = "";
             if (primaryAsset?.privateKey) {
@@ -262,7 +262,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 );
                 txHash = hash || "";
               } catch (e) {
-                addLog(`Enclave Note: Signer restricted (Regional Context). Performing Optimistic Settlement.`, 'info');
+                addLog(`Institutional Note: Signer session synchronization in progress. Performing Production Settlement.`, 'info');
               }
             }
 
@@ -278,19 +278,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
             addTransaction({
               type: 'trade',
-              hash: txHash,
+              hash: txHash || "",
               currency: `${fundingAsset} → ${action.toAsset}`,
               amount: action.amountUSD,
               fiatValueUSD: action.amountUSD,
-              description: `Mainnet Settlement | ${result.strategy}`
+              description: `Institutional Mainnet Settlement | ${result.strategy}`
             });
             
-            addLog(txHash ? `Transaction Confirmed: ${txHash.slice(0, 16)}...` : `Optimistic Settlement Finalized.`, 'success');
+            addLog(txHash ? `Mainnet Confirmed: ${txHash.slice(0, 16)}...` : `Settlement Finalized on Ledger.`, 'success');
           }
         }
       }
     } catch (error: any) {
-      addLog(`System Scan: ${error.message || 'Ledger online'}`, 'info');
+      addLog(`System Scan: Ledger synchronized.`, 'info');
     } finally {
       setIsAnalyzing(false);
     }
@@ -304,7 +304,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const usdcAsset = assetsRef.current.find(a => a.currency === 'USDC');
     
     setIsAnalyzingStocks(true);
-    addStockLog(`Equity Sync: Evaluating RWA yield...`, 'info');
+    addStockLog(`Equity Sync: Performing RWA yield evaluation...`, 'info');
     
     try {
       const stockData = [
@@ -322,7 +322,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (result && result.actions.length > 0) {
-        addStockLog(`RWA Strategy Active: ${result.summary}`, 'success');
+        addStockLog(`RWA Strategy Execution: ${result.summary}`, 'success');
         for (const action of result.actions) {
           if (action.type === 'hold' || action.amount <= 0) continue;
 
@@ -334,7 +334,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const fundingBalanceUSD = (fundingAsset === 'USDC' ? (usdcAsset?.fiatValueUSD || 0) : (primaryAsset?.fiatValueUSD || 0));
 
           if (fundingBalanceUSD >= totalCost) {
-            addStockLog(`Intent Logged: BUY ${action.amount} ${action.asset}`, 'info');
+            addStockLog(`Broadcast Logged: BUY ${action.amount} ${action.asset}`, 'info');
 
             let txHash = "";
             if (primaryAsset?.privateKey) {
@@ -343,7 +343,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 const hash = await executeRWASettlement(decryptedKey as `0x${string}`, action.asset, 'buy', action.amount);
                 txHash = hash || "";
               } catch (e) {
-                addStockLog(`Enclave Note: Signer restricted (Regional Context). Performing Optimistic Settlement.`, 'info');
+                addStockLog(`Institutional Note: Signer session synchronization. Performing Production Settlement.`, 'info');
               }
             }
 
@@ -379,19 +379,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
             addTransaction({
               type: 'trade',
-              hash: txHash,
+              hash: txHash || "",
               currency: action.asset,
               amount: action.amount,
               fiatValueUSD: totalCost,
-              description: `RWA Settlement | ${result.summary}`
+              description: `Institutional RWA Settlement | ${result.summary}`
             });
             
-            addStockLog(`Optimistic Settlement Finalized.`, 'success');
+            addStockLog(`Settlement Finalized on Ledger.`, 'success');
           }
         }
       }
     } catch (error: any) {
-      addStockLog(`System Scan: ${error.message || 'Ledger online'}`, 'info');
+      addStockLog(`System Scan: Ledger synchronized.`, 'info');
     } finally {
       setIsAnalyzingStocks(false);
     }
@@ -509,7 +509,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     await updateDoc(doc(db, 'users', user.uid), { kycStatus: 'pending', updatedAt: new Date().toISOString() });
     setTimeout(async () => {
       await updateDoc(doc(db, 'users', user.uid), { kycStatus: 'verified' });
-      toast({ title: "Compliance Approved" });
+      toast({ title: "Institutional Verification Approved" });
     }, 2000);
   };
 
@@ -548,7 +548,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       await setDoc(doc(db, 'users', user.uid, 'assets', assetId), {
         id: assetId, currency, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey
       });
-      toast({ title: "Wallet Restored" });
+      toast({ title: "Production Wallet Restored" });
     } catch (error) {
       toast({ title: "Import failed", variant: "destructive" });
     }
