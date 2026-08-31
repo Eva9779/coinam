@@ -23,12 +23,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
 import { useWalletStore } from "@/lib/store";
-import { getLiveBalance } from "@/lib/blockchain";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export default function WalletPage() {
-  const { assets, initialized, isSyncing, isProvisioning, generateNewWallet } = useWalletStore();
+  const { assets, initialized, isSyncing, isProvisioning, generateNewWallet, syncOnChainBalance } = useWalletStore();
   const [search, setSearch] = useState("");
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
 
@@ -39,13 +38,21 @@ export default function WalletPage() {
   const handleSyncBalance = async (address: string, currency: string) => {
     setSyncingBalances(prev => ({ ...prev, [address]: true }));
     try {
-      const liveBal = await getLiveBalance(address);
-      toast({
-        title: "Network Sync Complete",
-        description: `Verified on-chain balance: ${liveBal} ${currency}`,
-      });
+      const liveBal = await syncOnChainBalance(address, currency);
+      if (liveBal !== null) {
+        toast({
+          title: "Network Sync Complete",
+          description: `Verified on-chain balance: ${liveBal} ${currency}`,
+        });
+      } else {
+        throw new Error("Sync returned null");
+      }
     } catch (e) {
-      toast({ title: "Sync failed", variant: "destructive" });
+      toast({ 
+        title: "Sync failed", 
+        description: "Could not establish a stable connection with Mainnet peers. Retrying background sync.",
+        variant: "destructive" 
+      });
     } finally {
       setSyncingBalances(prev => ({ ...prev, [address]: false }));
     }

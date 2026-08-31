@@ -91,6 +91,7 @@ interface WalletContextType {
   clearBotLogs: () => void;
   clearStockBotLogs: () => void;
   liquidateEarnings: () => Promise<void>;
+  syncOnChainBalance: (address: string, currency: string) => Promise<number | null>;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -197,6 +198,43 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       await setDoc(doc(db, 'users', user.uid, 'assets', assetId), newAsset);
     }
   }, [db, user]);
+
+  const syncOnChainBalance = useCallback(async (address: string, currency: string) => {
+    if (!db || !user) return null;
+    try {
+      const liveBalStr = await getLiveBalance(address);
+      const liveBal = parseFloat(liveBalStr);
+      
+      const asset = assetsRef.current.find(a => a.address === address && a.currency === currency);
+      if (asset) {
+        const fiatPrice = INITIAL_MARKET_DATA.find(m => m.currency === currency)?.currentPriceUSD || 0;
+        
+        // Detect Deposit
+        if (liveBal > asset.amount + 0.00000001) {
+          const diff = liveBal - asset.amount;
+          addTransaction({
+            type: 'receive',
+            currency: currency,
+            amount: diff,
+            fiatValueUSD: diff * fiatPrice,
+            description: `Mainnet Deposit Detected (Live Sync)`
+          });
+        }
+
+        // Hard database update for production state
+        if (Math.abs(asset.amount - liveBal) > 0.00000001) {
+          await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
+            amount: liveBal,
+            fiatValueUSD: liveBal * fiatPrice
+          });
+        }
+      }
+      return liveBal;
+    } catch (e) {
+      console.error("Enclave sync error", e);
+      return null;
+    }
+  }, [db, user, addTransaction]);
 
   const liquidateEarnings = useCallback(async () => {
     if (!db || !user || totalBotEarnings <= 0) return;
@@ -417,6 +455,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, db, isAnalyzingStocks, addStockLog, addTransaction, updateBalance]);
 
+  // Mainnet Background Synchronization (Incoming Deposits)
+  useEffect(() => {
+    if (!initialized || !user || !db) return;
+    const interval = setInterval(() => {
+      assetsRef.current.forEach(a => {
+        if (a.isLive) syncOnChainBalance(a.address, a.currency);
+      });
+    }, 60000); // 60s Production Polling
+    return () => clearInterval(interval);
+  }, [initialized, user, db, syncOnChainBalance]);
+
   useEffect(() => {
     if (!db || !user) return;
     const stockCol = collection(db, 'users', user.uid, 'stocks');
@@ -580,7 +629,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       kycStatus, totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzing, isAnalyzingStocks,
       addTransaction, updateBalance, generateNewWallet, importPrivateKey, updateBotSettings, updateStockBotSettings,
-      submitKYC, clearBotLogs, clearStockBotLogs, liquidateEarnings
+      submitKYC, clearBotLogs, clearStockBotLogs, liquidateEarnings, syncOnChainBalance
     }}>
       {children}
     </WalletContext.Provider>
