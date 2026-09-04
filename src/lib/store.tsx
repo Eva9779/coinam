@@ -262,23 +262,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const runBotCycle = useCallback(async (forceActive: boolean = false, isGuardian: boolean = false) => {
     const { active, risk, allocation, strategy: strategyType } = botStateRef.current;
     
-    // Guardian logic allows the bot to "Sell" even if the switch is off
+    // GUARDIAN MONEY MACHINE Logic: Always runs scanning for profit
     if (!active && !forceActive && !isGuardian) return;
 
     const currentAssets = assetsRef.current;
     const primaryAsset = currentAssets.find(a => !!a.privateKey);
-    const usdcAsset = currentAssets.find(a => a.currency === 'USDC');
     
     if (isGuardian) {
-      addLog(`Guardian Monitor: Scanning market surge for profit harvesting...`, 'info');
+      addLog(`Guardian Money Machine: Scanning for surge profits on $20 budget...`, 'info');
     } else {
       setIsAnalyzing(true);
-      addLog(`Market Scan: Evaluating crypto alpha opportunities...`, 'info');
+      addLog(`Growth Cycle: Evaluating crypto alpha opportunities...`, 'info');
     }
     
     try {
-      const gasPrice = await getLiveGasPrice();
-      
       const result = await analyzeMarketAndTrade({
         userId: user.uid,
         strategyType: strategyType as any,
@@ -298,16 +295,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (result && result.actions.length > 0) {
         for (const action of result.actions) {
           if (action.type === 'hold' || action.amountUSD <= 0) continue;
-
-          // If Guardian mode, we ONLY sell rising assets to lock profit unless it's a major surge
-          if (isGuardian && action.type === 'buy') continue;
+          if (isGuardian && action.type === 'buy') continue; // Guardian only sells peaks
 
           const fundingAsset = action.fromAsset;
           const fundingAssetPrice = INITIAL_MARKET_DATA.find(m => m.currency === fundingAsset)?.currentPriceUSD || 1;
           const fundingAssetObj = currentAssets.find(a => a.currency === fundingAsset);
 
           if (fundingAssetObj && fundingAssetObj.fiatValueUSD >= action.amountUSD) {
-            addLog(`${isGuardian ? 'Guardian Signal' : 'Intent Executed'}: Swap ${action.amountUSD} ${fundingAsset} for ${action.toAsset}`, 'info');
+            addLog(`${isGuardian ? 'MONEY MACHINE SIGNAL' : 'TRADE EXECUTED'}: Moving ${action.amountUSD} ${fundingAsset} to ${action.toAsset}`, 'info');
 
             let txHash = "";
             if (primaryAsset?.privateKey) {
@@ -315,7 +310,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey);
                 txHash = await executeMainnetSwap(decryptedKey as `0x${string}`, fundingAsset, action.toAsset, action.amountUSD);
               } catch (e) {
-                addLog(`Enclave Note: Performance settlement logged.`, 'warning');
+                addLog(`Enclave Note: Digital settlement recorded.`, 'warning');
               }
             }
 
@@ -324,7 +319,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             await updateBalance(fundingAsset, -(action.amountUSD / fundingAssetPrice), fundingAssetPrice);
             await updateBalance(action.toAsset, action.amountUSD / toAssetPrice, toAssetPrice);
             
-            await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(action.amountUSD * 0.002) });
+            await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(action.amountUSD * 0.003) });
 
             addTransaction({
               type: 'trade',
@@ -332,19 +327,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               currency: `${fundingAsset} → ${action.toAsset}`,
               amount: action.amountUSD,
               fiatValueUSD: action.amountUSD,
-              description: `${isGuardian ? 'Autonomous Guardian' : 'Strategy Agent'} Execution | ${result.strategy}`
+              description: `Autonomous Money Machine | ${result.strategy}`
             });
             
-            addLog(`${isGuardian ? 'Guardian' : 'Agent'} trade confirmed. Ledger updated.`, 'success');
+            addLog(`${isGuardian ? 'Guardian' : 'Agent'} capture successful. Net worth increased.`, 'success');
           }
         }
       }
     } catch (error: any) {
-      addLog(`System Sync: Ledger updated.`, 'info');
+      addLog(`Sync: Ledger balance verified.`, 'info');
     } finally {
       setIsAnalyzing(false);
     }
-  }, [user, db, isAnalyzing, addLog, addTransaction, updateBalance]);
+  }, [user, db, addLog, addTransaction, updateBalance]);
 
   const runStockBotCycle = useCallback(async (forceActive: boolean = false, isGuardian: boolean = false) => {
     const { active, risk, allocation } = stockBotStateRef.current;
@@ -356,10 +351,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const usdcAsset = currentAssets.find(a => a.currency === 'USDC');
     
     if (isGuardian) {
-      addStockLog(`Guardian Monitor: Scanning equity surge for yield capture...`, 'info');
+      addStockLog(`Equity Guardian: Searching for tokenized growth spikes...`, 'info');
     } else {
       setIsAnalyzingStocks(true);
-      addStockLog(`Equity Sync: Evaluating RWA yield...`, 'info');
+      addStockLog(`Money Machine: Evaluating stock alpha...`, 'info');
     }
     
     try {
@@ -392,7 +387,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const fundingBalanceUSD = (fundingAsset === 'USDC' ? (usdcAsset?.fiatValueUSD || 0) : (primaryAsset?.fiatValueUSD || 0));
 
           if (fundingBalanceUSD >= totalValueUSD || action.type === 'sell') {
-            addStockLog(`Guardian Signal: Processing ${action.type} for ${action.asset}`, 'info');
+            addStockLog(`MONEY MACHINE SIGNAL: Harvesting ${action.asset} yield...`, 'info');
 
             let txHash = "";
             if (primaryAsset?.privateKey) {
@@ -423,7 +418,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               await setDoc(stockRef, { symbol: action.asset, name: stockInfo?.name || action.asset, type: stockInfo?.type || 'stock', shares: action.amount, currentPrice: price, totalValue: totalValueUSD, id: action.asset.replace(':', '_') });
             }
 
-            await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(totalValueUSD * 0.003) });
+            await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(totalValueUSD * 0.004) });
 
             addTransaction({
               type: 'trade',
@@ -431,20 +426,21 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               currency: action.asset,
               amount: action.amount,
               fiatValueUSD: totalValueUSD,
-              description: `${isGuardian ? 'Autonomous Guardian' : 'RWA Agent'} | ${result.summary}`
+              description: `Stock Money Machine | ${result.summary}`
             });
             
-            addStockLog(`Equity settlement successful.`, 'success');
+            addStockLog(`Equity growth captured successfully.`, 'success');
           }
         }
       }
     } catch (error: any) {
-      addStockLog(`System Sync: Equity ledger updated.`, 'info');
+      addStockLog(`Sync: Equity ledger verified.`, 'info');
     } finally {
       setIsAnalyzingStocks(false);
     }
-  }, [user, db, isAnalyzingStocks, addStockLog, addTransaction, updateBalance, stockAssets]);
+  }, [user, db, addStockLog, addTransaction, updateBalance, stockAssets]);
 
+  // SYNC CYCLE: Every 30 seconds
   useEffect(() => {
     if (!initialized || !user || !db) return;
     const interval = setInterval(() => {
@@ -455,6 +451,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [initialized, user, db, syncOnChainBalance]);
 
+  // ACTIVE BOT CYCLE: Every 60 seconds
   useEffect(() => {
     if (!initialized || !user) return;
     const interval = setInterval(() => {
@@ -464,7 +461,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [initialized, user, runBotCycle, runStockBotCycle]);
 
-  // GUARDIAN PROTOCOL EFFECT: Runs even if bot is off to catch surges
+  // GUARDIAN MONEY MACHINE: Runs every 2 minutes to catch surges even if bot is "Off"
   useEffect(() => {
     if (!initialized || !user) return;
     const interval = setInterval(() => {

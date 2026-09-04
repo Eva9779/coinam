@@ -53,20 +53,21 @@ function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotO
   const btc = input.marketData.find(m => m.currency === 'BTC');
   const eth = input.marketData.find(m => m.currency === 'ETH');
   
-  // High-Efficiency Micro-Trade Unit
-  const targetTradeSize = input.allocationLimitUSD >= 50 ? 10 : Math.min(input.allocationLimitUSD * 0.5, 10);
+  // High-Efficiency Micro-Trade Unit for small balances
+  const targetTradeSize = input.allocationLimitUSD >= 20 ? 10 : Math.min(input.allocationLimitUSD * 0.5, 10);
 
   // GUARDIAN MODE LOGIC: Sell rising assets back to USDC if profits > fees
   if (input.isGuardianMode) {
     input.assets.forEach(asset => {
       const market = input.marketData.find(m => m.currency === asset.currency);
-      if (market && market.change24h > 3 && asset.fiatValue >= 20) {
+      // Guardian Trigger: If asset is up significantly and balance is at least $20
+      if (market && market.change24h > 4 && asset.fiatValue >= 20) {
         actions.push({
           type: 'sell',
           fromAsset: asset.currency,
           toAsset: 'USDC',
           amountUSD: Math.min(asset.fiatValue, targetTradeSize),
-          reasoning: `GUARDIAN: Surge detected (${market.change24h}%). Locking in $${Math.min(asset.fiatValue, targetTradeSize)} profit to USDC.`
+          reasoning: `GUARDIAN SURGE: ${asset.currency} is up ${market.change24h}%. Harvesting $${targetTradeSize} profit into USDC Money Machine.`
         });
       }
     });
@@ -78,16 +79,16 @@ function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotO
         fromAsset: 'USDC',
         toAsset: 'BTC',
         amountUSD: targetTradeSize,
-        reasoning: `MICRO-ALPHA: Accumulating $${targetTradeSize} units for growth.`
+        reasoning: `24H GROWTH: Accumulating $${targetTradeSize} BTC units while market is stable.`
       });
     }
   }
 
   return {
-    strategy: input.isGuardianMode ? 'GUARDIAN PROTOCOL (SURGE HARVEST)' : 'MICRO-CAP QUANTITATIVE PROTOCOL',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'STANDBY: Awaiting profitable surge.' }],
+    strategy: input.isGuardianMode ? 'AUTONOMOUS GUARDIAN MONEY MACHINE' : '24H QUANTITATIVE GROWTH PROTOCOL',
+    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'GUARDING PRINCIPAL: Awaiting profitable market surge.' }],
     marketSentiment: (btc && btc.change24h > 0) ? 'bullish' : 'neutral',
-    error: `AI Link Restricted. Local Guardian Logic active.`
+    error: `AI Link Restricted. Local Money Machine active.`
   };
 }
 
@@ -97,11 +98,15 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
       model: 'googleai/gemini-1.5-flash',
       input: input,
       output: { schema: TradingBotOutputSchema },
-      prompt: `You are an institutional strategy agent for Coin A,M. 
+      prompt: `You are the 24-Hour Autonomous Money Machine for Coin A,M. 
+      YOUR MISSION: Always look for ways to grow the user's balance without losing money.
       GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. 
-      If Guardian Mode is ACTIVE, you must search for any asset in the user's wallet that is "UP" (market surge) and sell it to lock in profit, even if the user only has $20. 
-      IMPORTANT: Consider gas fees are approx $5-$10. Only suggest a trade if the user's $20 balance can survive the fee and end up with a net profit. 
-      TRADE SIZE: Use exactly $10 per position for rebalancing a $50 budget.`,
+      
+      INSTRUCTIONS FOR $20 BALANCES:
+      1. If Guardian Mode is ACTIVE, you must scan all assets. If any asset (ETH, BTC, etc.) is "UP" (market surge), SELL IT immediately into USDC to lock in profit.
+      2. SAFE GROWTH RULE: Only suggest a trade if the user's $20 balance can survive the $5-$10 gas fee and still end up with a net gain.
+      3. HARVESTING: Your goal is to keep the "Unified Net Worth" growing. Sell highs, buy lows.
+      4. Never lose the user's money. If the trade is not clearly profitable after fees, return a 'hold' action.`,
     });
 
     if (!output) throw new Error('AI Engine null');

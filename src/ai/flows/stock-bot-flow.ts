@@ -53,30 +53,31 @@ function getLocalRWAStrategy(input: StockBotInput): StockBotOutput {
   if (input.isGuardianMode) {
     input.currentHoldings.forEach(hold => {
       const market = input.marketData.find(m => m.symbol === hold.symbol || hold.symbol.includes(m.symbol));
-      if (market && market.changePercent > 1.5 && hold.value >= 20) {
+      // Guardian Trigger: If stock is up > 2% and we have at least $20 value
+      if (market && market.changePercent > 2.0 && hold.value >= 20) {
         actions.push({
           type: 'sell',
           asset: hold.symbol,
           amount: hold.shares,
-          reasoning: `GUARDIAN: Equity surge detected (${market.changePercent}%). Harvesting $${hold.value} yield.`
+          reasoning: `GUARDIAN HARVEST: Equity surge detected in ${hold.symbol} (${market.changePercent}%). Locking in $${hold.value} growth.`
         });
       }
     });
   } else {
-    // Basic Entry Logic
-    if (input.riskTolerance === 'high') {
+    // Basic Entry Logic for growth
+    if (input.riskTolerance === 'high' || input.riskTolerance === 'medium') {
       const apple = input.marketData.find(m => m.symbol === 'AAPL');
-      if (apple && !input.currentHoldings.some(h => h.symbol.includes('AAPL'))) {
-        actions.push({ type: 'buy', asset: 'NASDAQ:AAPL', amount: 0.05, reasoning: 'Initial $10 tech unit acquisition.' });
+      if (apple && apple.changePercent < 0 && !input.currentHoldings.some(h => h.symbol.includes('AAPL'))) {
+        actions.push({ type: 'buy', asset: 'NASDAQ:AAPL', amount: 0.06, reasoning: '24H OPPORTUNITY: Buying $10 tech unit on dip to grow balance.' });
       }
     }
   }
 
   return {
-    summary: input.isGuardianMode ? 'GUARDIAN RWA HARVEST ACTIVE' : 'RWA MICRO-UNIT SETTLEMENT',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'Awaiting strategic equity surge.' }],
+    summary: input.isGuardianMode ? 'AUTONOMOUS EQUITY GUARDIAN ACTIVE' : '24H RWA MONEY MACHINE',
+    actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'GUARDING VAULT: Awaiting strategic equity dip/surge.' }],
     sentiment: 'neutral',
-    error: `Local Guardian active.`
+    error: `Local Money Machine active.`
   };
 }
 
@@ -86,10 +87,15 @@ export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBo
       model: 'googleai/gemini-1.5-flash',
       input: input,
       output: { schema: StockBotOutputSchema },
-      prompt: `You are an institutional RWA Strategy Agent. 
+      prompt: `You are the 24-Hour Autonomous Equity Guardian for Coin A,M.
+      YOUR MISSION: Constant monitoring of tokenized stocks to grow the user's money.
       GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. 
-      Directives: If Guardian Mode is ACTIVE, automatically sell any stock asset (AAPL, TSLA, BND) that has increased in price to lock in profits, even if the user only has $20. 
-      BE FEE-AWARE: Do not suggest trades where the $5-$10 gas fee destroys the profit. Target $10 trade units for a $50 budget.`,
+      
+      STRATEGY FOR $20+: 
+      1. If any stock asset (AAPL, TSLA, BND) has increased in price, SELL it immediately to lock in profits while prices are high.
+      2. FEE PROTECTION: Only sell if the profit covers the $5-$10 gas fee. 
+      3. Your priority is to ensure the user's money never sits idle during a market spike.
+      4. Always protect the principal. If the market is flat, HOLD.`,
     });
 
     if (!output) throw new Error('AI RWA Engine null');
