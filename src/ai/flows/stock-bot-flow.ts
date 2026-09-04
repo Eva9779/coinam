@@ -51,15 +51,17 @@ function getLocalRWAStrategy(input: StockBotInput): StockBotOutput {
   const actions: any[] = [];
   
   if (input.isGuardianMode) {
+    // Dynamic Equity Targets: Low = 2%, Med = 8%, High = 15-25%
+    const threshold = input.riskTolerance === 'high' ? 15 : input.riskTolerance === 'medium' ? 8 : 2;
+
     input.currentHoldings.forEach(hold => {
       const market = input.marketData.find(m => m.symbol === hold.symbol || hold.symbol.includes(m.symbol));
-      // Guardian Trigger: If stock is up > 2% and we have at least $20 value
-      if (market && market.changePercent > 2.0 && hold.value >= 20) {
+      if (market && market.changePercent > threshold && hold.value >= 20) {
         actions.push({
           type: 'sell',
           asset: hold.symbol,
           amount: hold.shares,
-          reasoning: `GUARDIAN HARVEST: Equity surge detected in ${hold.symbol} (${market.changePercent}%). Locking in $${hold.value} growth.`
+          reasoning: `HIGH ALPHA EQUITY HARVEST: ${hold.symbol} surged ${market.changePercent}%. Locking in growth at institutional peak.`
         });
       }
     });
@@ -90,12 +92,14 @@ export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBo
       prompt: `You are the 24-Hour Autonomous Equity Guardian for Coin A,M.
       YOUR MISSION: Constant monitoring of tokenized stocks to grow the user's money.
       GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. 
+      RISK PROFILE: ${input.riskTolerance}.
       
-      STRATEGY FOR $20+: 
-      1. If any stock asset (AAPL, TSLA, BND) has increased in price, SELL it immediately to lock in profits while prices are high.
-      2. FEE PROTECTION: Only sell if the profit covers the $5-$10 gas fee. 
-      3. Your priority is to ensure the user's money never sits idle during a market spike.
-      4. Always protect the principal. If the market is flat, HOLD.`,
+      STRATEGY FOR HIGH ALPHA (15-25%): 
+      1. TARGETS: If risk is 'high', hold for 15-25% growth. If 'medium', aim for 10%. If 'low', secure 5% profit.
+      2. SELL any stock asset (AAPL, TSLA, BND) that hits these targets immediately to lock in profits.
+      3. FEE PROTECTION: Only sell if the profit covers the $5-$10 gas fee. 
+      4. Your priority is to ensure the user's money never sits idle during a market spike.
+      5. Always protect the principal. If the market is flat, HOLD.`,
     });
 
     if (!output) throw new Error('AI RWA Engine null');

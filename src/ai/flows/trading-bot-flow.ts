@@ -53,19 +53,22 @@ function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotO
   
   // Calculate total available liquidity for scaling
   const totalLiquidity = input.assets.reduce((sum, a) => sum + a.fiatValue, 0);
-  const targetTradeSize = Math.max(10, totalLiquidity * 0.2); // Scalable size
+  const targetTradeSize = Math.max(10, totalLiquidity * 0.2); 
 
   if (input.isGuardianMode) {
+    // Dynamic Thresholds: Low = 4%, Med = 10%, High = 20-25%
+    const threshold = input.riskTolerance === 'high' ? 20 : input.riskTolerance === 'medium' ? 10 : 4;
+    
     input.assets.forEach(asset => {
       const market = input.marketData.find(m => m.currency === asset.currency);
       // Guardian Trigger: If asset is up and balance is enough to cover fee
-      if (market && market.change24h > 4 && asset.fiatValue >= 20) {
+      if (market && market.change24h > threshold && asset.fiatValue >= 20) {
         actions.push({
           type: 'sell',
           fromAsset: asset.currency,
           toAsset: 'USDC',
-          amountUSD: asset.fiatValue, // Sell the entire position of the surging asset
-          reasoning: `GUARDIAN SURGE: ${asset.currency} is up ${market.change24h}%. Harvesting full $${asset.fiatValue.toFixed(2)} balance into safe USDC.`
+          amountUSD: asset.fiatValue, 
+          reasoning: `HIGH ALPHA HARVEST: ${asset.currency} hit ${market.change24h}% surge. Locking in $${asset.fiatValue.toFixed(2)} at peak.`
         });
       }
     });
@@ -99,12 +102,14 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
       prompt: `You are the 24-Hour Autonomous Money Machine for Coin A,M. 
       YOUR MISSION: Constantly monitor all available assets in the user's wallet (current vault: $${input.assets.reduce((sum, a) => sum + a.fiatValue, 0).toFixed(2)}) and find ways to grow the balance.
       GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. 
-      
-      DYNAMIC SCALING INSTRUCTIONS:
-      1. DETECT ALL ASSETS: Do not limit yourself to $20. Scan ETH, BTC, SOL, and all others. If any asset has surged in price, SELL IT into USDC to lock in the profit.
-      2. SAFE GROWTH RULE: Only suggest a trade if the profit is mathematically greater than the $5-$10 gas fee. 
-      3. HARVESTING: In Guardian Mode, your primary job is to protect the user's winnings. Sell the peaks.
-      4. Always protect the principal. If no clear profit is available after fees, return 'hold'.`,
+      RISK PROFILE: ${input.riskTolerance}.
+
+      DYNAMIC ALPHA INSTRUCTIONS:
+      1. DETECT ALL ASSETS: Scan ETH, BTC, SOL, and all others. 
+      2. PROFIT TARGETS: For 'high' risk, wait for 15-25% surges before selling. For 'medium', aim for 8-12%. For 'low', lock in 3-5% gains.
+      3. SAFE GROWTH RULE: Only suggest a trade if the profit is mathematically greater than the $5-$10 gas fee. 
+      4. HARVESTING: In Guardian Mode, your primary job is to protect the user's winnings. Sell the peaks according to the targets.
+      5. Always protect the principal. If no clear profit is available after fees, return 'hold'.`,
     });
 
     if (!output) throw new Error('AI Engine null');
