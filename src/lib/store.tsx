@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -386,6 +387,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         { symbol: 'AAPL', name: 'Apple Inc.', price: 185.92, changePercent: 1.2, type: 'stock' as const },
         { symbol: 'GOOGL', name: 'Alphabet Inc.', price: 142.65, changePercent: 0.8, type: 'stock' as const },
         { symbol: 'TSLA', name: 'Tesla Inc.', price: 238.45, changePercent: -2.4, type: 'stock' as const },
+        { symbol: 'NVDA', name: 'NVIDIA Corp.', price: 725.10, changePercent: 4.8, type: 'stock' as const },
+        { symbol: 'META', name: 'Meta Platforms', price: 485.30, changePercent: 3.2, type: 'stock' as const },
+        { symbol: 'TQQQ', name: 'ProShares Ultra QQQ (3X)', price: 58.40, changePercent: 6.5, type: 'stock' as const },
+        { symbol: 'SOXL', name: 'Direxion Semi Bull (3X)', price: 42.15, changePercent: 8.2, type: 'stock' as const },
         { symbol: 'BND', name: 'Vanguard Bond ETF', price: 72.15, changePercent: 0.1, type: 'bond' as const },
       ];
 
@@ -552,6 +557,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user || !initialized) return;
     const unsubscribe = onSnapshot(collection(db, 'users', user.uid, 'transactions'), (snapshot) => {
       setTransactions(snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Transaction)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    });
+    return () => unsubscribe();
+  }, [db, user, initialized]);
+
+  useEffect(() => {
+    if (!db || !user || !initialized) return;
+    const unsubscribe = onSnapshot(collection(db, 'users', user.uid, 'stocks'), (snapshot) => {
+      setStockAssets(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as StockAsset)));
     });
     return () => unsubscribe();
   }, [db, user, initialized]);

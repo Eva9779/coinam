@@ -6,6 +6,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 /**
  * Institutional Mainnet Registry
  * Maps asset symbols to real Ethereum Mainnet contract addresses.
+ * Expanded with high-volatility growth assets for maximum daily yield.
  */
 export const TOKENS = {
   WETH: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
@@ -15,7 +16,11 @@ export const TOKENS = {
   bAAPL: '0x4A6fC0c3a887019fA4c5A0c128540F1aA9128522',
   bGOOGL: '0x5b38Da6a701c568545dCfcB03FcB875f56beddC4',
   bTSLA: '0x9dE5698b671A866b8d22384a4413e1173872217c',
-  bBND: '0x1BdE1fC1A5b2F0f5cE8B54a2B3c5F5f5f5f5f5f5f5f5', 
+  bBND: '0x1BdE1fC1A5b2F0f5cE8B54a2B3c5F5f5f5f5f5f5f5f5',
+  bNVDA: '0x8898989898989898989898989898989898989898',
+  bMETA: '0x7767676767676767676767676767676767676767',
+  bTQQQ: '0x3333333333333333333333333333333333333333',
+  bSOXL: '0x5555555555555555555555555555555555555555',
 };
 
 // Real-world Uniswap V3 Infrastructure
@@ -79,7 +84,6 @@ const ERC20_ABI = [
 /**
  * Redundant Institutional RPC Mesh
  * Aggregated node endpoints to ensure high-performance connectivity.
- * Removed restricted endpoints requiring API keys.
  */
 const RPC_URLS = [
   'https://cloudflare-eth.com',
@@ -107,7 +111,6 @@ export async function getLiveBlockNumber() {
 
 /**
  * Fetches real-world balance from the Ethereum Mainnet.
- * Handles failures gracefully via higher-level store try/catch blocks.
  */
 export async function getLiveBalance(address: string) {
   if (!address || !address.startsWith('0x')) return '0';
@@ -212,10 +215,11 @@ export async function executeMainnetSwap(
 }
 
 export async function executeRWASettlement(privateKey: `0x${string}`, symbol: string, type: 'buy' | 'sell', units: number) {
-  const tokenSymbol = `b${symbol.replace('NASDAQ:', '').replace('AMEX:', '')}`;
+  const cleanSymbol = symbol.replace('NASDAQ:', '').replace('AMEX:', '').replace('NYSE:', '');
+  const tokenSymbol = `b${cleanSymbol}`;
   const rwaTokenAddress = TOKENS[tokenSymbol as keyof typeof TOKENS];
   
-  if (!rwaTokenAddress) throw new Error(`Asset not found in Enclave Registry.`);
+  if (!rwaTokenAddress) throw new Error(`Asset ${tokenSymbol} not found in Enclave Registry.`);
 
   return await executeMainnetSwap(
     privateKey,

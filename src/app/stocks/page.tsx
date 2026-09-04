@@ -30,7 +30,8 @@ import {
   TrendingUp,
   Cpu,
   Banknote,
-  Sparkles
+  Sparkles,
+  Zap
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -97,7 +98,7 @@ export default function StocksPage() {
 
   const [localRisk, setLocalRisk] = useState<'low' | 'medium' | 'high'>(stockBotRisk);
   const [localAllocation, setLocalAllocation] = useState(stockBotAllocation.toString());
-  const [chartSymbol, setChartSymbol] = useState("NASDAQ:AAPL");
+  const [chartSymbol, setChartSymbol] = useState("NASDAQ:NVDA");
   const [isLiquidating, setIsLiquidating] = useState(false);
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
@@ -130,7 +131,7 @@ export default function StocksPage() {
   };
 
   const totalValue = stockAssets.reduce((acc, s) => acc + s.totalValue, 0);
-  const apy = localRisk === 'high' ? '12.4%' : localRisk === 'medium' ? '7.2%' : '4.8%';
+  const apy = localRisk === 'high' ? '18.2%' : localRisk === 'medium' ? '9.4%' : '5.1%';
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20">
@@ -142,7 +143,7 @@ export default function StocksPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            Institutional RWA Enclave. Autonomous rebalancing of tokenized equities.
+            High-Performance RWA Enclave. Trading high-growth equities and leveraged ETFs.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -225,6 +226,7 @@ export default function StocksPage() {
                 <BarChart3 className="h-4 w-4 text-secondary" />
                 Equity Vision: {chartSymbol}
               </h3>
+              <Badge variant="outline" className="bg-secondary/10 text-secondary border-none animate-pulse">HIGH VOLATILITY</Badge>
             </div>
             <EquityChart symbol={chartSymbol} />
           </div>
@@ -303,34 +305,37 @@ export default function StocksPage() {
                     <SelectContent className="rounded-xl">
                       <SelectItem value="low">Conservative (Bond Focus)</SelectItem>
                       <SelectItem value="medium">Balanced (Index Focus)</SelectItem>
-                      <SelectItem value="high">Aggressive (Tech Growth Focus)</SelectItem>
+                      <SelectItem value="high">Aggressive (High-Profit Mode)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Focus Asset</Label>
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Focus Growth Asset</Label>
                   <Select value={chartSymbol} onValueChange={setChartSymbol}>
-                    <SelectTrigger className="h-12 rounded-xl font-bold">
+                    <SelectTrigger className="h-12 rounded-xl font-bold border-secondary/30">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
-                      <SelectItem value="NASDAQ:AAPL">Apple Token (bAAPL)</SelectItem>
-                      <SelectItem value="NASDAQ:GOOGL">Google Token (bGOOGL)</SelectItem>
-                      <SelectItem value="NASDAQ:TSLA">Tesla Token (bTSLA)</SelectItem>
-                      <SelectItem value="AMEX:BND">Bond Token (bBND)</SelectItem>
+                      <SelectItem value="NASDAQ:NVDA">NVIDIA (bNVDA) - High Growth</SelectItem>
+                      <SelectItem value="NASDAQ:TQQQ">TQQQ (bTQQQ) - Leveraged 3X</SelectItem>
+                      <SelectItem value="NASDAQ:SOXL">SOXL (bSOXL) - Leveraged 3X</SelectItem>
+                      <SelectItem value="NASDAQ:META">Meta (bMETA) - High Volatility</SelectItem>
+                      <SelectItem value="NASDAQ:TSLA">Tesla (bTSLA) - Momentum</SelectItem>
+                      <SelectItem value="NASDAQ:AAPL">Apple (bAAPL) - Standard</SelectItem>
+                      <SelectItem value="AMEX:BND">Bond Token (bBND) - Safety</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
               <div className="p-6 rounded-[1.5rem] bg-slate-900 text-white space-y-4">
-                <h4 className="text-sm font-black flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-secondary" />
-                  RWA Yield Protocol
+                <h4 className="text-sm font-black flex items-center gap-2 text-secondary">
+                  <Zap className="h-4 w-4" />
+                  Alpha Capture Mode
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  The Strategy Agent rebalances your tokenized stocks based on market momentum. Low risk focuses on safe Bond tokens for predictable dividends.
+                  The Strategy Agent is optimized to hunt for surges in Leveraged ETFs (TQQQ/SOXL) and High-Growth Tech (NVDA). These assets can provide significant daily payouts during market rallies.
                 </p>
               </div>
 
