@@ -55,14 +55,15 @@ function getLocalRWAStrategy(input: StockBotInput): StockBotOutput {
     input.currentHoldings.forEach(hold => {
       const market = input.marketData.find(m => m.symbol === hold.symbol || hold.symbol.includes(m.symbol));
       if (market && market.changePercent > 0) {
-        const breakEvenThreshold = (assumedGasFee / hold.value) * 100 + 0.5;
+        // Take any profit over fees + 0.1%
+        const breakEvenThreshold = (assumedGasFee / hold.value) * 100 + 0.1;
         
-        if (market.changePercent > breakEvenThreshold && hold.value >= 20) {
+        if (market.changePercent > breakEvenThreshold && hold.value >= 10) {
           actions.push({
             type: 'sell',
             asset: hold.symbol,
             amount: hold.shares,
-            reasoning: `PROACTIVE EQUITY HARVEST: ${hold.symbol} is up ${market.changePercent}%. Math confirms net profit after $7 gas fee. Locking in now.`
+            reasoning: `PROACTIVE EQUITY HARVEST: Net profit detected on ${hold.symbol}. Selling now to secure yield before potential daily close volatility.`
           });
         }
       }
@@ -77,7 +78,7 @@ function getLocalRWAStrategy(input: StockBotInput): StockBotOutput {
 
   return {
     summary: input.isGuardianMode ? 'ACTIVE EQUITY HARVESTER' : 'GROWTH MODE',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'Awaiting profitable equity surge (Gain > Gas Fees).' }],
+    actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'Awaiting any profitable equity surge (Gain > Gas Fees).' }],
     sentiment: 'neutral',
     error: `Local Enclave Active.`
   };
@@ -90,14 +91,14 @@ export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBo
       input: input,
       output: { schema: StockBotOutputSchema },
       prompt: `You are the Proactive 24-Hour Equity Guardian for Coin A,M.
-      YOUR MISSION: Sell tokenized stocks the MOMENT they show profit after gas fees.
+      YOUR MISSION: Sell tokenized stocks the MOMENT they show even a tiny profit after the $7 gas fee.
       GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. 
       
       HARVESTING RULES:
-      1. DYNAMIC TARGETS: Do not wait for a fixed high percentage. 
-      2. FEE MATH: If an asset (AAPL, TSLA, BND) is UP, calculate: (Price Increase USD - $7 Gas Fee).
-      3. ACTION: If the result is POSITIVE (> $0), SELL IMMEDIATELY.
-      4. NO RISK: We take the small wins now to prevent losing the profit if the market dips later.
+      1. ZERO WAIT TIME: If an asset (AAPL, TSLA, BND) is UP, and that Increase in USD covers the $7 Gas Fee, SELL IMMEDIATELY.
+      2. NEVER MISS A PEAK: Do not wait for higher percentages. A bird in the hand is worth two in the bush. 
+      3. ACTION: If (Price Increase - $7) > $0, SELL. 
+      4. SMALL WINS: It is your duty to capture $1 profits multiple times rather than waiting for a $20 profit that might reverse into a loss.
       5. Always protect the principal. If no net profit after fees is possible, return 'hold'.`,
     });
 

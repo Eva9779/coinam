@@ -100,6 +100,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
   const [stockAssets, setStockAssets] = useState<StockAsset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [marketData, setMarketData] = useState<any[]>([]);
   const [kycStatus, setKycStatus] = useState<'unverified' | 'pending' | 'verified' | 'rejected'>('unverified');
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
   const [botActive, setBotActive] = useState(false);
@@ -120,6 +121,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [provisioning, setProvisioning] = useState(false);
   
   const assetsRef = useRef<WalletAsset[]>([]);
+  const marketDataRef = useRef<any[]>([]);
   const botStateRef = useRef({ active: false, risk: 'medium', allocation: 1000, strategy: 'standard' });
   const stockBotStateRef = useRef({ active: false, risk: 'medium', allocation: 2500 });
 
@@ -131,12 +133,30 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [assets]);
 
   useEffect(() => {
+    marketDataRef.current = marketData;
+  }, [marketData]);
+
+  useEffect(() => {
     botStateRef.current = { active: botActive, risk: botRiskLevel, allocation: botAllocation, strategy: botStrategy };
   }, [botActive, botRiskLevel, botAllocation, botStrategy]);
 
   useEffect(() => {
     stockBotStateRef.current = { active: stockBotActive, risk: stockBotRisk, allocation: stockBotAllocation };
   }, [stockBotActive, stockBotRisk, stockBotAllocation]);
+
+  // LIVE MARKET PULSE FETCHING
+  useEffect(() => {
+    const fetchMarket = async () => {
+      try {
+        const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=20&page=1&sparkline=false');
+        const data = await res.json();
+        if (Array.isArray(data)) setMarketData(data);
+      } catch (err) {}
+    };
+    fetchMarket();
+    const interval = setInterval(fetchMarket, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
@@ -204,7 +224,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const asset = currentAssets.find(a => a.address === address && a.currency === currency);
       
       if (asset) {
-        const fiatPrice = INITIAL_MARKET_DATA.find(m => m.currency === currency)?.currentPriceUSD || 0;
+        const livePriceData = marketDataRef.current.find(m => m.symbol?.toUpperCase() === currency.toUpperCase());
+        const fiatPrice = livePriceData?.current_price || INITIAL_MARKET_DATA.find(m => m.currency === currency)?.currentPriceUSD || 0;
         
         if (liveBal > asset.amount + 0.00000001) {
           const diff = liveBal - asset.amount;
@@ -243,7 +264,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const earningsToLiquidate = totalBotEarnings;
     const targetCurrency = usdcAsset.currency;
-    const targetPrice = INITIAL_MARKET_DATA.find(m => m.currency === targetCurrency)?.currentPriceUSD || 1;
+    const targetPrice = 1; 
     
     try {
       await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: 0 });
@@ -267,7 +288,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const currentAssets = assetsRef.current;
     const primaryAsset = currentAssets.find(a => !!a.privateKey);
     const totalPortfolioUSD = currentAssets.reduce((sum, a) => sum + a.fiatValueUSD, 0);
-    
+    const liveMarket = marketDataRef.current.length > 0 
+      ? marketDataRef.current.map(m => ({ currency: m.symbol.toUpperCase(), price: m.current_price, change24h: m.price_change_percentage_24h }))
+      : INITIAL_MARKET_DATA.map(m => ({ currency: m.currency, price: m.currentPriceUSD, change24h: m.dailyChangePercent }));
+
     if (isGuardian) {
       addLog(`Guardian Money Machine: Monitoring $${totalPortfolioUSD.toFixed(2)} portfolio for surge profits...`, 'info');
     } else {
@@ -284,9 +308,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           amount: a.amount,
           fiatValue: a.fiatValueUSD
         })),
-        marketData: INITIAL_MARKET_DATA.map(m => ({ 
-          currency: m.currency, price: m.currentPriceUSD, change24h: m.dailyChangePercent 
-        })),
+        marketData: liveMarket,
         riskTolerance: (isGuardian ? 'high' : risk) as any,
         allocationLimitUSD: isGuardian ? Math.max(1000000, totalPortfolioUSD) : allocation,
         isGuardianMode: isGuardian
@@ -298,7 +320,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           if (isGuardian && action.type === 'buy') continue; 
 
           const fundingAsset = action.fromAsset;
-          const fundingAssetPrice = INITIAL_MARKET_DATA.find(m => m.currency === fundingAsset)?.currentPriceUSD || 1;
+          const fundingPriceData = liveMarket.find(m => m.currency === fundingAsset);
+          const fundingAssetPrice = fundingPriceData?.price || 1;
           const fundingAssetObj = currentAssets.find(a => a.currency === fundingAsset);
 
           if (fundingAssetObj && fundingAssetObj.fiatValueUSD >= action.amountUSD) {
@@ -314,7 +337,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               }
             }
 
-            const toAssetPrice = INITIAL_MARKET_DATA.find(m => m.currency === action.toAsset)?.currentPriceUSD || 1;
+            const toAssetPrice = liveMarket.find(m => m.currency === action.toAsset)?.price || 1;
             
             await updateBalance(fundingAsset, -(action.amountUSD / fundingAssetPrice), fundingAssetPrice);
             await updateBalance(action.toAsset, action.amountUSD / toAssetPrice, toAssetPrice);
@@ -398,7 +421,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               } catch (e) {}
             }
 
-            const fundingAssetPrice = INITIAL_MARKET_DATA.find(m => m.currency === fundingAsset)?.currentPriceUSD || 1;
+            const fundingAssetPrice = marketDataRef.current.find(m => m.symbol?.toUpperCase() === fundingAsset)?.current_price || 1;
             
             if (action.type === 'buy') {
               await updateBalance(fundingAsset, -(totalValueUSD / fundingAssetPrice), fundingAssetPrice);
@@ -462,13 +485,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, [initialized, user, runBotCycle, runStockBotCycle]);
 
-  // GUARDIAN MONEY MACHINE: Runs every 2 minutes
+  // GUARDIAN MONEY MACHINE: Optimized to 60-second scan for instant profit capture
   useEffect(() => {
     if (!initialized || !user) return;
     const interval = setInterval(() => {
       runBotCycle(false, true); 
       runStockBotCycle(false, true); 
-    }, 120000); 
+    }, 60000); 
     return () => clearInterval(interval);
   }, [initialized, user, runBotCycle, runStockBotCycle]);
 

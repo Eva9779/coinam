@@ -61,16 +61,16 @@ function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotO
       
       const market = input.marketData.find(m => m.currency === asset.currency);
       if (market && market.change24h > 0) {
-        // Dynamic Break-Even: (Fee / Value) * 100 + 1% margin
-        const breakEvenThreshold = (assumedGasFee / asset.fiatValue) * 100 + 1;
+        // PROACTIVE HARVEST: (Fee / Value) * 100 + 0.1% margin for any profit
+        const breakEvenThreshold = (assumedGasFee / asset.fiatValue) * 100 + 0.1;
         
-        if (market.change24h > breakEvenThreshold && asset.fiatValue >= 20) {
+        if (market.change24h > breakEvenThreshold && asset.fiatValue >= 10) {
           actions.push({
             type: 'sell',
             fromAsset: asset.currency,
             toAsset: 'USDC',
             amountUSD: asset.fiatValue, 
-            reasoning: `DYNAMIC HARVEST: ${asset.currency} surge of ${market.change24h}% covers fees and secures profit. Locking in $${asset.fiatValue.toFixed(2)} immediately.`
+            reasoning: `IMMEDIATE HARVEST: ${asset.currency} is up ${market.change24h}%. Net profit confirmed after fees. Locking in $${asset.fiatValue.toFixed(2)} to prevent missing the peak.`
           });
         }
       }
@@ -90,7 +90,7 @@ function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotO
 
   return {
     strategy: input.isGuardianMode ? 'PROACTIVE MONEY MACHINE' : '24H GROWTH PROTOCOL',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'MONITORING: Awaiting net profit opportunity (Gain > Gas Fees).' }],
+    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'MONITORING: Awaiting any net profit opportunity (Gain > Gas Fees).' }],
     marketSentiment: (btc && btc.change24h > 0) ? 'bullish' : 'neutral',
     error: `Local Enclave Active.`
   };
@@ -103,16 +103,15 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
       input: input,
       output: { schema: TradingBotOutputSchema },
       prompt: `You are the Proactive 24-Hour Money Machine for Coin A,M. 
-      YOUR MISSION: Constant monitoring of all available assets ($${input.assets.reduce((sum, a) => sum + a.fiatValue, 0).toFixed(2)}) to lock in profit.
+      YOUR MISSION: Sell assets the MOMENT they cover gas fees and show any profit.
       GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. 
       
-      DYNAMIC PROFIT RULES:
-      1. NO WAITING: Do not wait for 20-25% surges if a smaller profit is available.
-      2. MATH FILTER: If an asset is UP, calculate if the gain in USD is GREATER than the $7 gas fee. 
-      3. IF PROFIT > $7 FEE: SELL IMMEDIATELY into USDC. Do not risk the market going back down.
-      4. PRIORITY: Secure the user's money. It is better to take a small $5 profit 10 times than wait for one big win that might never happen.
-      5. HARVESTING: In Guardian Mode, your ONLY job is to sell rising assets the moment they become profitable after fees.
-      6. If market is flat or in a loss after fees, return 'hold'.`,
+      HARVESTING RULES:
+      1. NO WAITING: Do not wait for 10% or 20% gains. If the market is up and the profit is even $0.01 after the $7 gas fee, SELL IMMEDIATELY.
+      2. RISK PREVENTION: Markets drop quickly. Your job is to grab the profit now so it doesn't vanish.
+      3. MATH FILTER: If Price Increase USD > $7 Gas Fee, execute 'sell' into USDC.
+      4. IGNORE HIGH TARGETS: Your priority is high-frequency small wins. A series of $1 profits is better than waiting for a $10 profit that never comes.
+      5. HARVESTING: In Guardian Mode, your ONLY job is to liquidate rising assets into stable USDC the moment they turn "green" after fees.`,
     });
 
     if (!output) throw new Error('AI Engine null');
