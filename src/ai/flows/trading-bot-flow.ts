@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
- * Optimized with a high-performance Local Quantitative Engine for regional resilience.
+ * Optimized with Guardian Protocol for 24/7 background profit harvesting.
  */
 
 import { ai } from '@/ai/genkit';
@@ -24,6 +24,7 @@ const TradingBotInputSchema = z.object({
   marketData: z.array(MarketEntrySchema),
   riskTolerance: z.enum(['low', 'medium', 'high']).default('medium'),
   allocationLimitUSD: z.number().describe('The maximum amount of USD value the bot is allowed to trade.'),
+  isGuardianMode: z.boolean().optional().describe('If true, the bot is running in the background even if the switch is off. Focus on selling rising assets to lock in profit.'),
 });
 export type TradingBotInput = z.infer<typeof TradingBotInputSchema>;
 
@@ -50,37 +51,43 @@ export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotOutput {
   const actions: any[] = [];
   const btc = input.marketData.find(m => m.currency === 'BTC');
-  const riskMultiplier = input.riskTolerance === 'high' ? 1.5 : input.riskTolerance === 'low' ? 0.8 : 1;
+  const eth = input.marketData.find(m => m.currency === 'ETH');
+  
+  // High-Efficiency Micro-Trade Unit
+  const targetTradeSize = input.allocationLimitUSD >= 50 ? 10 : Math.min(input.allocationLimitUSD * 0.5, 10);
 
-  // Logic: User requested $10 trade units for a $50 budget
-  const targetTradeSize = input.allocationLimitUSD >= 50 ? 10 : Math.min(input.allocationLimitUSD * 0.2, 10);
-
-  if (btc && btc.change24h > -5) {
-    actions.push({
-      type: 'buy',
-      fromAsset: 'USDC',
-      toAsset: 'BTC',
-      amountUSD: targetTradeSize * riskMultiplier,
-      reasoning: `LOCAL PROTOCOL: Micro-capture protocol active. Trading $${targetTradeSize} units to optimize capital.`
+  // GUARDIAN MODE LOGIC: Sell rising assets back to USDC if profits > fees
+  if (input.isGuardianMode) {
+    input.assets.forEach(asset => {
+      const market = input.marketData.find(m => m.currency === asset.currency);
+      if (market && market.change24h > 3 && asset.fiatValue >= 20) {
+        actions.push({
+          type: 'sell',
+          fromAsset: asset.currency,
+          toAsset: 'USDC',
+          amountUSD: Math.min(asset.fiatValue, targetTradeSize),
+          reasoning: `GUARDIAN: Surge detected (${market.change24h}%). Locking in $${Math.min(asset.fiatValue, targetTradeSize)} profit to USDC.`
+        });
+      }
     });
-  }
-
-  // Logic: Bitcoin Multiplier specific strategy
-  if (input.strategyType === 'bitcoin_multiplier' && btc) {
-     actions.push({
-      type: 'buy',
-      fromAsset: 'USDC',
-      toAsset: 'BTC',
-      amountUSD: targetTradeSize * 1.5,
-      reasoning: 'LOCAL PROTOCOL: Multiplier mode active. Aggressive $10 accumulation protocol engaged.'
-    });
+  } else {
+    // Normal Bot Logic
+    if (btc && btc.change24h > -2) {
+      actions.push({
+        type: 'buy',
+        fromAsset: 'USDC',
+        toAsset: 'BTC',
+        amountUSD: targetTradeSize,
+        reasoning: `MICRO-ALPHA: Accumulating $${targetTradeSize} units for growth.`
+      });
+    }
   }
 
   return {
-    strategy: 'LOCAL QUANTITATIVE PROTOCOL (MICRO-CAP)',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'LOCAL PROTOCOL: Assets optimized.' }],
-    marketSentiment: btc && btc.change24h > 0 ? 'bullish' : 'neutral',
-    error: `AI Link Restricted (Regional). Using Local Enclave Logic.`
+    strategy: input.isGuardianMode ? 'GUARDIAN PROTOCOL (SURGE HARVEST)' : 'MICRO-CAP QUANTITATIVE PROTOCOL',
+    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'STANDBY: Awaiting profitable surge.' }],
+    marketSentiment: (btc && btc.change24h > 0) ? 'bullish' : 'neutral',
+    error: `AI Link Restricted. Local Guardian Logic active.`
   };
 }
 
@@ -90,13 +97,11 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
       model: 'googleai/gemini-1.5-flash',
       input: input,
       output: { schema: TradingBotOutputSchema },
-      prompt: `You are an institutional quantitative strategy agent for Coin A,M. 
-      Strategy Type: ${input.strategyType}
-      Risk Profile: ${input.riskTolerance}
-      Portfolio Context: ${JSON.stringify(input.assets)}
-      Market Vision: ${JSON.stringify(input.marketData)}
-      Directives: Rebalance to capture alpha. Protect principal liquidity.
-      IMPORTANT: If the allocation cap is around $50, prioritize trade actions of exactly $10 per position to allow for multi-step rebalancing.`,
+      prompt: `You are an institutional strategy agent for Coin A,M. 
+      GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. 
+      If Guardian Mode is ACTIVE, you must search for any asset in the user's wallet that is "UP" (market surge) and sell it to lock in profit, even if the user only has $20. 
+      IMPORTANT: Consider gas fees are approx $5-$10. Only suggest a trade if the user's $20 balance can survive the fee and end up with a net profit. 
+      TRADE SIZE: Use exactly $10 per position for rebalancing a $50 budget.`,
     });
 
     if (!output) throw new Error('AI Engine null');

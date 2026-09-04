@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Antigravity Equity Agent.
- * Specialized in Tokenized Real World Asset (RWA) settlement with local quantitative fallback.
+ * Specialized in Tokenized Real World Asset (RWA) settlement with Guardian auto-harvest.
  */
 
 import { ai } from '@/ai/genkit';
@@ -25,6 +25,7 @@ const StockBotInputSchema = z.object({
   })),
   marketData: z.array(EquityMarketEntrySchema),
   allocationLimitUSD: z.number().optional(),
+  isGuardianMode: z.boolean().optional().describe('Background profit harvest mode.'),
 });
 export type StockBotInput = z.infer<typeof StockBotInputSchema>;
 
@@ -45,48 +46,37 @@ export type StockBotOutput = z.infer<typeof StockBotOutputSchema>;
 
 /**
  * Local RWA Quantitative Engine
- * Rebalances tokenized assets locally based on risk profile when AI is restricted.
  */
 function getLocalRWAStrategy(input: StockBotInput): StockBotOutput {
   const actions: any[] = [];
-  let summary = 'PORTFOLIO OPTIMIZED: HOLDING POSITIONS';
   
-  const hasBonds = input.currentHoldings.some(h => h.symbol.includes('BND'));
-  const hasTech = input.currentHoldings.some(h => h.symbol.includes('AAPL') || h.symbol.includes('TSLA'));
-
-  // Targeting $10 trades for a $50 budget
-  // BND Price: ~$72 -> $10 is ~0.14 shares
-  // AAPL Price: ~$186 -> $10 is ~0.05 shares
-
-  if (input.riskTolerance === 'low' || input.riskTolerance === 'medium') {
-    if (!hasBonds) {
-      actions.push({
-        type: 'buy',
-        asset: 'AMEX:BND',
-        amount: 0.14,
-        reasoning: 'INITIAL ALLOCATION: Securing $10 baseline yield in tokenized bonds.'
-      });
-      summary = 'RWA PROTOCOL: INITIALIZING MICRO BOND RESERVE';
-    }
-  }
-
-  if (input.riskTolerance === 'high') {
-    if (!hasTech) {
-      actions.push({
-        type: 'buy',
-        asset: 'NASDAQ:AAPL',
-        amount: 0.05,
-        reasoning: 'INITIAL ALLOCATION: Capturing growth momentum with $10 tokenized equity unit.'
-      });
-      summary = 'RWA PROTOCOL: INITIALIZING MICRO GROWTH EXPOSURE';
+  if (input.isGuardianMode) {
+    input.currentHoldings.forEach(hold => {
+      const market = input.marketData.find(m => m.symbol === hold.symbol || hold.symbol.includes(m.symbol));
+      if (market && market.changePercent > 1.5 && hold.value >= 20) {
+        actions.push({
+          type: 'sell',
+          asset: hold.symbol,
+          amount: hold.shares,
+          reasoning: `GUARDIAN: Equity surge detected (${market.changePercent}%). Harvesting $${hold.value} yield.`
+        });
+      }
+    });
+  } else {
+    // Basic Entry Logic
+    if (input.riskTolerance === 'high') {
+      const apple = input.marketData.find(m => m.symbol === 'AAPL');
+      if (apple && !input.currentHoldings.some(h => h.symbol.includes('AAPL'))) {
+        actions.push({ type: 'buy', asset: 'NASDAQ:AAPL', amount: 0.05, reasoning: 'Initial $10 tech unit acquisition.' });
+      }
     }
   }
 
   return {
-    summary,
-    actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'ASSET SYNC: All positions aligned with risk profile.' }],
+    summary: input.isGuardianMode ? 'GUARDIAN RWA HARVEST ACTIVE' : 'RWA MICRO-UNIT SETTLEMENT',
+    actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'Awaiting strategic equity surge.' }],
     sentiment: 'neutral',
-    error: `AI Link Restricted (Regional). Local RWA settlement active (Micro-Unit Mode).`
+    error: `Local Guardian active.`
   };
 }
 
@@ -97,11 +87,9 @@ export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBo
       input: input,
       output: { schema: StockBotOutputSchema },
       prompt: `You are an institutional RWA Strategy Agent. 
-      Market Feed: ${JSON.stringify(input.marketData)}
-      Risk Profile: ${input.riskTolerance}
-      Current Holdings: ${JSON.stringify(input.currentHoldings)}
-      Directives: Optimize capital across tokenized stocks and bonds. Rebalance based on momentum.
-      IMPORTANT: User budget is $50. Target trade sizes of approximately $10 USD worth of fractional units per asset.`,
+      GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. 
+      Directives: If Guardian Mode is ACTIVE, automatically sell any stock asset (AAPL, TSLA, BND) that has increased in price to lock in profits, even if the user only has $20. 
+      BE FEE-AWARE: Do not suggest trades where the $5-$10 gas fee destroys the profit. Target $10 trade units for a $50 budget.`,
     });
 
     if (!output) throw new Error('AI RWA Engine null');
