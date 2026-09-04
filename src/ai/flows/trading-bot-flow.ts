@@ -46,49 +46,47 @@ export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
 /**
  * Local Quantitative Engine
- * Processes institutional rebalancing logic locally when AI link is restricted.
  */
 function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotOutput {
   const actions: any[] = [];
   const btc = input.marketData.find(m => m.currency === 'BTC');
-  const eth = input.marketData.find(m => m.currency === 'ETH');
   
-  // High-Efficiency Micro-Trade Unit for small balances
-  const targetTradeSize = input.allocationLimitUSD >= 20 ? 10 : Math.min(input.allocationLimitUSD * 0.5, 10);
+  // Calculate total available liquidity for scaling
+  const totalLiquidity = input.assets.reduce((sum, a) => sum + a.fiatValue, 0);
+  const targetTradeSize = Math.max(10, totalLiquidity * 0.2); // Scalable size
 
-  // GUARDIAN MODE LOGIC: Sell rising assets back to USDC if profits > fees
   if (input.isGuardianMode) {
     input.assets.forEach(asset => {
       const market = input.marketData.find(m => m.currency === asset.currency);
-      // Guardian Trigger: If asset is up significantly and balance is at least $20
+      // Guardian Trigger: If asset is up and balance is enough to cover fee
       if (market && market.change24h > 4 && asset.fiatValue >= 20) {
         actions.push({
           type: 'sell',
           fromAsset: asset.currency,
           toAsset: 'USDC',
-          amountUSD: Math.min(asset.fiatValue, targetTradeSize),
-          reasoning: `GUARDIAN SURGE: ${asset.currency} is up ${market.change24h}%. Harvesting $${targetTradeSize} profit into USDC Money Machine.`
+          amountUSD: asset.fiatValue, // Sell the entire position of the surging asset
+          reasoning: `GUARDIAN SURGE: ${asset.currency} is up ${market.change24h}%. Harvesting full $${asset.fiatValue.toFixed(2)} balance into safe USDC.`
         });
       }
     });
   } else {
     // Normal Bot Logic
-    if (btc && btc.change24h > -2) {
+    if (btc && btc.change24h > -2 && totalLiquidity >= 20) {
       actions.push({
         type: 'buy',
         fromAsset: 'USDC',
         toAsset: 'BTC',
-        amountUSD: targetTradeSize,
-        reasoning: `24H GROWTH: Accumulating $${targetTradeSize} BTC units while market is stable.`
+        amountUSD: Math.min(targetTradeSize, input.allocationLimitUSD),
+        reasoning: `STRATEGY ENTRY: Accumulating $${targetTradeSize.toFixed(2)} BTC while market is stable.`
       });
     }
   }
 
   return {
     strategy: input.isGuardianMode ? 'AUTONOMOUS GUARDIAN MONEY MACHINE' : '24H QUANTITATIVE GROWTH PROTOCOL',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'GUARDING PRINCIPAL: Awaiting profitable market surge.' }],
+    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'GUARDING PRINCIPAL: Awaiting profitable market movement.' }],
     marketSentiment: (btc && btc.change24h > 0) ? 'bullish' : 'neutral',
-    error: `AI Link Restricted. Local Money Machine active.`
+    error: `Local Engine Active.`
   };
 }
 
@@ -99,14 +97,14 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
       input: input,
       output: { schema: TradingBotOutputSchema },
       prompt: `You are the 24-Hour Autonomous Money Machine for Coin A,M. 
-      YOUR MISSION: Always look for ways to grow the user's balance without losing money.
+      YOUR MISSION: Constantly monitor all available assets in the user's wallet (current vault: $${input.assets.reduce((sum, a) => sum + a.fiatValue, 0).toFixed(2)}) and find ways to grow the balance.
       GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. 
       
-      INSTRUCTIONS FOR $20 BALANCES:
-      1. If Guardian Mode is ACTIVE, you must scan all assets. If any asset (ETH, BTC, etc.) is "UP" (market surge), SELL IT immediately into USDC to lock in profit.
-      2. SAFE GROWTH RULE: Only suggest a trade if the user's $20 balance can survive the $5-$10 gas fee and still end up with a net gain.
-      3. HARVESTING: Your goal is to keep the "Unified Net Worth" growing. Sell highs, buy lows.
-      4. Never lose the user's money. If the trade is not clearly profitable after fees, return a 'hold' action.`,
+      DYNAMIC SCALING INSTRUCTIONS:
+      1. DETECT ALL ASSETS: Do not limit yourself to $20. Scan ETH, BTC, SOL, and all others. If any asset has surged in price, SELL IT into USDC to lock in the profit.
+      2. SAFE GROWTH RULE: Only suggest a trade if the profit is mathematically greater than the $5-$10 gas fee. 
+      3. HARVESTING: In Guardian Mode, your primary job is to protect the user's winnings. Sell the peaks.
+      4. Always protect the principal. If no clear profit is available after fees, return 'hold'.`,
     });
 
     if (!output) throw new Error('AI Engine null');
