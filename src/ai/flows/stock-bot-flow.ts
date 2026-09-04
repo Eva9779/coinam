@@ -54,16 +54,19 @@ function getLocalRWAStrategy(input: StockBotInput): StockBotOutput {
   const hasBonds = input.currentHoldings.some(h => h.symbol.includes('BND'));
   const hasTech = input.currentHoldings.some(h => h.symbol.includes('AAPL') || h.symbol.includes('TSLA'));
 
-  // Logic: Proactive Initial Allocation
+  // Targeting $10 trades for a $50 budget
+  // BND Price: ~$72 -> $10 is ~0.14 shares
+  // AAPL Price: ~$186 -> $10 is ~0.05 shares
+
   if (input.riskTolerance === 'low' || input.riskTolerance === 'medium') {
     if (!hasBonds) {
       actions.push({
         type: 'buy',
         asset: 'AMEX:BND',
-        amount: 0.5,
-        reasoning: 'INITIAL ALLOCATION: Securing baseline yield in tokenized bonds.'
+        amount: 0.14,
+        reasoning: 'INITIAL ALLOCATION: Securing $10 baseline yield in tokenized bonds.'
       });
-      summary = 'RWA PROTOCOL: INITIALIZING BOND RESERVE';
+      summary = 'RWA PROTOCOL: INITIALIZING MICRO BOND RESERVE';
     }
   }
 
@@ -72,10 +75,10 @@ function getLocalRWAStrategy(input: StockBotInput): StockBotOutput {
       actions.push({
         type: 'buy',
         asset: 'NASDAQ:AAPL',
-        amount: 0.25,
-        reasoning: 'INITIAL ALLOCATION: Capturing growth momentum in tokenized equities.'
+        amount: 0.05,
+        reasoning: 'INITIAL ALLOCATION: Capturing growth momentum with $10 tokenized equity unit.'
       });
-      summary = 'RWA PROTOCOL: INITIALIZING GROWTH EXPOSURE';
+      summary = 'RWA PROTOCOL: INITIALIZING MICRO GROWTH EXPOSURE';
     }
   }
 
@@ -83,7 +86,7 @@ function getLocalRWAStrategy(input: StockBotInput): StockBotOutput {
     summary,
     actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'ASSET SYNC: All positions aligned with risk profile.' }],
     sentiment: 'neutral',
-    error: `AI Link Restricted (Regional). Local RWA settlement active.`
+    error: `AI Link Restricted (Regional). Local RWA settlement active (Micro-Unit Mode).`
   };
 }
 
@@ -97,7 +100,8 @@ export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBo
       Market Feed: ${JSON.stringify(input.marketData)}
       Risk Profile: ${input.riskTolerance}
       Current Holdings: ${JSON.stringify(input.currentHoldings)}
-      Directives: Optimize capital across tokenized stocks and bonds. Rebalance based on momentum.`,
+      Directives: Optimize capital across tokenized stocks and bonds. Rebalance based on momentum.
+      IMPORTANT: User budget is $50. Target trade sizes of approximately $10 USD worth of fractional units per asset.`,
     });
 
     if (!output) throw new Error('AI RWA Engine null');

@@ -50,17 +50,18 @@ export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotOutput {
   const actions: any[] = [];
   const btc = input.marketData.find(m => m.currency === 'BTC');
-  const sol = input.marketData.find(m => m.currency === 'SOL');
-  const riskMultiplier = input.riskTolerance === 'high' ? 2 : input.riskTolerance === 'low' ? 0.5 : 1;
+  const riskMultiplier = input.riskTolerance === 'high' ? 1.5 : input.riskTolerance === 'low' ? 0.8 : 1;
 
-  // Logic: Proactive accumulation for testing visibility
+  // Logic: User requested $10 trade units for a $50 budget
+  const targetTradeSize = input.allocationLimitUSD >= 50 ? 10 : Math.min(input.allocationLimitUSD * 0.2, 10);
+
   if (btc && btc.change24h > -5) {
     actions.push({
       type: 'buy',
       fromAsset: 'USDC',
       toAsset: 'BTC',
-      amountUSD: Math.min(input.allocationLimitUSD * 0.05 * riskMultiplier, 25),
-      reasoning: `LOCAL PROTOCOL: Capture protocol active. Rebalancing into primary reserve.`
+      amountUSD: targetTradeSize * riskMultiplier,
+      reasoning: `LOCAL PROTOCOL: Micro-capture protocol active. Trading $${targetTradeSize} units to optimize capital.`
     });
   }
 
@@ -70,13 +71,13 @@ function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotO
       type: 'buy',
       fromAsset: 'USDC',
       toAsset: 'BTC',
-      amountUSD: 50 * riskMultiplier,
-      reasoning: 'LOCAL PROTOCOL: Multiplier mode active. Aggressive accumulation protocol engaged.'
+      amountUSD: targetTradeSize * 1.5,
+      reasoning: 'LOCAL PROTOCOL: Multiplier mode active. Aggressive $10 accumulation protocol engaged.'
     });
   }
 
   return {
-    strategy: 'LOCAL QUANTITATIVE PROTOCOL',
+    strategy: 'LOCAL QUANTITATIVE PROTOCOL (MICRO-CAP)',
     actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'LOCAL PROTOCOL: Assets optimized.' }],
     marketSentiment: btc && btc.change24h > 0 ? 'bullish' : 'neutral',
     error: `AI Link Restricted (Regional). Using Local Enclave Logic.`
@@ -94,7 +95,8 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
       Risk Profile: ${input.riskTolerance}
       Portfolio Context: ${JSON.stringify(input.assets)}
       Market Vision: ${JSON.stringify(input.marketData)}
-      Directives: Rebalance to capture alpha. Protect principal liquidity.`,
+      Directives: Rebalance to capture alpha. Protect principal liquidity.
+      IMPORTANT: If the allocation cap is around $50, prioritize trade actions of exactly $10 per position to allow for multi-step rebalancing.`,
     });
 
     if (!output) throw new Error('AI Engine null');
