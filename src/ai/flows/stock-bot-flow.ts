@@ -1,7 +1,7 @@
 'use server';
 /**
- * @fileOverview Antigravity Equity Agent.
- * Specialized in Tokenized Real World Asset (RWA) settlement with Guardian auto-harvest.
+ * @fileOverview Proactive Equity Agent.
+ * Specialized in immediate profit harvesting for Tokenized RWA assets.
  */
 
 import { ai } from '@/ai/genkit';
@@ -45,41 +45,41 @@ const StockBotOutputSchema = z.object({
 export type StockBotOutput = z.infer<typeof StockBotOutputSchema>;
 
 /**
- * Local RWA Quantitative Engine
+ * Local RWA Proactive Engine
  */
 function getLocalRWAStrategy(input: StockBotInput): StockBotOutput {
   const actions: any[] = [];
+  const assumedGasFee = 7;
   
   if (input.isGuardianMode) {
-    // Dynamic Equity Targets: Low = 2%, Med = 8%, High = 15-25%
-    const threshold = input.riskTolerance === 'high' ? 15 : input.riskTolerance === 'medium' ? 8 : 2;
-
     input.currentHoldings.forEach(hold => {
       const market = input.marketData.find(m => m.symbol === hold.symbol || hold.symbol.includes(m.symbol));
-      if (market && market.changePercent > threshold && hold.value >= 20) {
-        actions.push({
-          type: 'sell',
-          asset: hold.symbol,
-          amount: hold.shares,
-          reasoning: `HIGH ALPHA EQUITY HARVEST: ${hold.symbol} surged ${market.changePercent}%. Locking in growth at institutional peak.`
-        });
+      if (market && market.changePercent > 0) {
+        const breakEvenThreshold = (assumedGasFee / hold.value) * 100 + 0.5;
+        
+        if (market.changePercent > breakEvenThreshold && hold.value >= 20) {
+          actions.push({
+            type: 'sell',
+            asset: hold.symbol,
+            amount: hold.shares,
+            reasoning: `PROACTIVE EQUITY HARVEST: ${hold.symbol} is up ${market.changePercent}%. Math confirms net profit after $7 gas fee. Locking in now.`
+          });
+        }
       }
     });
   } else {
-    // Basic Entry Logic for growth
-    if (input.riskTolerance === 'high' || input.riskTolerance === 'medium') {
-      const apple = input.marketData.find(m => m.symbol === 'AAPL');
-      if (apple && apple.changePercent < 0 && !input.currentHoldings.some(h => h.symbol.includes('AAPL'))) {
-        actions.push({ type: 'buy', asset: 'NASDAQ:AAPL', amount: 0.06, reasoning: '24H OPPORTUNITY: Buying $10 tech unit on dip to grow balance.' });
-      }
+    // Buy logic for growth
+    const apple = input.marketData.find(m => m.symbol === 'AAPL');
+    if (apple && apple.changePercent < -1 && !input.currentHoldings.some(h => h.symbol.includes('AAPL'))) {
+      actions.push({ type: 'buy', asset: 'NASDAQ:AAPL', amount: 0.1, reasoning: 'DIP ENTRY: Buying Apple token at discount to prepare for profit harvest.' });
     }
   }
 
   return {
-    summary: input.isGuardianMode ? 'AUTONOMOUS EQUITY GUARDIAN ACTIVE' : '24H RWA MONEY MACHINE',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'GUARDING VAULT: Awaiting strategic equity dip/surge.' }],
+    summary: input.isGuardianMode ? 'ACTIVE EQUITY HARVESTER' : 'GROWTH MODE',
+    actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'Awaiting profitable equity surge (Gain > Gas Fees).' }],
     sentiment: 'neutral',
-    error: `Local Money Machine active.`
+    error: `Local Enclave Active.`
   };
 }
 
@@ -89,17 +89,16 @@ export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBo
       model: 'googleai/gemini-1.5-flash',
       input: input,
       output: { schema: StockBotOutputSchema },
-      prompt: `You are the 24-Hour Autonomous Equity Guardian for Coin A,M.
-      YOUR MISSION: Constant monitoring of tokenized stocks to grow the user's money.
+      prompt: `You are the Proactive 24-Hour Equity Guardian for Coin A,M.
+      YOUR MISSION: Sell tokenized stocks the MOMENT they show profit after gas fees.
       GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. 
-      RISK PROFILE: ${input.riskTolerance}.
       
-      STRATEGY FOR HIGH ALPHA (15-25%): 
-      1. TARGETS: If risk is 'high', hold for 15-25% growth. If 'medium', aim for 10%. If 'low', secure 5% profit.
-      2. SELL any stock asset (AAPL, TSLA, BND) that hits these targets immediately to lock in profits.
-      3. FEE PROTECTION: Only sell if the profit covers the $5-$10 gas fee. 
-      4. Your priority is to ensure the user's money never sits idle during a market spike.
-      5. Always protect the principal. If the market is flat, HOLD.`,
+      HARVESTING RULES:
+      1. DYNAMIC TARGETS: Do not wait for a fixed high percentage. 
+      2. FEE MATH: If an asset (AAPL, TSLA, BND) is UP, calculate: (Price Increase USD - $7 Gas Fee).
+      3. ACTION: If the result is POSITIVE (> $0), SELL IMMEDIATELY.
+      4. NO RISK: We take the small wins now to prevent losing the profit if the market dips later.
+      5. Always protect the principal. If no net profit after fees is possible, return 'hold'.`,
     });
 
     if (!output) throw new Error('AI RWA Engine null');

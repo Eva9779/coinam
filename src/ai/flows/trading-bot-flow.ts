@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
- * Optimized with Guardian Protocol for 24/7 background profit harvesting.
+ * Optimized with Dynamic Profit Harvesting to sell as soon as gas fees are covered.
  */
 
 import { ai } from '@/ai/genkit';
@@ -45,51 +45,54 @@ const TradingBotOutputSchema = z.object({
 export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
 /**
- * Local Quantitative Engine
+ * Local Quantitative Engine - Dynamic Break-Even Logic
  */
 function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotOutput {
   const actions: any[] = [];
   const btc = input.marketData.find(m => m.currency === 'BTC');
   
-  // Calculate total available liquidity for scaling
   const totalLiquidity = input.assets.reduce((sum, a) => sum + a.fiatValue, 0);
   const targetTradeSize = Math.max(10, totalLiquidity * 0.2); 
+  const assumedGasFee = 7; // Average $7 fee
 
   if (input.isGuardianMode) {
-    // Dynamic Thresholds: Low = 4%, Med = 10%, High = 20-25%
-    const threshold = input.riskTolerance === 'high' ? 20 : input.riskTolerance === 'medium' ? 10 : 4;
-    
     input.assets.forEach(asset => {
+      if (asset.currency === 'USDC') return;
+      
       const market = input.marketData.find(m => m.currency === asset.currency);
-      // Guardian Trigger: If asset is up and balance is enough to cover fee
-      if (market && market.change24h > threshold && asset.fiatValue >= 20) {
-        actions.push({
-          type: 'sell',
-          fromAsset: asset.currency,
-          toAsset: 'USDC',
-          amountUSD: asset.fiatValue, 
-          reasoning: `HIGH ALPHA HARVEST: ${asset.currency} hit ${market.change24h}% surge. Locking in $${asset.fiatValue.toFixed(2)} at peak.`
-        });
+      if (market && market.change24h > 0) {
+        // Dynamic Break-Even: (Fee / Value) * 100 + 1% margin
+        const breakEvenThreshold = (assumedGasFee / asset.fiatValue) * 100 + 1;
+        
+        if (market.change24h > breakEvenThreshold && asset.fiatValue >= 20) {
+          actions.push({
+            type: 'sell',
+            fromAsset: asset.currency,
+            toAsset: 'USDC',
+            amountUSD: asset.fiatValue, 
+            reasoning: `DYNAMIC HARVEST: ${asset.currency} surge of ${market.change24h}% covers fees and secures profit. Locking in $${asset.fiatValue.toFixed(2)} immediately.`
+          });
+        }
       }
     });
   } else {
-    // Normal Bot Logic
+    // Normal Bot Logic - Aggressive Growth
     if (btc && btc.change24h > -2 && totalLiquidity >= 20) {
       actions.push({
         type: 'buy',
         fromAsset: 'USDC',
         toAsset: 'BTC',
         amountUSD: Math.min(targetTradeSize, input.allocationLimitUSD),
-        reasoning: `STRATEGY ENTRY: Accumulating $${targetTradeSize.toFixed(2)} BTC while market is stable.`
+        reasoning: `STRATEGY ENTRY: Accumulating BTC to build capital for next market surge.`
       });
     }
   }
 
   return {
-    strategy: input.isGuardianMode ? 'AUTONOMOUS GUARDIAN MONEY MACHINE' : '24H QUANTITATIVE GROWTH PROTOCOL',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'GUARDING PRINCIPAL: Awaiting profitable market movement.' }],
+    strategy: input.isGuardianMode ? 'PROACTIVE MONEY MACHINE' : '24H GROWTH PROTOCOL',
+    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'MONITORING: Awaiting net profit opportunity (Gain > Gas Fees).' }],
     marketSentiment: (btc && btc.change24h > 0) ? 'bullish' : 'neutral',
-    error: `Local Engine Active.`
+    error: `Local Enclave Active.`
   };
 }
 
@@ -99,17 +102,17 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
       model: 'googleai/gemini-1.5-flash',
       input: input,
       output: { schema: TradingBotOutputSchema },
-      prompt: `You are the 24-Hour Autonomous Money Machine for Coin A,M. 
-      YOUR MISSION: Constantly monitor all available assets in the user's wallet (current vault: $${input.assets.reduce((sum, a) => sum + a.fiatValue, 0).toFixed(2)}) and find ways to grow the balance.
+      prompt: `You are the Proactive 24-Hour Money Machine for Coin A,M. 
+      YOUR MISSION: Constant monitoring of all available assets ($${input.assets.reduce((sum, a) => sum + a.fiatValue, 0).toFixed(2)}) to lock in profit.
       GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. 
-      RISK PROFILE: ${input.riskTolerance}.
-
-      DYNAMIC ALPHA INSTRUCTIONS:
-      1. DETECT ALL ASSETS: Scan ETH, BTC, SOL, and all others. 
-      2. PROFIT TARGETS: For 'high' risk, wait for 15-25% surges before selling. For 'medium', aim for 8-12%. For 'low', lock in 3-5% gains.
-      3. SAFE GROWTH RULE: Only suggest a trade if the profit is mathematically greater than the $5-$10 gas fee. 
-      4. HARVESTING: In Guardian Mode, your primary job is to protect the user's winnings. Sell the peaks according to the targets.
-      5. Always protect the principal. If no clear profit is available after fees, return 'hold'.`,
+      
+      DYNAMIC PROFIT RULES:
+      1. NO WAITING: Do not wait for 20-25% surges if a smaller profit is available.
+      2. MATH FILTER: If an asset is UP, calculate if the gain in USD is GREATER than the $7 gas fee. 
+      3. IF PROFIT > $7 FEE: SELL IMMEDIATELY into USDC. Do not risk the market going back down.
+      4. PRIORITY: Secure the user's money. It is better to take a small $5 profit 10 times than wait for one big win that might never happen.
+      5. HARVESTING: In Guardian Mode, your ONLY job is to sell rising assets the moment they become profitable after fees.
+      6. If market is flat or in a loss after fees, return 'hold'.`,
     });
 
     if (!output) throw new Error('AI Engine null');
