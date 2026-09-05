@@ -509,12 +509,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const encryptedKey = await encryptKey(user.uid, pKey);
       await setDoc(doc(db, 'users', user.uid), { uid: user.uid, email: user.email, updatedAt: new Date().toISOString() }, { merge: true });
 
-      const newAsset = { currency, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey };
-      await setDoc(doc(db, 'users', user.uid, 'assets', customId), newAsset);
+      // Unified Endpoint Creation: Primary Address hosts ETH and is the baseline for all vaults
+      const primaryAsset = { currency, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey };
+      await setDoc(doc(db, 'users', user.uid, 'assets', customId), primaryAsset);
 
-      // Always auto-provision a USDC Dollar Vault for profits
-      const usdcAsset = { currency: 'USDC', amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey };
-      await setDoc(doc(db, 'users', user.uid, 'assets', 'usdc-dollar-vault'), usdcAsset);
+      // Automatic Provisioning of Multi-Asset Vaults under the same address
+      const vaults = ['USDC', 'SOL', 'BNB', 'WBTC'];
+      for (const v of vaults) {
+        const vAsset = { currency: v, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey };
+        await setDoc(doc(db, 'users', user.uid, 'assets', `${v.toLowerCase()}-vault`), vAsset);
+      }
       
       return account.address;
     } catch (e) {
@@ -595,14 +599,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       const account = privateKeyToAccount(privateKey as `0x${string}`);
       const encryptedKey = await encryptKey(user.uid, privateKey);
-      await setDoc(doc(db, 'users', user.uid, 'assets', `imported_${Date.now()}`), {
-        currency, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey
-      });
-      // Ensure imported wallet also has a USDC vault ready
-      await setDoc(doc(db, 'users', user.uid, 'assets', `usdc_imported_${Date.now()}`), {
-        currency: 'USDC', amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey
-      });
-      toast({ title: "Production Wallet Restored with Dollar Vault" });
+      
+      // Unified Restore: All vaults linked to the same imported private key
+      const vaults = [currency, 'USDC', 'SOL', 'BNB', 'WBTC'];
+      for (const v of vaults) {
+        await setDoc(doc(db, 'users', user.uid, 'assets', `${v.toLowerCase()}_imported_${Date.now()}`), {
+          currency: v, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey
+        });
+      }
+      
+      toast({ title: "Production Wallet Restored with Unified Pockets" });
     } catch (e) {}
   };
 

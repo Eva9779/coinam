@@ -7,6 +7,9 @@ import { privateKeyToAccount } from 'viem/accounts';
  * Institutional Mainnet Registry
  * Maps asset symbols to real Ethereum Mainnet contract addresses.
  * Expanded with high-volatility growth assets for maximum daily yield.
+ * 
+ * NOTE: BTC is handled as WBTC and SOL as a Mainnet Token for unified management 
+ * under a single cryptographic address.
  */
 export const TOKENS = {
   WETH: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
@@ -17,7 +20,7 @@ export const TOKENS = {
   bAAPL: '0x4A6fC0c3a887019fA4c5A0c128540F1aA9128522',
   bGOOGL: '0x5b38Da6a701c568545dCfcB03FcB875f56beddC4',
   bTSLA: '0x9dE5698b671A866b8d22384a4413e1173872217c',
-  bBND: '0x1BdE1fC1A5b2F0f5cE8B54a2B3c5F5f5f5f5f5f5f5f5',
+  bBND: '0x1BdE1fC1A5b2F0f5cE8B54a2B3c5F5f5f5f5f5f5f5',
   bNVDA: '0x8898989898989898989898989898989898989898',
   bMETA: '0x7767676767676767676767676767676767676767',
   bTQQQ: '0x3333333333333333333333333333333333333333',

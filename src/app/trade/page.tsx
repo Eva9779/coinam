@@ -27,7 +27,7 @@ const TradingViewWidget = memo(({ symbol }: { symbol: string }) => {
     
     const config = {
       autosize: true,
-      symbol: symbol === 'BNB' ? `BINANCE:BNBUSDT` : `BINANCE:${symbol}USDT`,
+      symbol: symbol === 'BNB' ? `BINANCE:BNBUSDT` : symbol === 'SOL' ? `BINANCE:SOLUSDT` : `BINANCE:${symbol}USDT`,
       interval: "D",
       timezone: "Etc/UTC",
       theme: "light",
