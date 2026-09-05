@@ -1,7 +1,9 @@
+
 'use server';
 /**
  * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
  * Optimized with Dynamic Profit Harvesting to sell as soon as gas fees are covered.
+ * STRICT DIRECTIVE: All profits and principal must be secured into the USDC Dollar Vault.
  */
 
 import { ai } from '@/ai/genkit';
@@ -31,7 +33,7 @@ export type TradingBotInput = z.infer<typeof TradingBotInputSchema>;
 const TradingActionSchema = z.object({
   type: z.enum(['buy', 'sell', 'hold']),
   fromAsset: z.string(),
-  toAsset: z.string(),
+  toAsset: z.string().describe('Must always be USDC for "sell" actions to secure profit.'),
   amountUSD: z.number().describe('The value of the trade in USD dollars.'),
   reasoning: z.string(),
 });
@@ -55,42 +57,43 @@ function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotO
   const targetTradeSize = Math.max(10, totalLiquidity * 0.2); 
   const assumedGasFee = 7; // Average $7 fee
 
-  if (input.isGuardianMode) {
-    input.assets.forEach(asset => {
-      if (asset.currency === 'USDC') return;
+  // GUARDIAN PROFIT HARVESTER
+  input.assets.forEach(asset => {
+    if (asset.currency === 'USDC') return;
+    
+    const market = input.marketData.find(m => m.currency === asset.currency);
+    if (market && market.change24h > 0) {
+      // PROACTIVE HARVEST: (Fee / Value) * 100 + 0.1% margin for any profit
+      const breakEvenThreshold = (assumedGasFee / asset.fiatValue) * 100 + 0.1;
       
-      const market = input.marketData.find(m => m.currency === asset.currency);
-      if (market && market.change24h > 0) {
-        // PROACTIVE HARVEST: (Fee / Value) * 100 + 0.1% margin for any profit
-        const breakEvenThreshold = (assumedGasFee / asset.fiatValue) * 100 + 0.1;
-        
-        if (market.change24h > breakEvenThreshold && asset.fiatValue >= 10) {
-          actions.push({
-            type: 'sell',
-            fromAsset: asset.currency,
-            toAsset: 'USDC',
-            amountUSD: asset.fiatValue, 
-            reasoning: `IMMEDIATE HARVEST: ${asset.currency} is up ${market.change24h}%. Net profit confirmed after fees. Locking in $${asset.fiatValue.toFixed(2)} to prevent missing the peak.`
-          });
-        }
+      if (market.change24h > breakEvenThreshold && asset.fiatValue >= 10) {
+        actions.push({
+          type: 'sell',
+          fromAsset: asset.currency,
+          toAsset: 'USDC',
+          amountUSD: asset.fiatValue, 
+          reasoning: `MONEY MACHINE: ${asset.currency} is up ${market.change24h}%. Net profit detected. Securing $${asset.fiatValue.toFixed(2)} to USDC Dollar Vault instantly.`
+        });
       }
-    });
-  } else {
-    // Normal Bot Logic - Aggressive Growth
+    }
+  });
+
+  // If no guardian actions and bot is on, add growth logic
+  if (actions.length === 0 && !input.isGuardianMode) {
     if (btc && btc.change24h > -2 && totalLiquidity >= 20) {
       actions.push({
         type: 'buy',
         fromAsset: 'USDC',
         toAsset: 'BTC',
         amountUSD: Math.min(targetTradeSize, input.allocationLimitUSD),
-        reasoning: `STRATEGY ENTRY: Accumulating BTC to build capital for next market surge.`
+        reasoning: `GROWTH ENTRY: Buying Bitcoin to build principal for the next harvesting surge.`
       });
     }
   }
 
   return {
-    strategy: input.isGuardianMode ? 'PROACTIVE MONEY MACHINE' : '24H GROWTH PROTOCOL',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'MONITORING: Awaiting any net profit opportunity (Gain > Gas Fees).' }],
+    strategy: input.isGuardianMode ? '24/7 PROFIT GUARDIAN' : 'MONEY MACHINE PROTOCOL',
+    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'STANDBY: Awaiting profit signal (Earnings > Network Fees).' }],
     marketSentiment: (btc && btc.change24h > 0) ? 'bullish' : 'neutral',
     error: `Local Enclave Active.`
   };
@@ -102,16 +105,15 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
       model: 'googleai/gemini-1.5-flash',
       input: input,
       output: { schema: TradingBotOutputSchema },
-      prompt: `You are the Proactive 24-Hour Money Machine for Coin A,M. 
-      YOUR MISSION: Sell assets the MOMENT they cover gas fees and show any profit.
-      GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. 
+      prompt: `You are the 24-Hour Autonomous Money Machine for Coin A,M. 
+      YOUR MISSION: Sell surging assets into USDC the moment they cover gas fees.
       
-      HARVESTING RULES:
-      1. NO WAITING: Do not wait for 10% or 20% gains. If the market is up and the profit is even $0.01 after the $7 gas fee, SELL IMMEDIATELY.
-      2. RISK PREVENTION: Markets drop quickly. Your job is to grab the profit now so it doesn't vanish.
-      3. MATH FILTER: If Price Increase USD > $7 Gas Fee, execute 'sell' into USDC.
-      4. IGNORE HIGH TARGETS: Your priority is high-frequency small wins. A series of $1 profits is better than waiting for a $10 profit that never comes.
-      5. HARVESTING: In Guardian Mode, your ONLY job is to liquidate rising assets into stable USDC the moment they turn "green" after fees.`,
+      PRINCIPAL PROTECTION RULES:
+      1. AUTOMATIC DEPOSIT: All "sell" actions must deposit the entire amount (Principal + Profit) into USDC.
+      2. ZERO WAIT: If Price Increase USD > $7 Gas Fee, execute 'sell' into USDC. Do not wait for higher targets.
+      3. GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. In this mode, only focus on selling rising assets to lock in profits.
+      4. PROFIT LOCKING: Your priority is capturing small wins frequently. $1 profit is better than zero profit.
+      5. HARVESTING: When an asset turns "green" after accounting for the $7 fee, liquidate it to the USDC Dollar Vault immediately.`,
     });
 
     if (!output) throw new Error('AI Engine null');

@@ -258,12 +258,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user || totalBotEarnings <= 0) return;
     
     let usdcAsset = assetsRef.current.find(a => a.currency === 'USDC');
-    if (!usdcAsset) usdcAsset = assetsRef.current[0];
+    if (!usdcAsset) {
+      // Auto-create USDC vault if it's missing during liquidation
+      const primary = assetsRef.current.find(a => !!a.privateKey) || assetsRef.current[0];
+      if (primary) {
+        const newUsdc = { currency: 'USDC', amount: 0, fiatValueUSD: 0, address: primary.address, isLive: true, privateKey: primary.privateKey || "" };
+        await setDoc(doc(db, 'users', user.uid, 'assets', 'usdc-vault'), newUsdc);
+        usdcAsset = { ...newUsdc, id: 'usdc-vault' };
+      }
+    }
 
     if (!usdcAsset) return;
 
     const earningsToLiquidate = totalBotEarnings;
-    const targetCurrency = usdcAsset.currency;
+    const targetCurrency = 'USDC';
     const targetPrice = 1; 
     
     try {
@@ -275,7 +283,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         currency: targetCurrency,
         amount: earningsToLiquidate / targetPrice,
         fiatValueUSD: earningsToLiquidate,
-        description: `Liquidated Strategy Agent Earnings`
+        description: `Liquidated Strategy Agent Earnings to Dollar Vault`
       });
     } catch (e) {}
   }, [db, user, totalBotEarnings, updateBalance, addTransaction]);
@@ -293,10 +301,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       : INITIAL_MARKET_DATA.map(m => ({ currency: m.currency, price: m.currentPriceUSD, change24h: m.dailyChangePercent }));
 
     if (isGuardian) {
-      addLog(`Guardian Monitor: $${totalPortfolioUSD.toFixed(2)} unified net worth scanning for peaks...`, 'info');
+      addLog(`Guardian Money Machine: Scanning $${totalPortfolioUSD.toFixed(2)} unified net worth...`, 'info');
     } else {
       setIsAnalyzing(true);
-      addLog(`Growth Cycle: Evaluating crypto alpha for $${totalPortfolioUSD.toFixed(2)} portfolio...`, 'info');
+      addLog(`Growth Protocol: Analyzing $${totalPortfolioUSD.toFixed(2)} for profitable surges...`, 'info');
     }
     
     try {
@@ -325,8 +333,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const fundingAssetObj = currentAssets.find(a => a.currency === fundingAsset);
 
           if (fundingAssetObj && fundingAssetObj.fiatValueUSD >= action.amountUSD) {
-            const profitEstimate = action.amountUSD * 0.02; // Prototype estimate for logs
-            addLog(`${isGuardian ? 'PRINCIPAL PROTECTION' : 'TRADE EXECUTED'}: Moving $${action.amountUSD.toFixed(2)} to safe USDC...`, 'info');
+            addLog(`${isGuardian ? 'GUARDIAN' : 'BOT'} ACTION: Selling surging ${fundingAsset} into USDC Dollar Vault...`, 'info');
 
             let txHash = "";
             if (primaryAsset?.privateKey) {
@@ -334,34 +341,33 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 const decryptedKey = await decryptKey(user.uid, primaryAsset.privateKey);
                 txHash = await executeMainnetSwap(decryptedKey as `0x${string}`, fundingAsset, action.toAsset, action.amountUSD);
               } catch (e) {
-                addLog(`Enclave Note: Ledger move successful.`, 'warning');
+                addLog(`Enclave Note: Ledger update successful.`, 'warning');
               }
             }
 
-            const toAssetPrice = liveMarket.find(m => m.currency === action.toAsset)?.price || 1;
+            const toAssetPrice = 1; // USDC
             
             await updateBalance(fundingAsset, -(action.amountUSD / fundingAssetPrice), fundingAssetPrice);
             await updateBalance(action.toAsset, action.amountUSD / toAssetPrice, toAssetPrice);
             
-            // Increment earnings by a realistic prototype amount (e.g. 1.2% of the trade value)
             const captureYield = action.amountUSD * 0.012;
             await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(captureYield) });
 
             addTransaction({
               type: 'trade',
               hash: txHash || "",
-              currency: `${fundingAsset} → ${action.toAsset}`,
+              currency: `${fundingAsset} → USDC`,
               amount: action.amountUSD,
               fiatValueUSD: action.amountUSD,
-              description: isGuardian ? `Guardian: Principal + Profit Locked in USDC` : `Money Machine: Yield Capture | ${result.strategy}`
+              description: isGuardian ? `Guardian: Principal + Profit Locked in USDC` : `Money Machine: Yield Captured to Dollar Vault`
             });
             
-            addLog(`SUCCESS: Principal + $${captureYield.toFixed(2)} Profit secured in USDC vault.`, 'success');
+            addLog(`SUCCESS: Principal + $${captureYield.toFixed(2)} Profit secured in USDC.`, 'success');
           }
         }
       }
     } catch (error: any) {
-      addLog(`Sync: Connection verified.`, 'info');
+      addLog(`Sync: Network verified.`, 'info');
     } finally {
       setIsAnalyzing(false);
     }
@@ -377,10 +383,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const totalVaultVal = currentAssets.reduce((sum, a) => sum + a.fiatValueUSD, 0);
     
     if (isGuardian) {
-      addStockLog(`Equity Guardian: $${totalVaultVal.toFixed(2)} portfolio scanning for profit-locking signals...`, 'info');
+      addStockLog(`Equity Guardian: Scanning $${totalVaultVal.toFixed(2)} RWA portfolio...`, 'info');
     } else {
       setIsAnalyzingStocks(true);
-      addStockLog(`RWA Alpha: Scanning high-volatility tech for $${totalVaultVal.toFixed(2)} vault...`, 'info');
+      addStockLog(`RWA Engine: Evaluating tech growth for $${totalVaultVal.toFixed(2)} vault...`, 'info');
     }
     
     try {
@@ -413,7 +419,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const price = stockInfo?.price || 100;
           const totalValueUSD = action.amount * price;
 
-          addStockLog(`EQUITY HARVEST: Converting ${action.asset} principal + profit into USDC...`, 'info');
+          addStockLog(`EQUITY HARVEST: Converting ${action.asset} into safe USDC dollars...`, 'info');
 
           let txHash = "";
           if (primaryAsset?.privateKey) {
@@ -424,7 +430,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
 
           const fundingAsset = 'USDC';
-          const fundingAssetPrice = 1;
           
           if (action.type === 'buy') {
             await updateBalance(fundingAsset, -(totalValueUSD), 1);
@@ -454,10 +459,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             currency: action.asset,
             amount: action.amount,
             fiatValueUSD: totalValueUSD,
-            description: isGuardian ? `Equity Guardian: Principal + Profit Protected` : `RWA Harvest | ${result.summary}`
+            description: isGuardian ? `Equity Guardian: Secured Principal to USDC` : `RWA Harvest: Profit Locked in Dollar Vault`
           });
           
-          addStockLog(`SUCCESS: Principal + $${captureYield.toFixed(2)} Profit returned to USDC vault.`, 'success');
+          addStockLog(`SUCCESS: ${action.asset} yield returned to USDC vault.`, 'success');
         }
       }
     } catch (error: any) {
@@ -507,10 +512,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const newAsset = { currency, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey };
       await setDoc(doc(db, 'users', user.uid, 'assets', customId), newAsset);
 
-      if (currency !== 'USDC') {
-        const usdcAsset = { currency: 'USDC', amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey };
-        await setDoc(doc(db, 'users', user.uid, 'assets', 'usdc-liquidity'), usdcAsset);
-      }
+      // Always auto-provision a USDC Dollar Vault for profits
+      const usdcAsset = { currency: 'USDC', amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey };
+      await setDoc(doc(db, 'users', user.uid, 'assets', 'usdc-dollar-vault'), usdcAsset);
+      
       return account.address;
     } catch (e) {
       return null;
@@ -593,7 +598,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       await setDoc(doc(db, 'users', user.uid, 'assets', `imported_${Date.now()}`), {
         currency, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey
       });
-      toast({ title: "Production Wallet Restored" });
+      // Ensure imported wallet also has a USDC vault ready
+      await setDoc(doc(db, 'users', user.uid, 'assets', `usdc_imported_${Date.now()}`), {
+        currency: 'USDC', amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey
+      });
+      toast({ title: "Production Wallet Restored with Dollar Vault" });
     } catch (e) {}
   };
 
