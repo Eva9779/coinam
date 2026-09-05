@@ -4,6 +4,7 @@
  * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
  * Optimized with Dynamic Profit Harvesting to sell as soon as gas fees are covered.
  * STRICT DIRECTIVE: All profits and principal must be secured into the USDC Dollar Vault.
+ * TARGETING: BTC, ETH, BNB, and SOL for maximum daily rotation.
  */
 
 import { ai } from '@/ai/genkit';
@@ -52,6 +53,7 @@ export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotOutput {
   const actions: any[] = [];
   const btc = input.marketData.find(m => m.currency === 'BTC');
+  const bnb = input.marketData.find(m => m.currency === 'BNB');
   
   const totalLiquidity = input.assets.reduce((sum, a) => sum + a.fiatValue, 0);
   const targetTradeSize = Math.max(10, totalLiquidity * 0.2); 
@@ -72,7 +74,7 @@ function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotO
           fromAsset: asset.currency,
           toAsset: 'USDC',
           amountUSD: asset.fiatValue, 
-          reasoning: `MONEY MACHINE: ${asset.currency} is up ${market.change24h}%. Net profit detected. Securing $${asset.fiatValue.toFixed(2)} to USDC Dollar Vault instantly.`
+          reasoning: `MONEY MACHINE: ${asset.currency} is up ${market.change24h}%. Net profit detected after fees. Securing Principal + Profit to USDC instantly.`
         });
       }
     }
@@ -80,13 +82,18 @@ function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotO
 
   // If no guardian actions and bot is on, add growth logic
   if (actions.length === 0 && !input.isGuardianMode) {
-    if (btc && btc.change24h > -2 && totalLiquidity >= 20) {
+    // Opportunistic BNB/BTC Entry
+    const bestDip = input.marketData
+      .filter(m => ['BTC', 'BNB', 'SOL', 'ETH'].includes(m.currency))
+      .sort((a, b) => a.change24h - b.change24h)[0];
+
+    if (bestDip && bestDip.change24h < 0 && totalLiquidity >= 20) {
       actions.push({
         type: 'buy',
         fromAsset: 'USDC',
-        toAsset: 'BTC',
+        toAsset: bestDip.currency,
         amountUSD: Math.min(targetTradeSize, input.allocationLimitUSD),
-        reasoning: `GROWTH ENTRY: Buying Bitcoin to build principal for the next harvesting surge.`
+        reasoning: `GROWTH ENTRY: Buying the dip on ${bestDip.currency} to build principal for the next harvesting surge.`
       });
     }
   }
@@ -106,14 +113,15 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
       input: input,
       output: { schema: TradingBotOutputSchema },
       prompt: `You are the 24-Hour Autonomous Money Machine for Coin A,M. 
-      YOUR MISSION: Sell surging assets into USDC the moment they cover gas fees.
+      YOUR MISSION: Sell surging assets (BTC, ETH, BNB, SOL) into USDC the moment they cover gas fees.
       
       PRINCIPAL PROTECTION RULES:
       1. AUTOMATIC DEPOSIT: All "sell" actions must deposit the entire amount (Principal + Profit) into USDC.
       2. ZERO WAIT: If Price Increase USD > $7 Gas Fee, execute 'sell' into USDC. Do not wait for higher targets.
-      3. GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. In this mode, only focus on selling rising assets to lock in profits.
-      4. PROFIT LOCKING: Your priority is capturing small wins frequently. $1 profit is better than zero profit.
-      5. HARVESTING: When an asset turns "green" after accounting for the $7 fee, liquidate it to the USDC Dollar Vault immediately.`,
+      3. BNB MONITORING: BNB is currently highly active. If BNB is up > 2%, check if it covers fees and SELL immediately.
+      4. GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. In this mode, only focus on selling rising assets to lock in profits.
+      5. PROFIT LOCKING: Your priority is capturing small wins frequently. $1 profit is better than zero profit.
+      6. HARVESTING: When an asset turns "green" after accounting for the $7 fee, liquidate it to the USDC Dollar Vault immediately.`,
     });
 
     if (!output) throw new Error('AI Engine null');

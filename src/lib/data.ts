@@ -23,6 +23,13 @@ export const INITIAL_MARKET_DATA = [
     volume24hUSD: 15000000000,
   },
   {
+    currency: 'BNB',
+    currentPriceUSD: 580.40,
+    dailyChangePercent: 8.2,
+    weeklyChangePercent: 12.5,
+    volume24hUSD: 2000000000,
+  },
+  {
     currency: 'SOL',
     currentPriceUSD: 145.30,
     dailyChangePercent: 5.2,

@@ -27,7 +27,7 @@ const TradingViewWidget = memo(({ symbol }: { symbol: string }) => {
     
     const config = {
       autosize: true,
-      symbol: `BINANCE:${symbol}USDT`,
+      symbol: symbol === 'BNB' ? `BINANCE:BNBUSDT` : `BINANCE:${symbol}USDT`,
       interval: "D",
       timezone: "Etc/UTC",
       theme: "light",
@@ -75,6 +75,7 @@ export default function TradePage() {
   const rates: Record<string, number> = {
     "BTC": 64000,
     "ETH": 2400,
+    "BNB": 580,
     "SOL": 145,
     "USDC": 1
   };
@@ -206,7 +207,7 @@ export default function TradePage() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {["BTC", "ETH", "SOL", "USDC"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      {["BTC", "ETH", "BNB", "SOL", "USDC"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
