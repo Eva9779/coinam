@@ -17,7 +17,8 @@ import {
   Eye, 
   Zap,
   ArrowUpRight,
-  ChevronRight
+  ChevronRight,
+  Activity
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -80,7 +81,7 @@ const MarketChartWidget = memo(({ symbol }: { symbol: string }) => {
     const config = {
       autosize: true,
       symbol: symbol,
-      interval: "D",
+      interval: "1",
       timezone: "Etc/UTC",
       theme: "dark",
       style: "1",
@@ -246,12 +247,15 @@ export default function MarketPage() {
                             </DialogTrigger>
                             <DialogContent className="max-w-5xl rounded-[2.5rem] bg-[#020617] border-white/10 text-white">
                               <DialogHeader>
-                                <div className="flex items-center gap-4 mb-4">
-                                  <img src={coin.image} alt={coin.name} className="h-10 w-10" />
-                                  <div>
-                                    <DialogTitle className="text-2xl font-black">{coin.name} Intelligence</DialogTitle>
-                                    <p className="text-white/40 text-xs font-bold uppercase tracking-widest">Mainnet Vision Profile</p>
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center gap-4">
+                                    <img src={coin.image} alt={coin.name} className="h-10 w-10" />
+                                    <div>
+                                      <DialogTitle className="text-2xl font-black">{coin.name} Intelligence</DialogTitle>
+                                      <p className="text-white/40 text-xs font-bold uppercase tracking-widest">Real-World Mainnet Feed</p>
+                                    </div>
                                   </div>
+                                  <Badge className="bg-secondary/20 text-secondary border-none uppercase text-[8px] animate-pulse">1m LIVE DATA</Badge>
                                 </div>
                               </DialogHeader>
                               <MarketChartWidget symbol={`BINANCE:${coin.symbol.toUpperCase()}USDT`} />
@@ -331,21 +335,26 @@ export default function MarketPage() {
                          <Dialog>
                             <DialogTrigger asChild>
                               <button className="p-2.5 rounded-xl border border-primary/5 bg-background shadow-sm hover:border-secondary transition-all opacity-0 group-hover:opacity-100 flex items-center gap-2 text-[10px] font-black uppercase text-secondary">
-                                <Eye className="h-4 w-4" />
+                                <Eye className="h-4 w-4 text-secondary" />
                                 <span className="hidden sm:inline">View Chart</span>
                               </button>
                             </DialogTrigger>
                             <DialogContent className="max-w-5xl rounded-[2.5rem] bg-[#020617] border-white/10 text-white">
                               <DialogHeader>
-                                <div className="flex items-center gap-4 mb-4">
-                                  <div className="h-10 w-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-black text-[10px] text-secondary">
-                                    {stock.symbol.slice(1, 4)}
+                                <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center gap-4">
+                                    <div className="h-10 w-10 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center font-black text-[10px] text-secondary">
+                                      {stock.symbol.slice(1, 4)}
+                                    </div>
+                                    <div>
+                                      <DialogTitle className="text-2xl font-black">{stock.name} Analysis</DialogTitle>
+                                      <p className="text-white/40 text-xs font-bold uppercase tracking-widest">Tokenized Equity Vision</p>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <DialogTitle className="text-2xl font-black">{stock.name} Analysis</DialogTitle>
-                                    <p className="text-white/40 text-xs font-bold uppercase tracking-widest">Tokenized Equity Vision</p>
+                                  <div className="flex items-center gap-2">
+                                     <Activity className="h-3 w-3 text-secondary animate-pulse" />
+                                     <Badge className="bg-secondary/20 text-secondary border-none uppercase text-[8px]">1m REAL-TIME DATA</Badge>
                                   </div>
-                                  <Badge className="ml-auto bg-secondary/20 text-secondary border-none uppercase text-[8px]">Real-Time</Badge>
                                 </div>
                               </DialogHeader>
                               <MarketChartWidget symbol={stock.tvSymbol} />

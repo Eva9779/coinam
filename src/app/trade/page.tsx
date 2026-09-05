@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeftRight, TrendingUp, Info, RefreshCw, BarChart3 } from "lucide-react";
+import { ArrowLeftRight, TrendingUp, Info, RefreshCw, BarChart3, Activity } from "lucide-react";
 import { useWalletStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 
@@ -28,7 +28,7 @@ const TradingViewWidget = memo(({ symbol }: { symbol: string }) => {
     const config = {
       autosize: true,
       symbol: symbol === 'BNB' ? `BINANCE:BNBUSDT` : symbol === 'SOL' ? `BINANCE:SOLUSDT` : `BINANCE:${symbol}USDT`,
-      interval: "D",
+      interval: "1",
       timezone: "Etc/UTC",
       theme: "light",
       style: "1",
@@ -139,9 +139,12 @@ export default function TradePage() {
               <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-secondary" />
               Live {toAsset}/USDT Feed
             </h3>
-            <Badge variant="outline" className="bg-secondary/5 text-secondary border-secondary/20 font-mono text-[9px] sm:text-[10px]">
-              REAL-TIME
-            </Badge>
+            <div className="flex items-center gap-3">
+              <Badge variant="outline" className="bg-secondary/5 text-secondary border-secondary/20 font-mono text-[9px] sm:text-[10px] flex items-center gap-1.5">
+                <Activity className="h-2 w-2 animate-pulse" />
+                1m LIVE
+              </Badge>
+            </div>
           </div>
           <TradingViewWidget symbol={toAsset} />
         </div>

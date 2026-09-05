@@ -51,7 +51,7 @@ const EquityChart = memo(({ symbol }: { symbol: string }) => {
     const config = {
       autosize: true,
       symbol: symbol,
-      interval: "D",
+      interval: "1",
       timezone: "Etc/UTC",
       theme: "dark",
       style: "1",
@@ -226,7 +226,7 @@ export default function StocksPage() {
                 <BarChart3 className="h-4 w-4 text-secondary" />
                 Equity Vision: {chartSymbol}
               </h3>
-              <Badge variant="outline" className="bg-secondary/10 text-secondary border-none animate-pulse">HIGH VOLATILITY</Badge>
+              <Badge variant="outline" className="bg-secondary/10 text-secondary border-none animate-pulse">1m LIVE EXCHANGE DATA</Badge>
             </div>
             <EquityChart symbol={chartSymbol} />
           </div>
