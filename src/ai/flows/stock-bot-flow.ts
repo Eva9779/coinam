@@ -1,7 +1,9 @@
+
 'use server';
 /**
  * @fileOverview Proactive Equity Agent.
  * Specialized in immediate profit harvesting for Tokenized RWA assets.
+ * Targets Leveraged ETFs (TQQQ, SOXL) for maximum daily yield.
  */
 
 import { ai } from '@/ai/genkit';
@@ -51,34 +53,32 @@ function getLocalRWAStrategy(input: StockBotInput): StockBotOutput {
   const actions: any[] = [];
   const assumedGasFee = 7;
   
-  if (input.isGuardianMode) {
-    input.currentHoldings.forEach(hold => {
-      const market = input.marketData.find(m => m.symbol === hold.symbol || hold.symbol.includes(m.symbol));
-      if (market && market.changePercent > 0) {
-        // Take any profit over fees + 0.1%
-        const breakEvenThreshold = (assumedGasFee / hold.value) * 100 + 0.1;
-        
-        if (market.changePercent > breakEvenThreshold && hold.value >= 10) {
-          actions.push({
-            type: 'sell',
-            asset: hold.symbol,
-            amount: hold.shares,
-            reasoning: `PROACTIVE EQUITY HARVEST: Net profit detected on ${hold.symbol}. Selling now to secure yield before potential daily close volatility.`
-          });
-        }
+  input.currentHoldings.forEach(hold => {
+    const market = input.marketData.find(m => m.symbol === hold.symbol || hold.symbol.includes(m.symbol));
+    if (market && market.changePercent > 0) {
+      const gainUSD = hold.value * (market.changePercent / 100);
+      
+      if (gainUSD > assumedGasFee) {
+        actions.push({
+          type: 'sell',
+          asset: hold.symbol,
+          amount: hold.shares,
+          reasoning: `PROFIT HARVEST: ${hold.symbol} has surged high enough to cover fees. Liquidating to USDC to lock in the daily gain.`
+        });
       }
-    });
-  } else {
-    // Buy logic for growth
-    const apple = input.marketData.find(m => m.symbol === 'AAPL');
-    if (apple && apple.changePercent < -1 && !input.currentHoldings.some(h => h.symbol.includes('AAPL'))) {
-      actions.push({ type: 'buy', asset: 'NASDAQ:AAPL', amount: 0.1, reasoning: 'DIP ENTRY: Buying Apple token at discount to prepare for profit harvest.' });
+    }
+  });
+
+  if (actions.length === 0 && !input.isGuardianMode) {
+    const bestAggressive = input.marketData.find(m => m.symbol === 'SOXL' && m.changePercent < -2);
+    if (bestAggressive && !input.currentHoldings.some(h => h.symbol.includes('SOXL'))) {
+      actions.push({ type: 'buy', asset: 'NASDAQ:SOXL', amount: 0.5, reasoning: 'LEVERAGED ENTRY: Buying the SOXL dip to maximize the next tech rally payout.' });
     }
   }
 
   return {
-    summary: input.isGuardianMode ? 'ACTIVE EQUITY HARVESTER' : 'GROWTH MODE',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'Awaiting any profitable equity surge (Gain > Gas Fees).' }],
+    summary: 'EQUITY HARVESTER ACTIVE',
+    actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'Awaiting market surge high enough to beat the $7 network fee.' }],
     sentiment: 'neutral',
     error: `Local Enclave Active.`
   };
@@ -90,16 +90,15 @@ export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBo
       model: 'googleai/gemini-1.5-flash',
       input: input,
       output: { schema: StockBotOutputSchema },
-      prompt: `You are the Proactive 24-Hour Equity Guardian for Coin A,M.
-      YOUR MISSION: Sell tokenized stocks the MOMENT they show even a tiny profit after the $7 gas fee.
-      GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. 
+      prompt: `You are the Proactive Equity Guardian for Coin A,M.
+      MISSION: Hunt for daily profit in TQQQ, SOXL, NVDA, and META.
       
       HARVESTING RULES:
-      1. ZERO WAIT TIME: If an asset (AAPL, TSLA, BND) is UP, and that Increase in USD covers the $7 Gas Fee, SELL IMMEDIATELY.
-      2. NEVER MISS A PEAK: Do not wait for higher percentages. A bird in the hand is worth two in the bush. 
-      3. ACTION: If (Price Increase - $7) > $0, SELL. 
-      4. SMALL WINS: It is your duty to capture $1 profits multiple times rather than waiting for a $20 profit that might reverse into a loss.
-      5. Always protect the principal. If no net profit after fees is possible, return 'hold'.`,
+      1. NO DELAY: If (Gain in USD - $7 Gas) > $0, SELL IMMEDIATELY.
+      2. LEVERAGE FOCUS: TQQQ and SOXL move 3X faster. Prioritize these for big daily wins.
+      3. SAFE LANDING: Always return the full value to the USDC Dollar Vault.
+      4. SMALL WINS: $1 profit is a victory. $0.50 profit is a victory. Do not wait for huge percentages that might crash.
+      5. FREQUENCY: Your job is to make small profits as many times a day as possible.`,
     });
 
     if (!output) throw new Error('AI RWA Engine null');

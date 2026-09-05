@@ -27,7 +27,7 @@ const TradingBotInputSchema = z.object({
   marketData: z.array(MarketEntrySchema),
   riskTolerance: z.enum(['low', 'medium', 'high']).default('medium'),
   allocationLimitUSD: z.number().describe('The maximum amount of USD value the bot is allowed to trade.'),
-  isGuardianMode: z.boolean().optional().describe('If true, the bot is running in the background even if the switch is off. Focus on selling rising assets to lock in profit.'),
+  isGuardianMode: z.boolean().optional().describe('If true, the bot focus on selling rising assets to lock in profit.'),
 });
 export type TradingBotInput = z.infer<typeof TradingBotInputSchema>;
 
@@ -52,37 +52,33 @@ export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
  */
 function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotOutput {
   const actions: any[] = [];
-  const btc = input.marketData.find(m => m.currency === 'BTC');
-  const bnb = input.marketData.find(m => m.currency === 'BNB');
   
   const totalLiquidity = input.assets.reduce((sum, a) => sum + a.fiatValue, 0);
   const targetTradeSize = Math.max(10, totalLiquidity * 0.2); 
-  const assumedGasFee = 7; // Average $7 fee
+  const assumedGasFee = 7; 
 
-  // GUARDIAN PROFIT HARVESTER
+  // PROACTIVE HARVESTER: Target BTC, ETH, SOL, BNB
   input.assets.forEach(asset => {
     if (asset.currency === 'USDC') return;
     
     const market = input.marketData.find(m => m.currency === asset.currency);
     if (market && market.change24h > 0) {
-      // PROACTIVE HARVEST: (Fee / Value) * 100 + 0.1% margin for any profit
-      const breakEvenThreshold = (assumedGasFee / asset.fiatValue) * 100 + 0.1;
+      // Logic: (Market Gain USD) must be > $7 Fee
+      const gainUSD = asset.fiatValue * (market.change24h / 100);
       
-      if (market.change24h > breakEvenThreshold && asset.fiatValue >= 10) {
+      if (gainUSD > assumedGasFee && asset.fiatValue >= 10) {
         actions.push({
           type: 'sell',
           fromAsset: asset.currency,
           toAsset: 'USDC',
           amountUSD: asset.fiatValue, 
-          reasoning: `MONEY MACHINE: ${asset.currency} is up ${market.change24h}%. Net profit detected after fees. Securing Principal + Profit to USDC instantly.`
+          reasoning: `MONEY MACHINE: ${asset.currency} surge detected. Principal + Profit are being harvested into the USDC Dollar Vault to beat the network fees.`
         });
       }
     }
   });
 
-  // If no guardian actions and bot is on, add growth logic
   if (actions.length === 0 && !input.isGuardianMode) {
-    // Opportunistic BNB/BTC Entry
     const bestDip = input.marketData
       .filter(m => ['BTC', 'BNB', 'SOL', 'ETH'].includes(m.currency))
       .sort((a, b) => a.change24h - b.change24h)[0];
@@ -93,15 +89,15 @@ function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotO
         fromAsset: 'USDC',
         toAsset: bestDip.currency,
         amountUSD: Math.min(targetTradeSize, input.allocationLimitUSD),
-        reasoning: `GROWTH ENTRY: Buying the dip on ${bestDip.currency} to build principal for the next harvesting surge.`
+        reasoning: `OPPORTUNITY: Entering ${bestDip.currency} at a discount to prepare for the next profitable harvest.`
       });
     }
   }
 
   return {
     strategy: input.isGuardianMode ? '24/7 PROFIT GUARDIAN' : 'MONEY MACHINE PROTOCOL',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'STANDBY: Awaiting profit signal (Earnings > Network Fees).' }],
-    marketSentiment: (btc && btc.change24h > 0) ? 'bullish' : 'neutral',
+    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'STANDBY: Assets are currently below the "Profit vs Fee" threshold. Maintaining principal.' }],
+    marketSentiment: 'neutral',
     error: `Local Enclave Active.`
   };
 }
@@ -112,16 +108,15 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
       model: 'googleai/gemini-1.5-flash',
       input: input,
       output: { schema: TradingBotOutputSchema },
-      prompt: `You are the 24-Hour Autonomous Money Machine for Coin A,M. 
-      YOUR MISSION: Sell surging assets (BTC, ETH, BNB, SOL) into USDC the moment they cover gas fees.
+      prompt: `You are the Autonomous Money Machine for Coin A,M. 
+      YOUR MISSION: Sell surging assets (BTC, ETH, BNB, SOL) into USDC the moment they cover gas fees ($7).
       
-      PRINCIPAL PROTECTION RULES:
-      1. AUTOMATIC DEPOSIT: All "sell" actions must deposit the entire amount (Principal + Profit) into USDC.
-      2. ZERO WAIT: If Price Increase USD > $7 Gas Fee, execute 'sell' into USDC. Do not wait for higher targets.
-      3. BNB MONITORING: BNB is currently highly active. If BNB is up > 2%, check if it covers fees and SELL immediately.
-      4. GUARDIAN MODE: ${input.isGuardianMode ? 'ACTIVE' : 'OFF'}. In this mode, only focus on selling rising assets to lock in profits.
-      5. PROFIT LOCKING: Your priority is capturing small wins frequently. $1 profit is better than zero profit.
-      6. HARVESTING: When an asset turns "green" after accounting for the $7 fee, liquidate it to the USDC Dollar Vault immediately.`,
+      STRICT PROFIT RULES:
+      1. DO NOT WAIT: If Gain USD > $7, SELL IMMEDIATELY.
+      2. TARGETS: SOL and BNB are your primary hunt targets due to their high volatility.
+      3. USDC LOCK: Every sale must return the entire Principal + Profit to the USDC Dollar Vault.
+      4. SMALL WINS: It is your duty to stack $1 and $2 wins hundreds of times a month.
+      5. PROTECTION: Never execute a trade if the result leaves the user with less than they started.`,
     });
 
     if (!output) throw new Error('AI Engine null');
