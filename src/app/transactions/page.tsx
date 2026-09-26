@@ -21,7 +21,8 @@ import {
   Copy, 
   Loader2,
   Clock,
-  XCircle
+  XCircle,
+  Activity
 } from "lucide-react";
 import { useWalletStore, Transaction } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
@@ -49,8 +50,12 @@ export default function TransactionsPage() {
   useEffect(() => {
     setMounted(true);
     async function fetchFees() {
-      const gwei = await getLiveGasPrice();
-      setBaseGas(gwei);
+      try {
+        const gwei = await getLiveGasPrice();
+        setBaseGas(gwei);
+      } catch (e) {
+        console.warn("Fee detection sync delay...");
+      }
     }
     fetchFees();
     const interval = setInterval(fetchFees, 30000);
@@ -74,8 +79,13 @@ export default function TransactionsPage() {
   const currency = asset?.currency || "ETH";
 
   const getGasEstimate = () => {
-    const gasLimit = 21000;
-    const currentGas = baseGas || 20; 
+    // Intelligent Gas Detection: 
+    // Standard ETH transfer is 21,000 gas. 
+    // Token transfers (USDC, WBTC, etc.) require approx 65,000 gas.
+    const isEth = currency === 'ETH';
+    const gasLimit = isEth ? 21000 : 65000; 
+    
+    const currentGas = baseGas || 20; // Fallback to 20 Gwei if not yet detected
     const multiplier = feeTier === 'slow' ? 0.9 : feeTier === 'fast' ? 1.5 : 1.1;
     const ethFee = (gasLimit * (currentGas * multiplier)) / 1e9;
     return ethFee;
@@ -291,10 +301,16 @@ export default function TransactionsPage() {
 
                 <div className="p-5 bg-primary/5 rounded-2xl space-y-3 text-sm border-2 border-dashed border-primary/10">
                   <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground font-semibold uppercase tracking-widest text-[10px]">Estimated Network Fee</span>
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground font-semibold uppercase tracking-widest text-[10px]">Estimated Network Fee</span>
+                      <span className="text-[9px] font-bold text-secondary uppercase flex items-center gap-1 mt-0.5">
+                        <Activity className="h-2 w-2" />
+                        Live Detection: {baseGas.toFixed(1)} Gwei
+                      </span>
+                    </div>
                     <div className="flex flex-col items-end">
                       <span className="font-bold text-base">{getGasEstimate().toFixed(6)} {currency}</span>
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold">Mainnet Gas</span>
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold">{feeTier} Priority</span>
                     </div>
                   </div>
                   <div className="h-px bg-primary/10 w-full" />
