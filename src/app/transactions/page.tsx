@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -58,6 +57,11 @@ export default function TransactionsPage() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    const curr = searchParams.get('currency');
+    if (curr) setCurrency(curr);
+  }, [searchParams]);
+
   const getGasEstimate = () => {
     const gasLimit = 21000;
     const currentGas = baseGas || 20; 
@@ -69,7 +73,7 @@ export default function TransactionsPage() {
   const validateAddress = (addr: string) => {
     if (!addr) return "";
     const ethRegex = /^0x[a-fA-F0-9]{40}$/;
-    if (!ethRegex.test(addr)) return "Invalid destination address for Mainnet broadcast";
+    if (!ethRegex.test(addr)) return "Invalid destination address for Mainnet transfer";
     return "";
   };
 
@@ -104,7 +108,7 @@ export default function TransactionsPage() {
       const txHash = await sendLiveTransaction(asset.privateKey, recipient, amount);
       
       toast({
-        title: "Broadcast Initialized",
+        title: "Transfer Initialized",
         description: `Signature: ${txHash.slice(0, 16)}...`,
       });
 
@@ -124,12 +128,12 @@ export default function TransactionsPage() {
         amount: sentAmount,
         fiatValueUSD: sentAmount * fiatPrice,
         toAddress: sentRecipient,
-        description: `Mainnet Broadcast`
+        description: `External Wallet Transfer`
       });
 
     } catch (err: any) {
       toast({
-        title: "Broadcast Failed",
+        title: "Transfer Failed",
         description: err.message || "Failed to transmit transaction to the peer network.",
         variant: "destructive"
       });
@@ -165,9 +169,9 @@ export default function TransactionsPage() {
         <div>
           <h2 className="text-3xl font-bold text-primary flex items-center gap-3">
             <Database className="h-8 w-8 text-secondary" />
-            Mainnet Gateway
+            Send & Receive
           </h2>
-          <p className="text-muted-foreground text-sm">Direct broadcast interface to decentralized peer networks.</p>
+          <p className="text-muted-foreground text-sm">Direct interface for transferring assets to any external or internal wallet.</p>
         </div>
         <div className="hidden sm:flex items-center gap-2 bg-green-500/10 px-3 py-1.5 rounded-full border border-green-500/20">
           <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
@@ -179,9 +183,9 @@ export default function TransactionsPage() {
 
       <Tabs defaultValue={initialTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-8 bg-muted/30 p-1">
-          <TabsTrigger value="send" className="gap-2 data-[state=active]:shadow-lg"><ArrowUpRight className="h-4 w-4" /> Broadcast</TabsTrigger>
-          <TabsTrigger value="receive" className="gap-2 data-[state=active]:shadow-lg"><ArrowDownLeft className="h-4 w-4" /> Deposit</TabsTrigger>
-          <TabsTrigger value="history" className="gap-2 data-[state=active]:shadow-lg"><History className="h-4 w-4" /> Ledger</TabsTrigger>
+          <TabsTrigger value="send" className="gap-2 data-[state=active]:shadow-lg"><ArrowUpRight className="h-4 w-4" /> Send</TabsTrigger>
+          <TabsTrigger value="receive" className="gap-2 data-[state=active]:shadow-lg"><ArrowDownLeft className="h-4 w-4" /> Receive</TabsTrigger>
+          <TabsTrigger value="history" className="gap-2 data-[state=active]:shadow-lg"><History className="h-4 w-4" /> Activity</TabsTrigger>
         </TabsList>
 
         <TabsContent value="send">
@@ -189,9 +193,9 @@ export default function TransactionsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-xl font-bold">
                 <ShieldCheck className="h-6 w-6 text-secondary" />
-                Sign & Transmit
+                Initiate Transfer
               </CardTitle>
-              <CardDescription className="text-xs">Finalize and transmit assets directly to the decentralized ledger.</CardDescription>
+              <CardDescription className="text-xs">Securely send assets to any wallet address on the global ledger.</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSend} className="space-y-6">
@@ -235,7 +239,7 @@ export default function TransactionsPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="recipient" className="text-xs uppercase tracking-widest font-bold opacity-70">Destination Address</Label>
+                  <Label htmlFor="recipient" className="text-xs uppercase tracking-widest font-bold opacity-70">Recipient Address (External or Internal)</Label>
                   <div className="space-y-1">
                     <input 
                       id="recipient" 
@@ -255,7 +259,7 @@ export default function TransactionsPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <Label className="text-xs uppercase tracking-widest font-bold opacity-70">Priority Level</Label>
+                  <Label className="text-xs uppercase tracking-widest font-bold opacity-70">Transfer Priority</Label>
                   <div className="grid grid-cols-3 gap-3">
                     {(['slow', 'average', 'fast'] as FeeTier[]).map((tier) => (
                       <button
@@ -277,10 +281,10 @@ export default function TransactionsPage() {
 
                 <div className="p-5 bg-primary/5 rounded-2xl space-y-3 text-sm border-2 border-dashed border-primary/10">
                   <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground font-semibold uppercase tracking-widest text-[10px]">Network Fee</span>
+                    <span className="text-muted-foreground font-semibold uppercase tracking-widest text-[10px]">Estimated Network Fee</span>
                     <div className="flex flex-col items-end">
                       <span className="font-bold text-base">{getGasEstimate().toFixed(6)} {currency}</span>
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold">Estimated</span>
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold">Mainnet Gas</span>
                     </div>
                   </div>
                   <div className="h-px bg-primary/10 w-full" />
@@ -293,7 +297,7 @@ export default function TransactionsPage() {
                 </div>
 
                 <Button type="submit" className="w-full py-8 text-xl font-bold gap-3 shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-transform rounded-2xl bg-primary text-primary-foreground" disabled={isSending}>
-                  {isSending ? <Loader2 className="h-6 w-6 animate-spin" /> : <><Send className="h-6 w-6" /> Finalize Broadcast</>}
+                  {isSending ? <Loader2 className="h-6 w-6 animate-spin" /> : <><Send className="h-6 w-6" /> Authorize & Send</>}
                 </Button>
               </form>
             </CardContent>
@@ -303,8 +307,8 @@ export default function TransactionsPage() {
         <TabsContent value="receive">
           <Card className="border-none shadow-xl bg-card/50 backdrop-blur-md">
             <CardHeader>
-              <CardTitle className="text-xl">Network Entrypoint</CardTitle>
-              <CardDescription className="text-xs">Incoming transfers are credited after confirmation on the global ledger.</CardDescription>
+              <CardTitle className="text-xl">Receive Assets</CardTitle>
+              <CardDescription className="text-xs">Share your unique address or QR code to receive transfers from external or internal wallets.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col items-center space-y-8 py-10">
               <div className="p-8 bg-white rounded-3xl shadow-2xl border border-primary/5">
@@ -324,7 +328,7 @@ export default function TransactionsPage() {
               
               <div className="w-full space-y-4 max-w-sm">
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-widest opacity-70">Mainnet Receiving Endpoint</Label>
+                  <Label className="text-xs font-bold uppercase tracking-widest opacity-70">Your Mainnet Receiving Address</Label>
                   <div className="flex gap-2">
                     <Input 
                       readOnly 
@@ -350,7 +354,7 @@ export default function TransactionsPage() {
           <Card className="border-none shadow-xl bg-card/50 backdrop-blur-md">
             <CardHeader>
               <CardTitle className="text-xl font-bold uppercase tracking-tighter">Activity Ledger</CardTitle>
-              <CardDescription className="text-xs">Immutable history synced with global peers.</CardDescription>
+              <CardDescription className="text-xs">Immutable history of all your sent and received assets.</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-primary/5">
@@ -367,7 +371,7 @@ export default function TransactionsPage() {
                       </div>
                       <div className="space-y-1">
                         <div className="font-bold text-lg flex items-center gap-2">
-                          {tx.type === 'receive' ? 'Mainnet Deposit' : tx.type === 'send' ? 'Mainnet Broadcast' : 'Peer Exchange'}
+                          {tx.type === 'receive' ? 'Incoming Transfer' : tx.type === 'send' ? 'Outgoing Transfer' : 'Exchange'}
                           {getStatusBadge(tx.status)}
                         </div>
                         <div className="text-sm text-muted-foreground font-medium">{tx.description}</div>

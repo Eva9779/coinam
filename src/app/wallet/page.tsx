@@ -18,7 +18,8 @@ import {
   ArrowRight,
   Loader2,
   Key,
-  PlusCircle
+  PlusCircle,
+  ArrowUpRight
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
@@ -176,6 +177,16 @@ export default function WalletPage() {
                         AES-256 Isolation Active
                       </div>
                       <div className="flex gap-2">
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className="h-10 w-10 rounded-xl hover:bg-primary/10"
+                          asChild
+                        >
+                          <Link href={`/transactions?tab=send&currency=${asset.currency}`}>
+                            <ArrowUpRight className="h-4 w-4 text-primary" />
+                          </Link>
+                        </Button>
                         <Button 
                           variant="ghost" 
                           size="icon" 

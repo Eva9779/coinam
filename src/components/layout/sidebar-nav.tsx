@@ -23,6 +23,7 @@ import { useWalletStore } from "@/lib/store";
 const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Wallet", href: "/wallet", icon: Wallet },
+  { name: "Send & Receive", href: "/transactions", icon: ArrowLeftRight },
   { name: "Stocks & Bonds", icon: Landmark, href: "/stocks" },
   { name: "Strategy Agent", href: "/bot", icon: Bot },
   { name: "Buy Assets", href: "/buy", icon: CreditCard },
