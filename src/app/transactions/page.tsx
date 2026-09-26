@@ -40,7 +40,7 @@ export default function TransactionsPage() {
   const [isSending, setIsSending] = useState(false);
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
-  const [currency, setCurrency] = useState("ETH");
+  const [selectedAssetId, setSelectedAssetId] = useState("");
   const [feeTier, setFeeTier] = useState<FeeTier>('average');
   const [addressError, setAddressError] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -58,9 +58,20 @@ export default function TransactionsPage() {
   }, []);
 
   useEffect(() => {
-    const curr = searchParams.get('currency');
-    if (curr) setCurrency(curr);
-  }, [searchParams]);
+    if (initialized && assets.length > 0) {
+      const currParam = searchParams.get('currency');
+      if (currParam) {
+        const found = assets.find(a => a.currency === currParam);
+        if (found) setSelectedAssetId(found.id);
+        else if (!selectedAssetId) setSelectedAssetId(assets[0].id);
+      } else if (!selectedAssetId) {
+        setSelectedAssetId(assets[0].id);
+      }
+    }
+  }, [searchParams, assets, initialized, selectedAssetId]);
+
+  const asset = assets.find(a => a.id === selectedAssetId);
+  const currency = asset?.currency || "ETH";
 
   const getGasEstimate = () => {
     const gasLimit = 21000;
@@ -86,7 +97,6 @@ export default function TransactionsPage() {
     }
 
     const val = parseFloat(amount);
-    const asset = assets.find(a => a.currency === currency);
     
     if (!asset || val > asset.amount) {
       toast({ title: "Insufficient balance on mainnet ledger", variant: "destructive" });
@@ -161,7 +171,7 @@ export default function TransactionsPage() {
     );
   }
 
-  const receiveAddress = assets.find(a => a.currency === currency)?.address || "";
+  const receiveAddress = asset?.address || "";
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -202,17 +212,17 @@ export default function TransactionsPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="currency" className="text-xs uppercase tracking-widest font-bold opacity-70">Source Asset</Label>
-                    <Select value={currency} onValueChange={(val) => { setCurrency(val); setAddressError(""); }}>
+                    <Select value={selectedAssetId} onValueChange={(val) => { setSelectedAssetId(val); setAddressError(""); }}>
                       <SelectTrigger className="font-semibold h-12 bg-background/50">
                         <SelectValue placeholder="Select asset" />
                       </SelectTrigger>
                       <SelectContent>
                         {assets.length > 0 ? assets.map(a => (
-                          <SelectItem key={a.address} value={a.currency}>
+                          <SelectItem key={a.id} value={a.id}>
                             {a.currency} ({a.amount.toFixed(4)}) - {a.address.slice(0, 6)}...
                           </SelectItem>
                         )) : (
-                          <SelectItem value="ETH" disabled>No active assets provisioned</SelectItem>
+                          <SelectItem value="none" disabled>No active assets provisioned</SelectItem>
                         )}
                       </SelectContent>
                     </Select>
