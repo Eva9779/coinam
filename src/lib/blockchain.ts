@@ -8,7 +8,7 @@ import { privateKeyToAccount } from 'viem/accounts';
  * Maps asset symbols to real Ethereum Mainnet contract addresses.
  * Expanded with high-volatility growth assets for maximum daily yield.
  * 
- * NOTE: BTC is handled as WBTC and SOL as a Mainnet Token for unified management 
+ * NOTE: BTC is handled as WBTC, SOL/BNB/XRP as Mainnet Tokens for unified management 
  * under a single cryptographic address.
  */
 export const TOKENS = {
@@ -17,6 +17,7 @@ export const TOKENS = {
   WBTC: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
   SOL: '0xD1d69d25197a4d7E2dF0B9141C2BB73dEC995551',
   BNB: '0xB8c77482e45F1F44dE1745F52C74426C631bDD52',
+  XRP: '0x39f6b919502f23D3F97b0946d03f6ad168e2f472', // Wrapped XRP on Ethereum
   bAAPL: '0x4A6fC0c3a887019fA4c5A0c128540F1aA9128522',
   bGOOGL: '0x5b38Da6a701c568545dCfcB03FcB875f56beddC4',
   bTSLA: '0x9dE5698b671A866b8d22384a4413e1173872217c',

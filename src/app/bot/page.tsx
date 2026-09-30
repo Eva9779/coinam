@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, memo } from 'react';
@@ -99,7 +100,7 @@ export default function TradingBotPage() {
 
   const [localAllocation, setLocalAllocation] = useState(botAllocation.toString());
   const [localRisk, setLocalRisk] = useState<'low' | 'medium' | 'high'>(botRiskLevel);
-  const [localStrategy, setLocalStrategy] = useState<'standard' | 'bitcoin_multiplier'>(botStrategy);
+  const [localStrategy, setLocalStrategy] = useState<string>(botStrategy);
   const [chartSymbol, setChartSymbol] = useState("BTC");
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
@@ -123,7 +124,7 @@ export default function TradingBotPage() {
       });
       return;
     }
-    updateBotSettings(!botActive, allocationNum, localRisk, localStrategy);
+    updateBotSettings(!botActive, allocationNum, localRisk, localStrategy as any);
   };
 
   const isLocalProtocol = botLogs.some(log => log.msg.includes("LOCAL PROTOCOL"));
@@ -255,7 +256,10 @@ export default function TradingBotPage() {
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
                       <SelectItem value="standard">Mainnet Rebalancing (Standard)</SelectItem>
-                      <SelectItem value="bitcoin_multiplier">Bitcoin Multiplier</SelectItem>
+                      <SelectItem value="sol_yield">Solana Yield Hunter (SOL)</SelectItem>
+                      <SelectItem value="bnb_surge">BNB Surge Guardian (BNB)</SelectItem>
+                      <SelectItem value="xrp_bridge">XRP Ledger Bridge (XRP)</SelectItem>
+                      <SelectItem value="bitcoin_multiplier">Bitcoin Multiplier (WBTC)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

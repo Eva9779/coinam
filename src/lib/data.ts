@@ -38,6 +38,13 @@ export const INITIAL_MARKET_DATA = [
     volume24hUSD: 4000000000,
   },
   {
+    currency: 'XRP',
+    currentPriceUSD: 0.62,
+    dailyChangePercent: 4.5,
+    weeklyChangePercent: 8.2,
+    volume24hUSD: 1200000000,
+  },
+  {
     currency: 'USDC',
     currentPriceUSD: 1.00,
     dailyChangePercent: 0,

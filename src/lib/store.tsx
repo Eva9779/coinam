@@ -61,6 +61,8 @@ interface BotLog {
   timestamp: string;
 }
 
+export type BotStrategyType = 'standard' | 'bitcoin_multiplier' | 'sol_yield' | 'bnb_surge' | 'xrp_bridge';
+
 interface WalletContextType {
   assets: WalletAsset[];
   stockAssets: StockAsset[];
@@ -74,7 +76,7 @@ interface WalletContextType {
   botActive: boolean;
   botAllocation: number;
   botRiskLevel: 'low' | 'medium' | 'high';
-  botStrategy: 'standard' | 'bitcoin_multiplier';
+  botStrategy: BotStrategyType;
   botLogs: BotLog[];
   stockBotActive: boolean;
   stockBotRisk: 'low' | 'medium' | 'high';
@@ -87,7 +89,7 @@ interface WalletContextType {
   updateBalance: (currency: string, amount: number, fiatPrice: number) => Promise<void>;
   generateNewWallet: (currency: string, customId?: string) => Promise<string | null>;
   importPrivateKey: (currency: string, privateKey: string) => Promise<void>;
-  updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: 'standard' | 'bitcoin_multiplier') => void;
+  updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: BotStrategyType) => void;
   updateStockBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => void;
   submitKYC: (data: any) => Promise<void>;
   clearBotLogs: () => void;
@@ -108,7 +110,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [botActive, setBotActive] = useState(false);
   const [botAllocation, setBotAllocation] = useState(1000);
   const [botRiskLevel, setBotRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
-  const [botStrategy, setBotStrategy] = useState<'standard' | 'bitcoin_multiplier'>('standard');
+  const [botStrategy, setBotStrategy] = useState<BotStrategyType>('standard');
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   
   const [stockBotActive, setStockBotActive] = useState(false);
@@ -124,8 +126,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   
   const assetsRef = useRef<WalletAsset[]>([]);
   const marketDataRef = useRef<any[]>([]);
-  const botStateRef = useRef({ active: false, risk: 'medium', allocation: 1000, strategy: 'standard' });
-  const stockBotStateRef = useRef({ active: false, risk: 'medium', allocation: 2500 });
+  const botStateRef = useRef({ active: false, risk: 'medium' as const, allocation: 1000, strategy: 'standard' as BotStrategyType });
+  const stockBotStateRef = useRef({ active: false, risk: 'medium' as const, allocation: 2500 });
 
   const { user } = useUserHook();
   const db = useFirestore();
@@ -149,11 +151,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const fetchMarket = async () => {
       try {
-        const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=20&page=1&sparkline=false');
+        const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=30&page=1&sparkline=false');
         const data = await res.json();
         
         if (Array.isArray(data)) {
-          // Enrich with Stock simulation
           const enriched = data.map(coin => ({
             id: coin.id,
             symbol: coin.symbol.toUpperCase(),
@@ -164,8 +165,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             type: 'crypto'
           }));
 
-          // Add Stocks with simulated volatility for Net Worth movement
-          INITIAL_MARKET_DATA.filter(m => !['BTC', 'ETH', 'SOL', 'BNB', 'USDC'].includes(m.currency)).forEach(stock => {
+          INITIAL_MARKET_DATA.filter(m => !['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'USDC'].includes(m.currency)).forEach(stock => {
             const jitter = 1 + (Math.random() * 0.0004 - 0.0002);
             enriched.push({
               id: stock.currency.toLowerCase(),
@@ -181,7 +181,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           setMarketData(enriched);
         }
       } catch (err) {
-        // Fallback to static with jitter
         setMarketData(INITIAL_MARKET_DATA.map(m => {
           const jitter = 1 + (Math.random() * 0.0002 - 0.0001);
           return {
@@ -189,13 +188,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             symbol: m.currency,
             current_price: m.currentPriceUSD * jitter,
             price_change_percentage_24h: m.dailyChangePercent,
-            type: ['BTC', 'ETH', 'SOL', 'BNB', 'USDC'].includes(m.currency) ? 'crypto' : 'stock'
+            type: ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'USDC'].includes(m.currency) ? 'crypto' : 'stock'
           };
         }));
       }
     };
     fetchMarket();
-    const interval = setInterval(fetchMarket, 15000); // 15s refresh for "Live" net worth
+    const interval = setInterval(fetchMarket, 15000); 
     return () => clearInterval(interval);
   }, []);
 
@@ -344,7 +343,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       addLog(`Guardian Money Machine: Scanning $${totalPortfolioUSD.toFixed(2)} unified net worth...`, 'info');
     } else {
       setIsAnalyzing(true);
-      addLog(`Growth Protocol: Analyzing $${totalPortfolioUSD.toFixed(2)} for profitable surges...`, 'info');
+      addLog(`Growth Protocol: Analyzing $${totalPortfolioUSD.toFixed(2)} [Profile: ${strategyType}]...`, 'info');
     }
     
     try {
@@ -552,7 +551,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const primaryAsset = { currency, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey };
       await setDoc(doc(db, 'users', user.uid, 'assets', customId), primaryAsset);
 
-      const vaults = ['USDC', 'SOL', 'BNB', 'WBTC'];
+      const vaults = ['USDC', 'SOL', 'BNB', 'XRP', 'WBTC'];
       for (const v of vaults) {
         const vAsset = { currency: v, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey };
         await setDoc(doc(db, 'users', user.uid, 'assets', `${v.toLowerCase()}-vault`), vAsset);
@@ -620,7 +619,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }, 2000);
   };
 
-  const updateBotSettings = (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: 'standard' | 'bitcoin_multiplier') => {
+  const updateBotSettings = (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: BotStrategyType) => {
     if (!db || !user) return;
     updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy });
     if (active) setTimeout(() => runBotCycle(true), 500);
@@ -638,7 +637,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const account = privateKeyToAccount(privateKey as `0x${string}`);
       const encryptedKey = await encryptKey(user.uid, privateKey);
       
-      const vaults = [currency, 'USDC', 'SOL', 'BNB', 'WBTC'];
+      const vaults = [currency, 'USDC', 'SOL', 'BNB', 'XRP', 'WBTC'];
       for (const v of vaults) {
         await setDoc(doc(db, 'users', user.uid, 'assets', `${v.toLowerCase()}_imported_${Date.now()}`), {
           currency: v, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey

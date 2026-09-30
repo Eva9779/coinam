@@ -4,7 +4,7 @@
  * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
  * Optimized with Dynamic Profit Harvesting to sell as soon as gas fees are covered.
  * STRICT DIRECTIVE: All profits and principal must be secured into the USDC Dollar Vault.
- * TARGETING: BTC, ETH, BNB, and SOL for maximum daily rotation.
+ * TARGETING: BTC, ETH, BNB, SOL, and XRP for maximum daily rotation.
  */
 
 import { ai } from '@/ai/genkit';
@@ -18,7 +18,7 @@ const MarketEntrySchema = z.object({
 
 const TradingBotInputSchema = z.object({
   userId: z.string(),
-  strategyType: z.enum(['standard', 'bitcoin_multiplier']).default('standard'),
+  strategyType: z.enum(['standard', 'bitcoin_multiplier', 'sol_yield', 'bnb_surge', 'xrp_bridge']).default('standard'),
   assets: z.array(z.object({
     currency: z.string(),
     amount: z.number(),
@@ -57,7 +57,7 @@ function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotO
   const targetTradeSize = Math.max(10, totalLiquidity * 0.2); 
   const assumedGasFee = 7; 
 
-  // PROACTIVE HARVESTER: Target BTC, ETH, SOL, BNB
+  // PROACTIVE HARVESTER: Target BTC, ETH, SOL, BNB, XRP
   input.assets.forEach(asset => {
     if (asset.currency === 'USDC') return;
     
@@ -79,8 +79,9 @@ function getLocalStrategy(input: TradingBotInput, errorMsg: string): TradingBotO
   });
 
   if (actions.length === 0 && !input.isGuardianMode) {
+    const huntingList = ['BTC', 'BNB', 'SOL', 'ETH', 'XRP'];
     const bestDip = input.marketData
-      .filter(m => ['BTC', 'BNB', 'SOL', 'ETH'].includes(m.currency))
+      .filter(m => huntingList.includes(m.currency))
       .sort((a, b) => a.change24h - b.change24h)[0];
 
     if (bestDip && bestDip.change24h < 0 && totalLiquidity >= 20) {
@@ -109,11 +110,13 @@ export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<Tra
       input: input,
       output: { schema: TradingBotOutputSchema },
       prompt: `You are the Autonomous Money Machine for Coin A,M. 
-      YOUR MISSION: Sell surging assets (BTC, ETH, BNB, SOL) into USDC the moment they cover gas fees ($7).
+      YOUR MISSION: Sell surging assets (BTC, ETH, BNB, SOL, XRP) into USDC the moment they cover gas fees ($7).
+      
+      STRATEGY CONTEXT: The user has selected the strategy "{{{strategyType}}}". Adjust your hunting focus accordingly.
       
       STRICT PROFIT RULES:
       1. DO NOT WAIT: If Gain USD > $7, SELL IMMEDIATELY.
-      2. TARGETS: SOL and BNB are your primary hunt targets due to their high volatility.
+      2. TARGETS: SOL, BNB, and XRP are your primary hunt targets due to their high volatility.
       3. USDC LOCK: Every sale must return the entire Principal + Profit to the USDC Dollar Vault.
       4. SMALL WINS: It is your duty to stack $1 and $2 wins hundreds of times a month.
       5. PROTECTION: Never execute a trade if the result leaves the user with less than they started.`,
