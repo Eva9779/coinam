@@ -82,6 +82,7 @@ interface WalletContextType {
   stockBotLogs: BotLog[];
   isAnalyzing: boolean;
   isAnalyzingStocks: boolean;
+  marketData: any[];
   addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp' | 'status' | 'hash'> & { hash?: string }) => void;
   updateBalance: (currency: string, amount: number, fiatPrice: number) => Promise<void>;
   generateNewWallet: (currency: string, customId?: string) => Promise<string | null>;
@@ -150,11 +151,51 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       try {
         const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=20&page=1&sparkline=false');
         const data = await res.json();
-        if (Array.isArray(data)) setMarketData(data);
-      } catch (err) {}
+        
+        if (Array.isArray(data)) {
+          // Enrich with Stock simulation
+          const enriched = data.map(coin => ({
+            id: coin.id,
+            symbol: coin.symbol.toUpperCase(),
+            name: coin.name,
+            current_price: coin.current_price,
+            price_change_percentage_24h: coin.price_change_percentage_24h,
+            image: coin.image,
+            type: 'crypto'
+          }));
+
+          // Add Stocks with simulated volatility for Net Worth movement
+          INITIAL_MARKET_DATA.filter(m => !['BTC', 'ETH', 'SOL', 'BNB', 'USDC'].includes(m.currency)).forEach(stock => {
+            const jitter = 1 + (Math.random() * 0.0004 - 0.0002);
+            enriched.push({
+              id: stock.currency.toLowerCase(),
+              symbol: stock.currency,
+              name: stock.currency,
+              current_price: stock.currentPriceUSD * jitter,
+              price_change_percentage_24h: stock.dailyChangePercent + (Math.random() * 0.1 - 0.05),
+              image: '',
+              type: 'stock'
+            });
+          });
+
+          setMarketData(enriched);
+        }
+      } catch (err) {
+        // Fallback to static with jitter
+        setMarketData(INITIAL_MARKET_DATA.map(m => {
+          const jitter = 1 + (Math.random() * 0.0002 - 0.0001);
+          return {
+            id: m.currency.toLowerCase(),
+            symbol: m.currency,
+            current_price: m.currentPriceUSD * jitter,
+            price_change_percentage_24h: m.dailyChangePercent,
+            type: ['BTC', 'ETH', 'SOL', 'BNB', 'USDC'].includes(m.currency) ? 'crypto' : 'stock'
+          };
+        }));
+      }
     };
     fetchMarket();
-    const interval = setInterval(fetchMarket, 60000);
+    const interval = setInterval(fetchMarket, 15000); // 15s refresh for "Live" net worth
     return () => clearInterval(interval);
   }, []);
 
@@ -259,7 +300,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     
     let usdcAsset = assetsRef.current.find(a => a.currency === 'USDC');
     if (!usdcAsset) {
-      // Auto-create USDC vault if it's missing during liquidation
       const primary = assetsRef.current.find(a => !!a.privateKey) || assetsRef.current[0];
       if (primary) {
         const newUsdc = { currency: 'USDC', amount: 0, fiatValueUSD: 0, address: primary.address, isLive: true, privateKey: primary.privateKey || "" };
@@ -345,7 +385,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               }
             }
 
-            const toAssetPrice = 1; // USDC
+            const toAssetPrice = 1; 
             
             await updateBalance(fundingAsset, -(action.amountUSD / fundingAssetPrice), fundingAssetPrice);
             await updateBalance(action.toAsset, action.amountUSD / toAssetPrice, toAssetPrice);
@@ -509,11 +549,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const encryptedKey = await encryptKey(user.uid, pKey);
       await setDoc(doc(db, 'users', user.uid), { uid: user.uid, email: user.email, updatedAt: new Date().toISOString() }, { merge: true });
 
-      // Unified Endpoint Creation: Primary Address hosts ETH and is the baseline for all vaults
       const primaryAsset = { currency, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey };
       await setDoc(doc(db, 'users', user.uid, 'assets', customId), primaryAsset);
 
-      // Automatic Provisioning of Multi-Asset Vaults under the same address
       const vaults = ['USDC', 'SOL', 'BNB', 'WBTC'];
       for (const v of vaults) {
         const vAsset = { currency: v, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey };
@@ -600,7 +638,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const account = privateKeyToAccount(privateKey as `0x${string}`);
       const encryptedKey = await encryptKey(user.uid, privateKey);
       
-      // Unified Restore: All vaults linked to the same imported private key
       const vaults = [currency, 'USDC', 'SOL', 'BNB', 'WBTC'];
       for (const v of vaults) {
         await setDoc(doc(db, 'users', user.uid, 'assets', `${v.toLowerCase()}_imported_${Date.now()}`), {
@@ -617,7 +654,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       assets, stockAssets, transactions, initialized, isSyncing, isProvisioning: provisioning, user,
       kycStatus, totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzing, isAnalyzingStocks,
-      addTransaction, updateBalance, generateNewWallet, importPrivateKey, updateBotSettings, updateStockBotSettings,
+      marketData, addTransaction, updateBalance, generateNewWallet, importPrivateKey, updateBotSettings, updateStockBotSettings,
       submitKYC, clearBotLogs: () => setBotLogs([]), clearStockBotLogs: () => setStockBotLogs([]), liquidateEarnings, syncOnChainBalance
     }}>
       {children}

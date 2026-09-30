@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -17,55 +18,51 @@ import {
   History,
   ArrowUpRight,
   ArrowDownLeft,
-  ChevronRight
+  ChevronRight,
+  Loader2
 } from "lucide-react";
 import { useWalletStore, Transaction } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { INITIAL_MARKET_DATA } from "@/lib/data";
 
 export default function Dashboard() {
-  const { assets, stockAssets, transactions, initialized, botActive, stockBotActive, botLogs, totalBotEarnings } = useWalletStore();
-  const [marketData, setMarketData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { 
+    assets, 
+    stockAssets, 
+    transactions, 
+    initialized, 
+    botActive, 
+    stockBotActive, 
+    botLogs, 
+    totalBotEarnings,
+    marketData 
+  } = useWalletStore();
+  
   const [mounted, setMounted] = useState(false);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const liveTotalBalance = useMemo(() => {
-    if (!initialized) return 0;
+    if (!initialized || !marketData.length) return 0;
+    
     const cryptoVal = assets.reduce((acc, asset) => {
       const liveCoin = marketData.find(c => c.symbol?.toUpperCase() === asset.currency?.toUpperCase());
       const currentPrice = liveCoin?.current_price || (asset.fiatValueUSD / Math.max(asset.amount, 0.00001));
       return acc + (asset.amount * currentPrice);
     }, 0);
-    const stockVal = stockAssets.reduce((acc, s) => acc + s.totalValue, 0);
+
+    const stockVal = stockAssets.reduce((acc, s) => {
+      const liveStock = marketData.find(m => m.symbol === s.symbol || s.symbol.includes(m.symbol));
+      const currentPrice = liveStock?.current_price || s.currentPrice;
+      // Revaluate based on live shares
+      return acc + (s.shares * currentPrice);
+    }, 0);
+
     return cryptoVal + stockVal;
   }, [assets, stockAssets, marketData, initialized]);
-
-  const fetchMarket = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false');
-      const data = await res.json();
-      if (Array.isArray(data)) setMarketData(data);
-    } catch (err) {
-      setMarketData(INITIAL_MARKET_DATA.map(m => ({
-        id: m.currency.toLowerCase(),
-        symbol: m.currency.toLowerCase(),
-        current_price: m.currentPriceUSD || 0,
-        price_change_percentage_24h: m.dailyChangePercent || 0
-      })));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    setMounted(true);
-    fetchMarket();
-    const interval = setInterval(fetchMarket, 60000);
-    return () => clearInterval(interval);
-  }, []);
 
   if (!initialized || !mounted) {
     return (
@@ -114,7 +111,7 @@ export default function Dashboard() {
             </div>
             <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
                <span className="text-[9px] font-bold uppercase opacity-60">Strategy Yield</span>
-               <span className="text-sm font-black text-secondary">${totalBotEarnings.toFixed(2)}</span>
+               <span className="text-sm font-black text-secondary animate-in fade-in duration-1000">${totalBotEarnings.toFixed(2)}</span>
             </div>
           </CardContent>
         </Card>
@@ -127,15 +124,22 @@ export default function Dashboard() {
              </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center gap-12 overflow-x-auto no-scrollbar pb-2">
-            {loading ? (
+            {marketData.length === 0 ? (
               <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase animate-pulse">
                 <RefreshCw className="h-3 w-3 animate-spin" /> Synchronizing...
               </div>
-            ) : marketData.slice(0, 5).map((item) => (
-              <div key={item.id} className="flex items-center gap-4 shrink-0">
-                <div className="h-10 w-10 rounded-full bg-muted border overflow-hidden">
-                  <img src={item.image} alt={item.symbol} className="h-full w-full object-cover" />
-                </div>
+            ) : marketData.slice(0, 8).map((item) => (
+              <div key={item.id} className="flex items-center gap-4 shrink-0 animate-in fade-in slide-in-from-left-2 duration-500">
+                {item.image && (
+                  <div className="h-10 w-10 rounded-full bg-muted border overflow-hidden">
+                    <img src={item.image} alt={item.symbol} className="h-full w-full object-cover" />
+                  </div>
+                )}
+                {!item.image && (
+                  <div className="h-10 w-10 rounded-full bg-secondary/10 border-2 border-secondary/20 flex items-center justify-center font-black text-[10px] text-secondary">
+                    {item.symbol.slice(0, 3)}
+                  </div>
+                )}
                 <div>
                   <div className="text-sm font-black">${item.current_price.toLocaleString()}</div>
                   <div className={cn("text-[10px] font-bold uppercase", item.price_change_percentage_24h >= 0 ? "text-green-600" : "text-red-600")}>
@@ -227,24 +231,5 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
-  );
-}
-
-function Loader2(props: any) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-    </svg>
   );
 }
