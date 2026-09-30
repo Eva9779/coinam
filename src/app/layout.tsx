@@ -1,8 +1,8 @@
-
-'use client';
+"use client";
 
 import './globals.css';
 import { SidebarNav } from '@/components/layout/sidebar-nav';
+import { MobileNav } from '@/components/layout/mobile-nav';
 import { Toaster } from '@/components/ui/toaster';
 import { ShieldCheck, Database, LogOut, User as UserIcon, Loader2, Menu } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -20,13 +20,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import {
-  Sheet,
-  SheetContent,
-  SheetTrigger,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import Link from 'next/link';
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -86,13 +79,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 function AppContent({ children, onSignOut, userEmail, userId }: { children: React.ReactNode, onSignOut: () => void, userEmail: string, userId: string }) {
   const [blockHeight, setBlockHeight] = useState<string>('Syncing...');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const pathname = usePathname();
-
-  useEffect(() => {
-    setMobileMenuOpen(false);
-  }, [pathname]);
-
+  
   useEffect(() => {
     async function syncNetwork() {
       try {
@@ -134,36 +121,14 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
       <main className="flex-1 flex flex-col h-full overflow-hidden">
         <header className="h-16 border-b bg-card flex items-center justify-between px-4 sm:px-8 shrink-0 gap-4">
           <div className="flex items-center gap-2 lg:hidden">
-            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-              <SheetTrigger asChild>
-                <button className="p-2 hover:bg-muted rounded-lg">
-                  <Menu className="h-6 w-6 text-primary" />
-                </button>
-              </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-72">
-                <SheetHeader className="p-6 border-b flex flex-row items-center gap-2">
-                  <ShieldCheck className="h-8 w-8 text-secondary" />
-                  <SheetTitle className="text-xl font-bold text-primary">Coin A,M</SheetTitle>
-                </SheetHeader>
-                <div className="flex flex-col h-full">
-                   <SidebarNav />
-                   <div className="mt-auto p-6 border-t bg-muted/20">
-                      <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                        <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                        Network Live: {blockHeight}
-                      </div>
-                   </div>
-                </div>
-              </SheetContent>
-            </Sheet>
-            <div className="flex items-center gap-2 text-primary font-bold text-lg sm:text-xl lg:hidden">
-              <ShieldCheck className="h-6 w-6 sm:h-8 sm:w-8 text-secondary" />
-              <span className="hidden sm:inline">Coin A,M</span>
+             <div className="flex items-center gap-2 text-primary font-bold text-xl">
+              <ShieldCheck className="h-8 w-8 text-secondary" />
+              <span className="tracking-tighter">Coin A,M</span>
             </div>
           </div>
 
-          <div className="flex items-center gap-4 flex-1 overflow-hidden">
-            <Badge variant="outline" className="text-[9px] font-bold border-secondary/30 text-secondary bg-secondary/5 hidden sm:flex whitespace-nowrap">
+          <div className="flex items-center gap-4 flex-1 overflow-hidden justify-end lg:justify-start">
+            <Badge variant="outline" className="text-[9px] font-bold border-secondary/30 text-secondary bg-secondary/5 whitespace-nowrap">
               GLOBAL COMPLIANCE ACTIVE
             </Badge>
           </div>
@@ -201,9 +166,11 @@ function AppContent({ children, onSignOut, userEmail, userId }: { children: Reac
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-[#fdfdfd]">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-[#fdfdfd] pb-24 lg:pb-8">
           {children}
         </div>
+
+        <MobileNav />
       </main>
     </>
   );
@@ -217,11 +184,14 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="google-site-verification" content="vZEW1q5YcuccPg3pDH34xDYx09DGHlz3fbn4okapBTA" />
         <meta name="description" content="Coin A,M | Global institutional non-custodial asset security." />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
         <title>Coin A,M | Institutional Asset Security</title>
       </head>
       <body className="font-body antialiased bg-background text-foreground overflow-x-hidden">

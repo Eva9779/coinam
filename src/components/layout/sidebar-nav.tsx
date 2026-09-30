@@ -14,13 +14,10 @@ import {
   CreditCard,
   Banknote,
   Bot,
-  Landmark,
-  ShieldCheck,
-  Globe
+  Landmark
 } from "lucide-react";
-import { useWalletStore } from "@/lib/store";
 
-const navItems = [
+export const navItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Wallet", href: "/wallet", icon: Wallet },
   { name: "Send & Receive", href: "/transactions", icon: ArrowLeftRight },
