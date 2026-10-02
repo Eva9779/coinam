@@ -3,7 +3,6 @@
 /**
  * @fileOverview Proactive Equity Agent.
  * Specialized in immediate profit harvesting for Tokenized RWA assets.
- * Targets Leveraged ETFs (TQQQ, SOXL) for maximum daily yield.
  */
 
 import { ai } from '@/ai/genkit';
@@ -27,7 +26,7 @@ const StockBotInputSchema = z.object({
   })),
   marketData: z.array(EquityMarketEntrySchema),
   allocationLimitUSD: z.number().optional(),
-  isGuardianMode: z.boolean().optional().describe('Background profit harvest mode.'),
+  isGuardianMode: z.boolean().optional(),
 });
 export type StockBotInput = z.infer<typeof StockBotInputSchema>;
 
@@ -46,9 +45,6 @@ const StockBotOutputSchema = z.object({
 });
 export type StockBotOutput = z.infer<typeof StockBotOutputSchema>;
 
-/**
- * Local RWA Proactive Engine
- */
 function getLocalRWAStrategy(input: StockBotInput): StockBotOutput {
   const actions: any[] = [];
   const assumedGasFee = 7;
@@ -57,53 +53,56 @@ function getLocalRWAStrategy(input: StockBotInput): StockBotOutput {
     const market = input.marketData.find(m => m.symbol === hold.symbol || hold.symbol.includes(m.symbol));
     if (market && market.changePercent > 0) {
       const gainUSD = hold.value * (market.changePercent / 100);
-      
       if (gainUSD > assumedGasFee) {
         actions.push({
           type: 'sell',
           asset: hold.symbol,
           amount: hold.shares,
-          reasoning: `PROFIT HARVEST: ${hold.symbol} has surged high enough to cover fees. Liquidating to USDC to lock in the daily gain.`
+          reasoning: `PROFIT HARVEST: ${hold.symbol} surged past fee cover. Liquidating to USDC.`
         });
       }
     }
   });
 
-  if (actions.length === 0 && !input.isGuardianMode) {
-    const bestAggressive = input.marketData.find(m => m.symbol === 'SOXL' && m.changePercent < -2);
-    if (bestAggressive && !input.currentHoldings.some(h => h.symbol.includes('SOXL'))) {
-      actions.push({ type: 'buy', asset: 'NASDAQ:SOXL', amount: 0.5, reasoning: 'LEVERAGED ENTRY: Buying the SOXL dip to maximize the next tech rally payout.' });
-    }
-  }
-
   return {
     summary: 'EQUITY HARVESTER ACTIVE',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'Awaiting market surge high enough to beat the $7 network fee.' }],
+    actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'Awaiting network fee cover.' }],
     sentiment: 'neutral',
     error: `Local Enclave Active.`
   };
 }
 
-export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBotOutput> {
-  try {
-    const { output } = await ai.generate({
-      model: 'googleai/gemini-1.5-flash',
-      input: input,
-      output: { schema: StockBotOutputSchema },
-      prompt: `You are the Proactive Equity Guardian for Coin A,M.
-      MISSION: Hunt for daily profit in TQQQ, SOXL, NVDA, and META.
+const stockBotPrompt = ai.definePrompt({
+  name: 'stockBotPrompt',
+  input: { schema: StockBotInputSchema },
+  output: { schema: StockBotOutputSchema },
+  prompt: `You are the Proactive Equity Guardian for Coin A,M user {{{userId}}}.
+      MISSION: Hunt for daily profit in TQQQ, SOXL, NVDA, and META. Risk: {{{riskTolerance}}}.
       
       HARVESTING RULES:
       1. NO DELAY: If (Gain in USD - $7 Gas) > $0, SELL IMMEDIATELY.
-      2. LEVERAGE FOCUS: TQQQ and SOXL move 3X faster. Prioritize these for big daily wins.
-      3. SAFE LANDING: Always return the full value to the USDC Dollar Vault.
-      4. SMALL WINS: $1 profit is a victory. $0.50 profit is a victory. Do not wait for huge percentages that might crash.
-      5. FREQUENCY: Your job is to make small profits as many times a day as possible.`,
-    });
+      2. LEVERAGE FOCUS: TQQQ and SOXL move 3X faster.
+      3. SAFE LANDING: Always return value to the USDC Dollar Vault.
+      4. SMALL WINS: $1 profit is a victory.`,
+});
 
-    if (!output) throw new Error('AI RWA Engine null');
-    return output;
-  } catch (error: any) {
-    return getLocalRWAStrategy(input);
+const stockBotFlow = ai.defineFlow(
+  {
+    name: 'stockBotFlow',
+    inputSchema: StockBotInputSchema,
+    outputSchema: StockBotOutputSchema,
+  },
+  async (input) => {
+    try {
+      const { output } = await stockBotPrompt(input);
+      if (!output) throw new Error('AI output null');
+      return output;
+    } catch (error: any) {
+      return getLocalRWAStrategy(input);
+    }
   }
+);
+
+export async function analyzeEquityMarket(input: StockBotInput): Promise<StockBotOutput> {
+  return stockBotFlow(input);
 }

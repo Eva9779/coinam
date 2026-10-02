@@ -28,7 +28,8 @@ import { loadStripeOnramp } from "@stripe/crypto";
 import { CryptoElements, OnrampElement } from "@/components/stripe/crypto-elements";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const stripeOnrampPromise = loadStripeOnramp("pk_live_51SxgIgEvvi2LpIks4TBzOf2rLTJpKWE5Poq8EzDf3cTM7bKepsZoNk2AUvf1TMN3Br0das4LW2kHHfqlIvBL548i009kh8Iz7t");
+// SECURE: Public key loaded via environment variable
+const stripeOnrampPromise = loadStripeOnramp(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "");
 
 export default function BuyCryptoPage() {
   const { assets, initialized } = useWalletStore();

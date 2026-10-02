@@ -1,28 +1,26 @@
+
 'use server';
 
 import Stripe from 'stripe';
 import { headers } from 'next/headers';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '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', {
+// SECURE: Keys are now pulled from environment variables to satisfy GitHub Push Protection.
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2024-12-18.acacia' as any,
 });
 
 /**
- * Creates a Stripe Onramp Session following the provided Sinatra logic exactly.
- * Now using the Live Production Key provided by the user.
+ * Creates a Stripe Onramp Session for institutional funding.
  */
 export async function createOnrampSession(walletAddress: string, amount: string = '13.37', currency: string = 'usdc') {
   try {
     const headersList = await headers();
     const ip = headersList.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1';
 
-    // Determine network based on currency - strictly adhering to Stripe supported networks
     let network = 'ethereum';
     const cur = currency.toLowerCase();
     if (cur === 'sol') network = 'solana';
-    if (cur === 'btc') network = 'ethereum'; // Fallback for unsupported test networks
 
-    // Matching the Sinatra raw_request structure precisely
     const response: any = await stripe.rawRequest('POST', '/v1/crypto/onramp_sessions', {
       transaction_details: {
         destination_currency: cur,
@@ -35,7 +33,6 @@ export async function createOnrampSession(walletAddress: string, amount: string 
       customer_ip_address: ip,
     });
 
-    // Node.js SDK rawRequest returns { data: { ... }, headers: { ... }, status: 200 }
     const onrampSession = response.data;
 
     if (!onrampSession || !onrampSession.client_secret) {

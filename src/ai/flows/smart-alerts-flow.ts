@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview AI-powered Smart Alerts for Coin A,M.
@@ -16,6 +17,8 @@ const SmartAlertsInputSchema = z.object({
   })),
   recentTransactions: z.array(z.any()),
   marketData: z.array(z.any()),
+  userAverageTransactionAmountUSD: z.number().optional(),
+  userHighValueThresholdUSD: z.number().optional(),
 });
 export type SmartAlertsInput = z.infer<typeof SmartAlertsInputSchema>;
 
@@ -42,7 +45,6 @@ function getLocalAlerts(input: SmartAlertsInput): SmartAlertsOutput {
   const alerts: any[] = [];
   const timestamp = new Date().toISOString();
 
-  // Logic: Check for low balances
   input.walletBalances.forEach(asset => {
     if (asset.fiatValueUSD < 50 && asset.fiatValueUSD > 0) {
       alerts.push({
@@ -56,9 +58,8 @@ function getLocalAlerts(input: SmartAlertsInput): SmartAlertsOutput {
     }
   });
 
-  // Logic: Check for large transactions
   input.recentTransactions.forEach(tx => {
-    if (tx.fiatValueUSD > 5000) {
+    if (tx.fiatValueUSD > (input.userHighValueThresholdUSD || 5000)) {
       alerts.push({
         type: 'large_transaction',
         title: 'High Value Broadcast',
@@ -74,21 +75,32 @@ function getLocalAlerts(input: SmartAlertsInput): SmartAlertsOutput {
   return { alerts };
 }
 
-export async function generateSmartAlerts(input: SmartAlertsInput): Promise<SmartAlertsOutput> {
-  try {
-    const { output } = await ai.generate({
-      model: 'googleai/gemini-1.5-flash',
-      input: input,
-      output: { schema: SmartAlertsOutputSchema },
-      prompt: `You are an expert financial analyst for Coin A,M.
-Analyze the provided data and identify any unusual or large transactions, as well as significant market changes.
-Provide actionable insights for each alert.`,
-    });
+const smartAlertsPrompt = ai.definePrompt({
+  name: 'smartAlertsPrompt',
+  input: { schema: SmartAlertsInputSchema },
+  output: { schema: SmartAlertsOutputSchema },
+  prompt: `You are an expert financial analyst for Coin A,M.
+Analyze the provided data for user {{{userId}}} and identify any unusual or large transactions, as well as significant market changes.
+Provide actionable insights for each alert. Use institutional-grade terminology.`,
+});
 
-    if (!output) throw new Error('AI Alerts null');
-    return output;
-  } catch (error: any) {
-    // If AI is restricted (Jamaica), use the Local Security Scanner.
-    return getLocalAlerts(input);
+const smartAlertsFlow = ai.defineFlow(
+  {
+    name: 'smartAlertsFlow',
+    inputSchema: SmartAlertsInputSchema,
+    outputSchema: SmartAlertsOutputSchema,
+  },
+  async (input) => {
+    try {
+      const { output } = await smartAlertsPrompt(input);
+      if (!output) throw new Error('AI output null');
+      return output;
+    } catch (error: any) {
+      return getLocalAlerts(input);
+    }
   }
+);
+
+export async function generateSmartAlerts(input: SmartAlertsInput): Promise<SmartAlertsOutput> {
+  return smartAlertsFlow(input);
 }

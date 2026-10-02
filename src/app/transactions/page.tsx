@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,7 @@ import { QRCodeSVG } from 'qrcode.react';
 
 type FeeTier = 'slow' | 'average' | 'fast';
 
-export default function TransactionsPage() {
+function TransactionsContent() {
   const { assets, transactions, updateBalance, addTransaction, initialized } = useWalletStore();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'send';
@@ -53,9 +54,7 @@ export default function TransactionsPage() {
       try {
         const gwei = await getLiveGasPrice();
         setBaseGas(gwei);
-      } catch (e) {
-        console.warn("Fee detection sync delay...");
-      }
+      } catch (e) {}
     }
     fetchFees();
     const interval = setInterval(fetchFees, 30000);
@@ -78,110 +77,51 @@ export default function TransactionsPage() {
   const asset = assets.find(a => a.id === selectedAssetId);
   const currency = asset?.currency || "ETH";
 
-  const getGasEstimate = () => {
-    // Intelligent Gas Detection: 
-    // Standard ETH transfer is 21,000 gas. 
-    // Token transfers (USDC, WBTC, etc.) require approx 65,000 gas.
-    const isEth = currency === 'ETH';
-    const gasLimit = isEth ? 21000 : 65000; 
-    
-    const currentGas = baseGas || 20; // Fallback to 20 Gwei if not yet detected
-    const multiplier = feeTier === 'slow' ? 0.9 : feeTier === 'fast' ? 1.5 : 1.1;
-    const ethFee = (gasLimit * (currentGas * multiplier)) / 1e9;
-    return ethFee;
-  };
-
-  const validateAddress = (addr: string) => {
-    if (!addr) return "";
-    const ethRegex = /^0x[a-fA-F0-9]{40}$/;
-    if (!ethRegex.test(addr)) return "Invalid destination address for Mainnet transfer";
-    return "";
-  };
-
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    const error = validateAddress(recipient);
-    if (error) {
-      setAddressError(error);
-      return;
-    }
-
     const val = parseFloat(amount);
     
     if (!asset || val > asset.amount) {
-      toast({ title: "Insufficient balance on mainnet ledger", variant: "destructive" });
+      toast({ title: "Insufficient balance", variant: "destructive" });
       return;
     }
 
     if (!asset.privateKey) {
-      toast({ 
-        title: "Legacy Wallet Endpoint", 
-        description: "Please provision a new Mainnet Key in the Wallet tab to enable signing.",
-        variant: "destructive"
-      });
+      toast({ title: "No Private Key found for signing", variant: "destructive" });
       return;
     }
 
     setIsSending(true);
-    
     try {
-      const txHash = await sendLiveTransaction(asset.privateKey, recipient, amount);
+      const txHash = await sendLiveTransaction(asset.privateKey as `0x${string}`, recipient, amount);
       
-      toast({
-        title: "Transfer Initialized",
-        description: `Signature: ${txHash.slice(0, 16)}...`,
-      });
-
-      const sentAmount = val;
-      const sentCurrency = currency;
-      const sentRecipient = recipient;
-      const fiatPrice = asset.fiatValueUSD / Math.max(asset.amount, 0.00001);
-
-      setAmount("");
-      setRecipient("");
-
-      updateBalance(sentCurrency, -sentAmount, fiatPrice);
       addTransaction({
         type: 'send',
         hash: txHash,
-        currency: sentCurrency,
-        amount: sentAmount,
-        fiatValueUSD: sentAmount * fiatPrice,
-        toAddress: sentRecipient,
+        currency: currency,
+        amount: val,
+        fiatValueUSD: val * (asset.fiatValueUSD / Math.max(asset.amount, 1)),
+        fromAddress: asset.address,
+        toAddress: recipient,
         description: `External Wallet Transfer`
       });
 
+      setAmount("");
+      setRecipient("");
     } catch (err: any) {
-      toast({
-        title: "Transfer Failed",
-        description: err.message || "Failed to transmit transaction to the peer network.",
-        variant: "destructive"
-      });
+      toast({ title: "Transfer Failed", description: err.message, variant: "destructive" });
     } finally {
       setIsSending(false);
-    }
-  };
-
-  const getStatusBadge = (status: Transaction['status']) => {
-    switch (status) {
-      case 'completed':
-        return <Badge className="bg-green-500/10 text-green-600 border-green-500/20 gap-1 font-black uppercase text-[8px]"><CheckCircle2 className="h-2 w-2" /> Verified</Badge>;
-      case 'failed':
-        return <Badge className="bg-red-500/10 text-red-600 border-red-500/20 gap-1 font-black uppercase text-[8px]"><XCircle className="h-2 w-2" /> Failed</Badge>;
-      default:
-        return <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 gap-1 font-black uppercase text-[8px] animate-pulse"><Clock className="h-2 w-2" /> Processing</Badge>;
     }
   };
 
   if (!initialized || !mounted) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
-
-  const receiveAddress = asset?.address || "";
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -191,139 +131,47 @@ export default function TransactionsPage() {
             <Database className="h-8 w-8 text-secondary" />
             Send & Receive
           </h2>
-          <p className="text-muted-foreground text-sm">Direct interface for transferring assets to any external or internal wallet.</p>
-        </div>
-        <div className="hidden sm:flex items-center gap-2 bg-green-500/10 px-3 py-1.5 rounded-full border border-green-500/20">
-          <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest">
-            {baseGas > 0 ? `Network Live: ${baseGas.toFixed(1)} Gwei` : 'Synchronizing Fees...'}
-          </span>
+          <p className="text-muted-foreground text-sm">Mainnet settlement protocol active.</p>
         </div>
       </div>
 
       <Tabs defaultValue={initialTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-8 bg-muted/30 p-1">
-          <TabsTrigger value="send" className="gap-2 data-[state=active]:shadow-lg"><ArrowUpRight className="h-4 w-4" /> Send</TabsTrigger>
-          <TabsTrigger value="receive" className="gap-2 data-[state=active]:shadow-lg"><ArrowDownLeft className="h-4 w-4" /> Receive</TabsTrigger>
-          <TabsTrigger value="history" className="gap-2 data-[state=active]:shadow-lg"><History className="h-4 w-4" /> Activity</TabsTrigger>
+          <TabsTrigger value="send">Send</TabsTrigger>
+          <TabsTrigger value="receive">Receive</TabsTrigger>
+          <TabsTrigger value="history">Activity</TabsTrigger>
         </TabsList>
 
         <TabsContent value="send">
           <Card className="border-none shadow-xl bg-card/50 backdrop-blur-md">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl font-bold">
-                <ShieldCheck className="h-6 w-6 text-secondary" />
-                Initiate Transfer
-              </CardTitle>
-              <CardDescription className="text-xs">Securely send assets to any wallet address on the global ledger.</CardDescription>
+              <CardTitle>Initiate Transfer</CardTitle>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSend} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="currency" className="text-xs uppercase tracking-widest font-bold opacity-70">Source Asset</Label>
-                    <Select value={selectedAssetId} onValueChange={(val) => { setSelectedAssetId(val); setAddressError(""); }}>
-                      <SelectTrigger className="font-semibold h-12 bg-background/50">
-                        <SelectValue placeholder="Select asset" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {assets.length > 0 ? assets.map(a => (
-                          <SelectItem key={a.id} value={a.id}>
-                            {a.currency} ({a.amount.toFixed(4)}) - {a.address.slice(0, 6)}...
-                          </SelectItem>
-                        )) : (
-                          <SelectItem value="none" disabled>No active assets provisioned</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="amount" className="text-xs uppercase tracking-widest font-bold opacity-70">Transfer Volume</Label>
-                    <div className="relative">
-                      <input 
-                        id="amount" 
-                        type="number" 
-                        step="any"
-                        placeholder="0.00" 
-                        className="flex h-12 w-full rounded-md border border-primary/10 bg-background/50 px-3 py-2 pr-16 text-xl font-bold ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        required
-                      />
-                      <div className="absolute right-3 top-3.5 text-xs font-bold text-muted-foreground">
-                        {currency}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 <div className="space-y-2">
-                  <Label htmlFor="recipient" className="text-xs uppercase tracking-widest font-bold opacity-70">Recipient Address (External or Internal)</Label>
-                  <div className="space-y-1">
-                    <input 
-                      id="recipient" 
-                      placeholder="0x..." 
-                      value={recipient}
-                      onChange={(e) => { setRecipient(e.target.value); setAddressError(""); }}
-                      className={cn("flex h-12 w-full rounded-md border bg-background/50 px-3 py-2 font-mono text-xs ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50", addressError ? "border-destructive" : "border-input")}
-                      required
-                    />
-                    {addressError && (
-                      <div className="flex items-center gap-1 text-[10px] text-destructive font-bold uppercase">
-                        <AlertCircle className="h-3 w-3" />
-                        {addressError}
-                      </div>
-                    )}
-                  </div>
+                  <Label>Source Asset</Label>
+                  <Select value={selectedAssetId} onValueChange={setSelectedAssetId}>
+                    <SelectTrigger className="h-12 bg-background/50">
+                      <SelectValue placeholder="Select asset" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {assets.map(a => (
+                        <SelectItem key={a.id} value={a.id}>{a.currency} ({a.amount.toFixed(4)})</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-
-                <div className="space-y-3">
-                  <Label className="text-xs uppercase tracking-widest font-bold opacity-70">Transfer Priority</Label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {(['slow', 'average', 'fast'] as FeeTier[]).map((tier) => (
-                      <button
-                        key={tier}
-                        type="button"
-                        onClick={() => setFeeTier(tier)}
-                        className={cn(
-                          "py-3 px-3 rounded-xl border text-xs font-bold transition-all capitalize tracking-wider",
-                          feeTier === tier 
-                            ? "bg-primary text-primary-foreground border-primary shadow-lg scale-[1.02]" 
-                            : "bg-muted/30 hover:bg-muted/50 border-transparent"
-                        )}
-                      >
-                        {tier}
-                      </button>
-                    ))}
-                  </div>
+                <div className="space-y-2">
+                  <Label>Recipient Address</Label>
+                  <Input placeholder="0x..." value={recipient} onChange={(e) => setRecipient(e.target.value)} required />
                 </div>
-
-                <div className="p-5 bg-primary/5 rounded-2xl space-y-3 text-sm border-2 border-dashed border-primary/10">
-                  <div className="flex justify-between items-center">
-                    <div className="flex flex-col">
-                      <span className="text-muted-foreground font-semibold uppercase tracking-widest text-[10px]">Estimated Network Fee</span>
-                      <span className="text-[9px] font-bold text-secondary uppercase flex items-center gap-1 mt-0.5">
-                        <Activity className="h-2 w-2" />
-                        Live Detection: {baseGas.toFixed(1)} Gwei
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <span className="font-bold text-base">{getGasEstimate().toFixed(6)} {currency}</span>
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold">{feeTier} Priority</span>
-                    </div>
-                  </div>
-                  <div className="h-px bg-primary/10 w-full" />
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground font-semibold uppercase tracking-widest text-[10px]">Total Outflow</span>
-                    <span className="font-bold text-xl text-primary">
-                      {amount ? (parseFloat(amount) + getGasEstimate()).toFixed(6) : "0.00"} {currency}
-                    </span>
-                  </div>
+                <div className="space-y-2">
+                  <Label>Amount</Label>
+                  <Input type="number" step="any" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} required />
                 </div>
-
-                <Button type="submit" className="w-full py-8 text-xl font-bold gap-3 shadow-2xl hover:scale-[1.02] active:scale-[0.98] transition-transform rounded-2xl bg-primary text-primary-foreground" disabled={isSending}>
-                  {isSending ? <Loader2 className="h-6 w-6 animate-spin" /> : <><Send className="h-6 w-6" /> Authorize & Send</>}
+                <Button type="submit" className="w-full h-14 text-lg font-bold" disabled={isSending}>
+                  {isSending ? <Loader2 className="animate-spin" /> : "Authorize & Send"}
                 </Button>
               </form>
             </CardContent>
@@ -331,45 +179,17 @@ export default function TransactionsPage() {
         </TabsContent>
 
         <TabsContent value="receive">
-          <Card className="border-none shadow-xl bg-card/50 backdrop-blur-md">
-            <CardHeader>
-              <CardTitle className="text-xl">Receive Assets</CardTitle>
-              <CardDescription className="text-xs">Share your unique address or QR code to receive transfers from external or internal wallets.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-col items-center space-y-8 py-10">
-              <div className="p-8 bg-white rounded-3xl shadow-2xl border border-primary/5">
-                {receiveAddress ? (
-                  <QRCodeSVG 
-                    value={receiveAddress} 
-                    size={224} 
-                    level="H"
-                    includeMargin={false}
-                  />
-                ) : (
-                  <div className="h-56 w-56 bg-muted flex items-center justify-center rounded-2xl text-center p-4">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Awaiting Address Synchronization...</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="w-full space-y-4 max-w-sm">
-                <div className="space-y-2">
-                  <Label className="text-xs font-bold uppercase tracking-widest opacity-70">Your Mainnet Receiving Address</Label>
-                  <div className="flex gap-2">
-                    <Input 
-                      readOnly 
-                      value={receiveAddress || "Synchronizing..."} 
-                      className="font-mono text-xs bg-muted/50 font-bold h-12 shadow-inner" 
-                    />
-                    <Button size="icon" variant="outline" className="h-12 w-12 rounded-xl" onClick={() => {
-                      if (receiveAddress) {
-                        navigator.clipboard.writeText(receiveAddress);
-                        toast({ title: "Address copied" });
-                      }
-                    }}>
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                  </div>
+           <Card className="border-none shadow-xl bg-card/50 backdrop-blur-md">
+            <CardContent className="flex flex-col items-center py-10 space-y-6">
+              <QRCodeSVG value={asset?.address || ""} size={200} />
+              <div className="w-full max-w-sm space-y-2">
+                <Label>Your Receiving Address</Label>
+                <div className="flex gap-2">
+                  <Input readOnly value={asset?.address || ""} className="font-mono text-xs" />
+                  <Button variant="outline" size="icon" onClick={() => {
+                    navigator.clipboard.writeText(asset?.address || "");
+                    toast({ title: "Copied" });
+                  }}><Copy className="h-4 w-4" /></Button>
                 </div>
               </div>
             </CardContent>
@@ -378,60 +198,35 @@ export default function TransactionsPage() {
 
         <TabsContent value="history">
           <Card className="border-none shadow-xl bg-card/50 backdrop-blur-md">
-            <CardHeader>
-              <CardTitle className="text-xl font-bold uppercase tracking-tighter">Activity Ledger</CardTitle>
-              <CardDescription className="text-xs">Immutable history of all your sent and received assets.</CardDescription>
-            </CardHeader>
             <CardContent className="p-0">
-              <div className="divide-y divide-primary/5">
-                {transactions.length > 0 ? transactions.map((tx) => (
-                  <div key={tx.id} className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-6 hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center gap-5">
-                      <div className={cn(
-                        "h-14 w-14 rounded-2xl flex items-center justify-center shrink-0 shadow-lg border-2",
-                        tx.type === 'receive' ? "bg-green-100/50 text-green-600 border-green-500/20" : 
-                        tx.type === 'send' ? "bg-blue-100/50 text-blue-600 border-blue-500/20" : "bg-purple-100/50 text-purple-600 border-purple-500/20"
-                      )}>
-                        {tx.type === 'receive' ? <ArrowDownLeft className="h-7 w-7" /> : 
-                         tx.type === 'send' ? <ArrowUpRight className="h-7 w-7" /> : <Zap className="h-7 w-7" />}
-                      </div>
-                      <div className="space-y-1">
-                        <div className="font-bold text-lg flex items-center gap-2">
-                          {tx.type === 'receive' ? 'Incoming Transfer' : tx.type === 'send' ? 'Outgoing Transfer' : 'Exchange'}
-                          {getStatusBadge(tx.status)}
-                        </div>
-                        <div className="text-sm text-muted-foreground font-medium">{tx.description}</div>
-                        <div className="text-[10px] font-mono text-muted-foreground/70 uppercase tracking-widest flex items-center gap-1.5 font-bold">
-                          {tx.hash ? `SIG: ${tx.hash.slice(0, 16)}...` : `ID: ${tx.id.toUpperCase()}`}
-                          {tx.status === 'completed' && <CheckCircle2 className="h-2 w-2 text-green-500" />}
-                        </div>
-                      </div>
+              <div className="divide-y">
+                {transactions.map((tx) => (
+                  <div key={tx.id} className="p-6 flex justify-between items-center">
+                    <div>
+                      <div className="font-bold">{tx.description}</div>
+                      <div className="text-xs text-muted-foreground">{tx.currency} • {new Date(tx.timestamp).toLocaleDateString()}</div>
                     </div>
-                    <div className="text-left sm:text-right">
-                      <div className={cn(
-                        "text-xl font-bold tracking-tight",
-                        tx.type === 'receive' ? "text-green-600" : "text-foreground"
-                      )}>
-                        {tx.type === 'receive' ? '+' : '-'}{tx.amount.toFixed(4)} {tx.currency.split(' ')[0]}
+                    <div className="text-right">
+                      <div className={cn("font-bold", tx.type === 'receive' ? "text-green-600" : "text-primary")}>
+                        {tx.type === 'receive' ? '+' : '-'}{tx.amount.toFixed(4)}
                       </div>
-                      <div className="text-sm text-muted-foreground font-bold opacity-70">
-                        ${tx.fiatValueUSD.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {mounted ? new Date(tx.timestamp).toLocaleDateString() : '...'}
-                      </div>
+                      <div className="text-xs text-muted-foreground">${tx.fiatValueUSD.toFixed(2)}</div>
                     </div>
                   </div>
-                )) : (
-                  <div className="py-20 text-center text-muted-foreground uppercase font-bold text-xs tracking-widest">
-                    No active ledger entries
-                  </div>
-                )}
+                ))}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function TransactionsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin" /></div>}>
+      <TransactionsContent />
+    </Suspense>
   );
 }

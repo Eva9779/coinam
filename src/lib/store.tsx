@@ -17,7 +17,7 @@ import { toast } from '@/hooks/use-toast';
 import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
 import { analyzeEquityMarket } from '@/ai/flows/stock-bot-flow';
 import { INITIAL_MARKET_DATA } from '@/lib/data';
-import { getLiveBalance, executeMainnetSwap, executeRWASettlement, getLiveGasPrice } from '@/lib/blockchain';
+import { getLiveBalance, executeMainnetSwap, executeRWASettlement } from '@/lib/blockchain';
 import { encryptKey, decryptKey } from '@/lib/encryption';
 
 export interface WalletAsset {
@@ -85,7 +85,7 @@ interface WalletContextType {
   isAnalyzing: boolean;
   isAnalyzingStocks: boolean;
   marketData: any[];
-  addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp' | 'status' | 'hash'> & { hash?: string }) => void;
+  addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp' | 'status' | 'hash'> & { hash?: string, fromAddress?: string, toAddress?: string }) => void;
   updateBalance: (currency: string, amount: number, fiatPrice: number) => Promise<void>;
   generateNewWallet: (currency: string, customId?: string) => Promise<string | null>;
   importPrivateKey: (currency: string, privateKey: string) => Promise<void>;
@@ -206,7 +206,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setStockBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
-  const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'timestamp' | 'status' | 'hash'> & { hash?: string }) => {
+  const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'timestamp' | 'status' | 'hash'> & { hash?: string, fromAddress?: string, toAddress?: string }) => {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}`;
     const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
@@ -216,7 +216,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       id: txId,
       timestamp: new Date().toISOString(),
       status: 'completed',
-      hash: tx.hash || "" 
+      hash: tx.hash || "",
+      fromAddress: tx.fromAddress || "",
+      toAddress: tx.toAddress || ""
     };
 
     setDoc(txDocRef, cleanTx);
@@ -274,6 +276,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             currency: currency,
             amount: diff,
             fiatValueUSD: diff * fiatPrice,
+            fromAddress: "EXTERNAL_MAINNET",
+            toAddress: address,
             description: `Mainnet Deposit Detected (Auto-Sync)`
           });
           
