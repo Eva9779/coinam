@@ -1,4 +1,3 @@
-
 'use server';
 
 import Stripe from 'stripe';
@@ -12,7 +11,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
 /**
  * Creates a Stripe Onramp Session for institutional funding.
  */
-export async function createOnrampSession(walletAddress: string, amount: string = '13.37', currency: string = 'usdc') {
+export async function createOnrampSession(walletAddress: string, amount: string = '50.00', currency: string = 'usdc') {
   try {
     const headersList = await headers();
     const ip = headersList.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1';

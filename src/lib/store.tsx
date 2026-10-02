@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -326,6 +325,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         currency: targetCurrency,
         amount: earningsToLiquidate / targetPrice,
         fiatValueUSD: earningsToLiquidate,
+        fromAddress: "BOT_EARNINGS_ENGINE",
+        toAddress: usdcAsset.address,
         description: `Liquidated Strategy Agent Earnings to Dollar Vault`
       });
     } catch (e) {}
@@ -402,6 +403,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               currency: `${fundingAsset} → USDC`,
               amount: action.amountUSD,
               fiatValueUSD: action.amountUSD,
+              fromAddress: fundingAssetObj.address,
+              toAddress: fundingAssetObj.address,
               description: isGuardian ? `Guardian: Principal + Profit Locked in USDC` : `Money Machine: Yield Captured to Dollar Vault`
             });
             
@@ -502,6 +505,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             currency: action.asset,
             amount: action.amount,
             fiatValueUSD: totalValueUSD,
+            fromAddress: primaryAsset?.address || "",
+            toAddress: primaryAsset?.address || "",
             description: isGuardian ? `Equity Guardian: Secured Principal to USDC` : `RWA Harvest: Profit Locked in Dollar Vault`
           });
           
