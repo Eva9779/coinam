@@ -57,12 +57,12 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row gap-4 pt-4">
             <Button size="lg" className="h-16 px-10 text-xl font-black rounded-2xl shadow-2xl group" asChild>
               <Link href="/register">
-                Initialize Your Wallet 
+                Open Wallet 
                 <ChevronRight className="ml-2 h-6 w-6 group-hover:translate-x-1 transition-transform" />
               </Link>
             </Button>
             <Button variant="outline" size="lg" className="h-16 px-10 text-xl font-black rounded-2xl border-2" asChild>
-              <Link href="/login">Access Session</Link>
+              <Link href="/login">Access Wallet</Link>
             </Button>
           </div>
           
