@@ -9,7 +9,7 @@ import {
   Wallet, 
   Repeat, 
   Bot, 
-  Menu 
+  Menu as MenuIcon 
 } from "lucide-react";
 import {
   Sheet,
@@ -54,7 +54,7 @@ export function MobileNav() {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
           <button className="flex flex-col items-center gap-1.5 text-muted-foreground opacity-70">
-            <Menu className="h-6 w-6" />
+            <MenuIcon className="h-6 w-6" />
             <span className="text-[10px] font-black uppercase tracking-tighter">More</span>
           </button>
         </SheetTrigger>
@@ -62,7 +62,7 @@ export function MobileNav() {
           <SheetHeader className="p-8 border-b">
             <div className="flex items-center gap-3">
               <ShieldCheck className="h-8 w-8 text-secondary" />
-              <SheetTitle className="text-2xl font-black text-primary">Command Enclave</SheetTitle>
+              <SheetTitle className="text-2xl font-black text-primary">Menu</SheetTitle>
             </div>
           </SheetHeader>
           <div className="overflow-y-auto h-full pb-20">
