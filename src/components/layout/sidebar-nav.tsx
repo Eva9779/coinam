@@ -30,7 +30,11 @@ export const navItems = [
   { name: "Smart Alerts", href: "/alerts", icon: Bell },
 ];
 
-export function SidebarNav() {
+interface SidebarNavProps {
+  onItemClick?: () => void;
+}
+
+export function SidebarNav({ onItemClick }: SidebarNavProps) {
   const pathname = usePathname();
 
   return (
@@ -41,6 +45,7 @@ export function SidebarNav() {
           <Link
             key={item.href}
             href={item.href}
+            onClick={onItemClick}
             className={cn(
               "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors",
               isActive 
@@ -57,6 +62,7 @@ export function SidebarNav() {
       <div className="mt-auto pt-4 border-t">
         <Link
           href="/settings"
+          onClick={onItemClick}
           className={cn(
             "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors",
             pathname === "/settings" 

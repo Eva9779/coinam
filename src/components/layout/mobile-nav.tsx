@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { 
   LayoutDashboard, 
@@ -29,6 +30,7 @@ const mobileItems = [
 
 export function MobileNav() {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-50 lg:hidden bg-background/80 backdrop-blur-xl border-t h-20 px-6 flex items-center justify-between pb-safe">
@@ -49,7 +51,7 @@ export function MobileNav() {
         );
       })}
 
-      <Sheet>
+      <Sheet open={open} onOpenChange={setOpen}>
         <SheetTrigger asChild>
           <button className="flex flex-col items-center gap-1.5 text-muted-foreground opacity-70">
             <Menu className="h-6 w-6" />
@@ -64,7 +66,7 @@ export function MobileNav() {
             </div>
           </SheetHeader>
           <div className="overflow-y-auto h-full pb-20">
-            <SidebarNav />
+            <SidebarNav onItemClick={() => setOpen(false)} />
           </div>
         </SheetContent>
       </Sheet>
