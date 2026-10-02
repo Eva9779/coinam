@@ -3,13 +3,12 @@
 
 This is a production-grade cryptocurrency and tokenized equity platform built with Next.js 15, Genkit, and ShadCN.
 
-## 🚀 Critical: Fixing Your Deployment
+## 🚀 Critical: Fixing Your Deployment & GitHub Errors
 
-### 1. Fix GitHub Secret Violation
-If your push was rejected due to "Secret Detected", follow the link GitHub provided in your terminal to **Unblock** the secret. I have already moved the secrets to the `.env` file, but GitHub keeps a memory of the previous attempt.
+### 1. Fix "fatal: refusing to merge unrelated histories" & "rejected (non-fast-forward)"
+If you deleted your old repository and created a new one, you must run this **Nuclear Sync** to force your local code into the new GitHub repository.
 
-### 2. Fix Vercel "Deployment Blocked"
-Vercel blocks deployments from authors it doesn't recognize (like the AI). Run these commands in your PowerShell to claim the code as your own:
+Run these commands in your PowerShell:
 
 ```powershell
 # 1. Clear any multiple email values
@@ -19,10 +18,13 @@ git config --replace-all user.email "rannaa1000@gmail.com"
 git add .
 git commit --amend --reset-author --no-edit
 
-# 3. Force sync to the new repository
+# 3. FORCE push to the new repository (this overrides unrelated histories)
 git remote set-url origin https://github.com/Eva9779/coinam
 git push origin main --force
 ```
+
+### 2. Fix GitHub Secret Violation
+If your push is rejected due to "Secret Detected", follow the link GitHub provided in your terminal to **Unblock** the secret. I have already moved the secrets to the `.env` file, but GitHub keeps a memory of the previous attempt.
 
 ### 3. Vercel Environment Variables
 After pushing, go to your **Vercel Project Settings > Environment Variables** and add:

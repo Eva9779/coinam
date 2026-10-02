@@ -49,8 +49,8 @@ export interface Transaction {
   amount: number;
   fiatValueUSD: number;
   timestamp: string;
-  toAddress?: string;
-  fromAddress?: string;
+  toAddress: string;
+  fromAddress: string;
   description: string;
 }
 
@@ -84,7 +84,7 @@ interface WalletContextType {
   isAnalyzing: boolean;
   isAnalyzingStocks: boolean;
   marketData: any[];
-  addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp' | 'status' | 'hash'> & { hash?: string, fromAddress?: string, toAddress?: string }) => void;
+  addTransaction: (tx: Omit<Transaction, 'id' | 'timestamp' | 'status' | 'hash' | 'fromAddress' | 'toAddress'> & { hash?: string, fromAddress?: string, toAddress?: string }) => void;
   updateBalance: (currency: string, amount: number, fiatPrice: number) => Promise<void>;
   generateNewWallet: (currency: string, customId?: string) => Promise<string | null>;
   importPrivateKey: (currency: string, privateKey: string) => Promise<void>;
@@ -205,19 +205,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setStockBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
-  const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'timestamp' | 'status' | 'hash'> & { hash?: string, fromAddress?: string, toAddress?: string }) => {
+  const addTransaction = useCallback((tx: Omit<Transaction, 'id' | 'timestamp' | 'status' | 'hash' | 'fromAddress' | 'toAddress'> & { hash?: string, fromAddress?: string, toAddress?: string }) => {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}`;
     const txDocRef = doc(db, 'users', user.uid, 'transactions', txId);
     
-    const cleanTx = {
+    const cleanTx: Transaction = {
       ...tx,
       id: txId,
       timestamp: new Date().toISOString(),
       status: 'completed',
       hash: tx.hash || "",
-      fromAddress: tx.fromAddress || "",
-      toAddress: tx.toAddress || ""
+      fromAddress: tx.fromAddress || "SYSTEM",
+      toAddress: tx.toAddress || "USER_VAULT"
     };
 
     setDoc(txDocRef, cleanTx);
@@ -505,8 +505,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             currency: action.asset,
             amount: action.amount,
             fiatValueUSD: totalValueUSD,
-            fromAddress: primaryAsset?.address || "",
-            toAddress: primaryAsset?.address || "",
+            fromAddress: primaryAsset?.address || "USER_VAULT",
+            toAddress: primaryAsset?.address || "USER_VAULT",
             description: isGuardian ? `Equity Guardian: Secured Principal to USDC` : `RWA Harvest: Profit Locked in Dollar Vault`
           });
           

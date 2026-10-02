@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
- * Optimized with Dynamic Profit Harvesting to sell as soon as gas fees are covered.
+ * Optimized for Genkit 1.x canonical flow standards.
  */
 
 import { ai } from '@/ai/genkit';

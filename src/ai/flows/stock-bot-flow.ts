@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Proactive Equity Agent.
- * Specialized in immediate profit harvesting for Tokenized RWA assets.
+ * Optimized for Genkit 1.x canonical flow standards.
  */
 
 import { ai } from '@/ai/genkit';
