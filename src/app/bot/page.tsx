@@ -50,7 +50,7 @@ const BotTradingChart = memo(({ symbol }: { symbol: string }) => {
     
     const config = {
       autosize: true,
-      symbol: `BINANCE:${symbol}USDT`,
+      symbol: symbol === 'DERIV' ? 'INDEX:VOL100' : `BINANCE:${symbol}USDT`,
       interval: "1",
       timezone: "Etc/UTC",
       theme: "dark",
@@ -112,6 +112,7 @@ export default function TradingBotPage() {
     setLocalAllocation(botAllocation.toString());
     setLocalRisk(botRiskLevel);
     setLocalStrategy(botStrategy);
+    if (botStrategy === 'deriv_indices') setChartSymbol("DERIV");
   }, [botAllocation, botRiskLevel, botStrategy]);
 
   const handleToggleBot = () => {
@@ -192,7 +193,7 @@ export default function TradingBotPage() {
             <div className="flex items-center justify-between px-2">
               <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-secondary" />
-                Market Vision: {chartSymbol}/USDT
+                Market Vision: {chartSymbol === 'DERIV' ? 'V-100 Synthetic' : `${chartSymbol}/USDT`}
               </h3>
             </div>
             <BotTradingChart symbol={chartSymbol} />
@@ -256,6 +257,7 @@ export default function TradingBotPage() {
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
                       <SelectItem value="standard">Mainnet Rebalancing (Standard)</SelectItem>
+                      <SelectItem value="deriv_indices">Deriv Synthetic Indices (V100)</SelectItem>
                       <SelectItem value="sol_yield">Solana Yield Hunter (SOL)</SelectItem>
                       <SelectItem value="bnb_surge">BNB Surge Guardian (BNB)</SelectItem>
                       <SelectItem value="xrp_bridge">XRP Ledger Bridge (XRP)</SelectItem>

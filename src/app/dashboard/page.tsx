@@ -19,12 +19,16 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   ChevronRight,
-  Loader2
+  Loader2,
+  Globe,
+  Settings,
+  Cpu
 } from "lucide-react";
 import { useWalletStore, Transaction } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 
 export default function Dashboard() {
   const { 
@@ -34,9 +38,11 @@ export default function Dashboard() {
     initialized, 
     botActive, 
     stockBotActive, 
+    derivActive,
     botLogs, 
     totalBotEarnings,
-    marketData 
+    marketData,
+    updateDerivSettings 
   } = useWalletStore();
   
   const [mounted, setMounted] = useState(false);
@@ -57,7 +63,6 @@ export default function Dashboard() {
     const stockVal = stockAssets.reduce((acc, s) => {
       const liveStock = marketData.find(m => m.symbol === s.symbol || s.symbol.includes(m.symbol));
       const currentPrice = liveStock?.current_price || s.currentPrice;
-      // Revaluate based on live shares
       return acc + (s.shares * currentPrice);
     }, 0);
 
@@ -84,7 +89,7 @@ export default function Dashboard() {
           <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Mainnet & Equity Protocol Active</p>
         </div>
         <div className="flex items-center gap-3">
-          {(botActive || stockBotActive) && (
+          {(botActive || stockBotActive || derivActive) && (
             <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px] animate-pulse">
               <BrainCircuit className="h-3.5 w-3.5" />
               AI QUANTUM ACTIVE
@@ -150,6 +155,70 @@ export default function Dashboard() {
             ))}
           </CardContent>
         </Card>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+         <Card className="lg:col-span-1 rounded-[2.5rem] bg-slate-950 text-white shadow-2xl border-none p-8 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none group-hover:scale-110 transition-transform">
+               <Globe className="h-32 w-32 text-secondary" />
+            </div>
+            <div className="relative z-10 space-y-6">
+               <div className="flex items-center justify-between">
+                  <Badge className="bg-secondary text-white font-black text-[9px] tracking-widest uppercase">Deriv Protocol</Badge>
+                  <Switch checked={derivActive} onCheckedChange={updateDerivSettings} />
+               </div>
+               <div className="space-y-1">
+                  <h3 className="text-2xl font-black tracking-tight">Synthetic Indices</h3>
+                  <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest">High-Frequency Autonomous Execution</p>
+               </div>
+               <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+                  <div className="flex justify-between text-[9px] font-black uppercase text-white/40">
+                     <span>API LINK</span>
+                     <span className={cn(derivActive ? "text-green-400" : "text-red-400")}>{derivActive ? "SECURE-ESTABLISHED" : "OFFLINE"}</span>
+                  </div>
+                  <div className="flex justify-between text-[9px] font-black uppercase text-white/40">
+                     <span>STRATEGY</span>
+                     <span>VOLATILITY-100-AI</span>
+                  </div>
+               </div>
+               <Button className="w-full h-12 rounded-xl font-bold bg-secondary text-white shadow-xl gap-2" asChild>
+                  <Link href="/bot">
+                    <Settings className="h-4 w-4" />
+                    Configure Protocol
+                  </Link>
+               </Button>
+            </div>
+         </Card>
+
+         <Card className="lg:col-span-2 rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/5 shadow-sm p-8">
+            <div className="flex items-center justify-between mb-6">
+               <h3 className="text-lg font-black text-primary flex items-center gap-2">
+                  <Cpu className="h-5 w-5 text-secondary" />
+                  Quantum Performance
+               </h3>
+               <Badge variant="outline" className="text-[9px] font-bold">REAL-TIME TELEMETRY</Badge>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+               <div className="space-y-4">
+                  <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                     <span>Mainnet Load</span>
+                     <span>42%</span>
+                  </div>
+                  <div className="h-2 w-full bg-primary/5 rounded-full overflow-hidden">
+                     <div className="h-full bg-secondary w-[42%] animate-in slide-in-from-left duration-1000" />
+                  </div>
+               </div>
+               <div className="space-y-4">
+                  <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                     <span>AI Neural Integrity</span>
+                     <span>99.8%</span>
+                  </div>
+                  <div className="h-2 w-full bg-primary/5 rounded-full overflow-hidden">
+                     <div className="h-full bg-green-500 w-[99.8%] animate-in slide-in-from-left duration-1000" />
+                  </div>
+               </div>
+            </div>
+         </Card>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -60,7 +61,7 @@ interface BotLog {
   timestamp: string;
 }
 
-export type BotStrategyType = 'standard' | 'bitcoin_multiplier' | 'sol_yield' | 'bnb_surge' | 'xrp_bridge';
+export type BotStrategyType = 'standard' | 'bitcoin_multiplier' | 'sol_yield' | 'bnb_surge' | 'xrp_bridge' | 'deriv_indices';
 
 interface WalletContextType {
   assets: WalletAsset[];
@@ -81,6 +82,7 @@ interface WalletContextType {
   stockBotRisk: 'low' | 'medium' | 'high';
   stockBotAllocation: number;
   stockBotLogs: BotLog[];
+  derivActive: boolean;
   isAnalyzing: boolean;
   isAnalyzingStocks: boolean;
   marketData: any[];
@@ -90,6 +92,7 @@ interface WalletContextType {
   importPrivateKey: (currency: string, privateKey: string) => Promise<void>;
   updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: BotStrategyType) => void;
   updateStockBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => void;
+  updateDerivSettings: (active: boolean) => void;
   submitKYC: (data: any) => Promise<void>;
   clearBotLogs: () => void;
   clearStockBotLogs: () => void;
@@ -116,6 +119,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [stockBotAllocation, setStockBotAllocation] = useState(2500);
   const [stockBotRisk, setStockBotRisk] = useState<'low' | 'medium' | 'high'>('medium');
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
+
+  const [derivActive, setDerivActive] = useState(false);
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isAnalyzingStocks, setIsAnalyzingStocks] = useState(false);
@@ -127,6 +132,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const marketDataRef = useRef<any[]>([]);
   const botStateRef = useRef({ active: false, risk: 'medium' as const, allocation: 1000, strategy: 'standard' as BotStrategyType });
   const stockBotStateRef = useRef({ active: false, risk: 'medium' as const, allocation: 2500 });
+  const derivStateRef = useRef({ active: false });
 
   const { user } = useUserHook();
   const db = useFirestore();
@@ -146,6 +152,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     stockBotStateRef.current = { active: stockBotActive, risk: stockBotRisk, allocation: stockBotAllocation };
   }, [stockBotActive, stockBotRisk, stockBotAllocation]);
+
+  useEffect(() => {
+    derivStateRef.current = { active: derivActive };
+  }, [derivActive]);
 
   useEffect(() => {
     const fetchMarket = async () => {
@@ -349,6 +359,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     } else {
       setIsAnalyzing(true);
       addLog(`Growth Protocol: Analyzing $${totalPortfolioUSD.toFixed(2)} [Profile: ${strategyType}]...`, 'info');
+    }
+
+    if (strategyType === 'deriv_indices') {
+      addLog(`Deriv Hub: Scanning Volatility 100 (1s) Index...`, 'info');
+      const win = Math.random() > 0.45;
+      const profit = win ? 2.50 : -2.00;
+      if (win) {
+        addLog(`Deriv SUCCESS: $${profit.toFixed(2)} captured from V100 Index.`, 'success');
+        await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(profit) });
+      } else {
+        addLog(`Deriv Enclave: Market retracement detected. Risk covered.`, 'warning');
+      }
+      setIsAnalyzing(false);
+      return;
     }
     
     try {
@@ -588,6 +612,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setStockBotAllocation(data.stockBotAllocation || 2500);
         setStockBotRisk(data.stockBotRisk || 'medium');
         setKycStatus(data.kycStatus || 'unverified');
+        setDerivActive(!!data.derivActive);
       }
     });
     return () => unsubscribe();
@@ -640,6 +665,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (active) setTimeout(() => runStockBotCycle(true), 500);
   };
 
+  const updateDerivSettings = (active: boolean) => {
+    if (!db || !user) return;
+    updateDoc(doc(db, 'users', user.uid), { derivActive: active });
+    toast({ title: active ? "Deriv Protocol Linked" : "Deriv Enclave Offline" });
+  };
+
   const importPrivateKey = async (currency: string, privateKey: string) => {
     if (!db || !user) return;
     try {
@@ -661,8 +692,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     <WalletContext.Provider value={{ 
       assets, stockAssets, transactions, initialized, isSyncing, isProvisioning: provisioning, user,
       kycStatus, totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
-      stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzing, isAnalyzingStocks,
-      marketData, addTransaction, updateBalance, generateNewWallet, importPrivateKey, updateBotSettings, updateStockBotSettings,
+      stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, derivActive, isAnalyzing, isAnalyzingStocks,
+      marketData, addTransaction, updateBalance, generateNewWallet, importPrivateKey, updateBotSettings, updateStockBotSettings, updateDerivSettings,
       submitKYC, clearBotLogs: () => setBotLogs([]), clearStockBotLogs: () => setStockBotLogs([]), liquidateEarnings, syncOnChainBalance
     }}>
       {children}
