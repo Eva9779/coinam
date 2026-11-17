@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
- * Enhanced with Principal Protection Protocols for absolute risk management.
+ * Enhanced with Live Tick-Stream Intelligence for Synthetic Indices.
  */
 
 import { ai } from '@/ai/genkit';
@@ -25,6 +25,7 @@ const TradingBotInputSchema = z.object({
   riskTolerance: z.enum(['low', 'medium', 'high']).default('medium'),
   allocationLimitUSD: z.number(),
   isGuardianMode: z.boolean().optional(),
+  tickStream: z.array(z.number()).optional().describe('The last 20 ticks from Deriv for pattern analysis.'),
 });
 export type TradingBotInput = z.infer<typeof TradingBotInputSchema>;
 
@@ -34,6 +35,7 @@ const TradingActionSchema = z.object({
   toAsset: z.string(),
   amountUSD: z.number(),
   reasoning: z.string(),
+  confidence: z.number().optional().describe('Score from 0-100 on the probability of win.'),
 });
 
 const TradingBotOutputSchema = z.object({
@@ -51,7 +53,6 @@ function getLocalStrategy(input: TradingBotInput): TradingBotOutput {
   input.assets.forEach(asset => {
     if (asset.currency === 'USDC') return;
     const market = input.marketData.find(m => m.currency === asset.currency);
-    // Principal Protection: Only sell if profit is 3x higher than fees
     if (market && market.change24h > 1.5) {
       const gainUSD = asset.fiatValue * (market.change24h / 100);
       if (gainUSD > (assumedGasFee * 3)) {
@@ -81,10 +82,15 @@ const tradingBotPrompt = ai.definePrompt({
   prompt: `You are the Principal Protection Guardian for Coin A,M user {{{userId}}}. 
       MISSION: Your absolute priority is to ensure the user's balance is protected. You must only trade when trend signals are extremely strong.
       
+      DERIV PROTOCOL RULES:
+      1. LIVE TICK ANALYSIS: {{{#if tickStream}}}Analying last 20 ticks: {{{tickStream}}}. Identify if momentum is stable.{{/if}}
+      2. ZERO LOSS: If (Last Tick - First Tick) / First Tick < 0.1%, HOLD immediately. Do not risk principal on flat markets.
+      3. CONFIDENCE: Only BUY if pattern confidence is > 85%.
+      
       STRICT PROTECTION RULES:
-      1. NO RISK: If market change is less than 1.5%, HOLD IMMEDIATELY. Protect the principal.
-      2. PROFIT LOCK: Every successful signal must return value to the USDC Dollar Vault to prevent drawdown.
-      3. GUARDIAN MODE: {{{#if isGuardianMode}}}Prioritize safety above all else. Ignore small spikes. Only act on major, confirmed trend surges.{{/if}}`,
+      1. NO RISK: If market change is less than 1.5% (or tick movement is unstable), HOLD IMMEDIATELY.
+      2. PROFIT LOCK: Every successful signal must return value to the USDC Dollar Vault.
+      3. GUARDIAN MODE: Prioritize safety above all else. Ignore small spikes.`,
 });
 
 const tradingBotFlow = ai.defineFlow(

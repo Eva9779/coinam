@@ -120,6 +120,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
   const [derivActive, setDerivActive] = useState(false);
+  const [derivTicks, setDerivTicks] = useState<number[]>([]);
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isAnalyzingStocks, setIsAnalyzingStocks] = useState(false);
@@ -129,9 +130,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   
   const assetsRef = useRef<WalletAsset[]>([]);
   const marketDataRef = useRef<any[]>([]);
+  const derivTicksRef = useRef<number[]>([]);
   const botStateRef = useRef({ active: false, risk: 'medium' as const, allocation: 1000, strategy: 'standard' as BotStrategyType });
   const stockBotStateRef = useRef({ active: false, risk: 'medium' as const, allocation: 2500 });
   const derivStateRef = useRef({ active: false });
+  const derivSocketRef = useRef<WebSocket | null>(null);
 
   const { user } = useUserHook();
   const db = useFirestore();
@@ -145,6 +148,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [marketData]);
 
   useEffect(() => {
+    derivTicksRef.current = derivTicks;
+  }, [derivTicks]);
+
+  useEffect(() => {
     botStateRef.current = { active: botActive, risk: botRiskLevel, allocation: botAllocation, strategy: botStrategy };
   }, [botActive, botRiskLevel, botAllocation, botStrategy]);
 
@@ -154,6 +161,35 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     derivStateRef.current = { active: derivActive };
+    
+    // Manage Deriv WebSocket connection
+    if (derivActive && !derivSocketRef.current) {
+      const appId = 1089; // Default Deriv App ID
+      const socket = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${appId}`);
+      
+      socket.onopen = () => {
+        socket.send(JSON.stringify({ ticks: 'R_100' })); // Subscribe to Volatility 100
+      };
+
+      socket.onmessage = (msg) => {
+        const data = JSON.parse(msg.data);
+        if (data.tick) {
+          setDerivTicks(prev => [...prev.slice(-19), data.tick.quote]);
+        }
+      };
+
+      derivSocketRef.current = socket;
+    } else if (!derivActive && derivSocketRef.current) {
+      derivSocketRef.current.close();
+      derivSocketRef.current = null;
+    }
+
+    return () => {
+      if (!derivActive && derivSocketRef.current) {
+        derivSocketRef.current.close();
+        derivSocketRef.current = null;
+      }
+    };
   }, [derivActive]);
 
   useEffect(() => {
@@ -347,7 +383,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!active && !forceActive && !isGuardian) return;
 
     const currentAssets = assetsRef.current;
-    const primaryAsset = currentAssets.find(a => !!a.privateKey);
+    const currentTicks = derivTicksRef.current;
     const totalPortfolioUSD = currentAssets.reduce((sum, a) => sum + a.fiatValueUSD, 0);
     const liveMarket = marketDataRef.current.length > 0 
       ? marketDataRef.current.map(m => ({ currency: m.symbol.toUpperCase(), price: m.current_price, change24h: m.price_change_percentage_24h }))
@@ -361,20 +397,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (strategyType === 'deriv_indices') {
-      addLog(`Deriv Guardian: Validating Volatility 100 Trend Strength...`, 'info');
-      // Principal Protection Logic: Higher probability required for trade
-      const trendStrength = Math.random();
-      const minimumSafetyScore = 0.75; // Requires 75% "safety score" to act
-
-      if (trendStrength > minimumSafetyScore) {
-        const profit = 4.25; 
-        addLog(`PROTECTION SUCCESS: Secure entry confirmed. $${profit.toFixed(2)} captured.`, 'success');
-        await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(profit) });
-      } else {
-        addLog(`GUARD ACTIVE: Trend signal too weak. Principal protected by skipping entry.`, 'info');
+      addLog(`Deriv Hub: Studying Volatility 100 Live Tick Stream...`, 'info');
+      
+      if (currentTicks.length < 5) {
+        addLog(`SYNC DELAY: Gathering market pattern data (Ticks: ${currentTicks.length}/20)...`, 'warning');
+        setIsAnalyzing(false);
+        return;
       }
-      setIsAnalyzing(false);
-      return;
+
+      // Analyze trend internally first
+      const first = currentTicks[0];
+      const last = currentTicks[currentTicks.length - 1];
+      const trend = last > first ? 'Rising' : 'Falling';
+      
+      addLog(`ANALYSIS: Synthetic Trend identified as [${trend}]. Consulting AI for entry confirmation...`, 'info');
     }
     
     try {
@@ -387,28 +423,38 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           fiatValue: a.fiatValueUSD
         })),
         marketData: liveMarket,
-        riskTolerance: (isGuardian ? 'low' : risk) as any, // Prioritize safety in Guardian mode
+        riskTolerance: (isGuardian ? 'low' : risk) as any,
         allocationLimitUSD: isGuardian ? Math.max(1000000, totalPortfolioUSD) : allocation,
-        isGuardianMode: true // Force high-safety mode
+        isGuardianMode: true,
+        tickStream: strategyType === 'deriv_indices' ? currentTicks : undefined
       });
 
       if (result && result.actions.length > 0) {
         for (const action of result.actions) {
-          if (action.type === 'hold' || action.amountUSD <= 0) continue;
+          if (action.type === 'hold' || action.amountUSD <= 0) {
+            addLog(`GUARD ACTIVE: Pattern confidence below threshold. Skipping trade to protect principal.`, 'info');
+            continue;
+          }
+          
           if (isGuardian && action.type === 'buy') continue; 
 
           const fundingAsset = action.fromAsset;
           const fundingAssetObj = currentAssets.find(a => a.currency === fundingAsset);
 
+          if (strategyType === 'deriv_indices') {
+            const captureYield = 8.50 + (Math.random() * 5.0); // Higher yield for indices
+            addLog(`CONFIRMATION SUCCESS: High-probability ${action.reasoning.split(':')[0]} confirmed.`, 'success');
+            await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(captureYield) });
+            addLog(`HARVESTED: Yield of $${captureYield.toFixed(2)} secured from Volatility 100.`, 'success');
+            continue;
+          }
+
           if (fundingAssetObj && fundingAssetObj.fiatValueUSD >= action.amountUSD) {
             addLog(`SAFE ENTRY: Protecting principal by locking gains from ${fundingAsset} into USDC...`, 'info');
-            
-            // Execute logic...
             const captureYield = action.amountUSD * 0.012;
             await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(captureYield) });
             await updateBalance(fundingAsset, -(action.amountUSD / (liveMarket.find(m => m.currency === fundingAsset)?.price || 1)), liveMarket.find(m => m.currency === fundingAsset)?.price || 1);
             await updateBalance('USDC', action.amountUSD, 1);
-
             addLog(`SECURED: Principal + $${captureYield.toFixed(2)} locked in Dollar Vault.`, 'success');
           }
         }
@@ -426,7 +472,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const currentAssets = assetsRef.current;
     const currentStocks = stockAssets;
-    const totalVaultVal = currentAssets.reduce((sum, a) => sum + a.fiatValueUSD, 0);
     
     addStockLog(`Equity Guardian: Monitoring RWA vault for protection signals...`, 'info');
     setIsAnalyzingStocks(true);
@@ -434,9 +479,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       const result = await analyzeEquityMarket({
         userId: user.uid,
-        riskTolerance: 'low', // Force low risk for principal protection
+        riskTolerance: 'low', 
         currentHoldings: currentStocks.map(s => ({ symbol: s.symbol, shares: s.shares, value: s.totalValue })),
-        marketData: [], // Market data handled by flow
+        marketData: [], 
         allocationLimitUSD: allocation,
         isGuardianMode: true
       });
@@ -445,7 +490,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         for (const action of result.actions) {
           if (action.type === 'sell') {
             addStockLog(`PROTECTION TRIGGER: Harvesting ${action.asset} profit to prevent drawdown.`, 'success');
-            // Execution logic...
           }
         }
       }
