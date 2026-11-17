@@ -1,7 +1,8 @@
+
 'use server';
 /**
  * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
- * Enhanced with Live Tick-Stream Intelligence for Synthetic Indices.
+ * Enhanced with Live Tick-Stream Intelligence and Deriv Execution Parameters.
  */
 
 import { ai } from '@/ai/genkit';
@@ -31,11 +32,12 @@ export type TradingBotInput = z.infer<typeof TradingBotInputSchema>;
 
 const TradingActionSchema = z.object({
   type: z.enum(['buy', 'sell', 'hold']),
+  contractType: z.enum(['CALL', 'PUT']).optional().describe('Used specifically for Deriv Synthetic Indices. CALL for Rise, PUT for Fall.'),
   fromAsset: z.string(),
   toAsset: z.string(),
   amountUSD: z.number(),
   reasoning: z.string(),
-  confidence: z.number().optional().describe('Score from 0-100 on the probability of win.'),
+  confidence: z.number().describe('Score from 0-100 on the probability of win.'),
 });
 
 const TradingBotOutputSchema = z.object({
@@ -48,30 +50,27 @@ export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
 function getLocalStrategy(input: TradingBotInput): TradingBotOutput {
   const actions: any[] = [];
-  const assumedGasFee = 7; 
-
-  input.assets.forEach(asset => {
-    if (asset.currency === 'USDC') return;
-    const market = input.marketData.find(m => m.currency === asset.currency);
-    if (market && market.change24h > 1.5) {
-      const gainUSD = asset.fiatValue * (market.change24h / 100);
-      if (gainUSD > (assumedGasFee * 3)) {
-        actions.push({
-          type: 'sell',
-          fromAsset: asset.currency,
-          toAsset: 'USDC',
-          amountUSD: asset.fiatValue,
-          reasoning: `SAFETY SIGNAL: ${asset.currency} gains confirmed. Locking principal into Dollar Vault.`
-        });
-      }
-    }
-  });
+  
+  if (input.strategyType === 'deriv_indices' && input.tickStream && input.tickStream.length > 5) {
+    const first = input.tickStream[0];
+    const last = input.tickStream[input.tickStream.length - 1];
+    const isRising = last > first;
+    
+    actions.push({
+      type: 'buy',
+      contractType: isRising ? 'CALL' : 'PUT',
+      fromAsset: 'USD',
+      toAsset: 'VOL100',
+      amountUSD: 10,
+      reasoning: `LOCAL ENCLAVE: ${isRising ? 'Rising' : 'Falling'} trend detected.`,
+      confidence: 85
+    });
+  }
 
   return {
     strategy: input.isGuardianMode ? 'GUARDIAN PROTECTION PROTOCOL' : 'ALPHA HARVESTER',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'Market trend unconfirmed. Principal protected.' }],
-    marketSentiment: 'neutral',
-    error: `Guardian Active.`
+    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'Market trend unconfirmed.', confidence: 0 }],
+    marketSentiment: 'neutral'
   };
 }
 
@@ -84,13 +83,13 @@ const tradingBotPrompt = ai.definePrompt({
       
       DERIV PROTOCOL RULES:
       1. LIVE TICK ANALYSIS: {{{#if tickStream}}}Analying last 20 ticks: {{{tickStream}}}. Identify if momentum is stable.{{/if}}
-      2. ZERO LOSS: If (Last Tick - First Tick) / First Tick < 0.1%, HOLD immediately. Do not risk principal on flat markets.
-      3. CONFIDENCE: Only BUY if pattern confidence is > 85%.
+      2. CONTRACT SELECTION: For Deriv Synthetic Indices, if the last 5 ticks show a strong upward surge, use contractType: 'CALL'. If downward, use contractType: 'PUT'.
+      3. HIGH BAR: Only issue a 'buy' action if confidence is > 90%.
+      4. ZERO LOSS: If tick movement is choppy or flat (range < 0.05%), output a 'hold' action.
       
       STRICT PROTECTION RULES:
-      1. NO RISK: If market change is less than 1.5% (or tick movement is unstable), HOLD IMMEDIATELY.
-      2. PROFIT LOCK: Every successful signal must return value to the USDC Dollar Vault.
-      3. GUARDIAN MODE: Prioritize safety above all else. Ignore small spikes.`,
+      1. PROFIT LOCK: Every successful signal must return value to the USDC Dollar Vault.
+      2. GUARDIAN MODE: Prioritize safety above all else. Ignore small spikes.`,
 });
 
 const tradingBotFlow = ai.defineFlow(
