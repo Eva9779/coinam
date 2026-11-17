@@ -168,7 +168,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (derivActive && !derivSocketRef.current) {
       const appId = 1089;
-      const token = process.env.NEXT_PUBLIC_DERIV_API_KEY || 'pat_03cb64d39ed7de6f3d9bf2a003b4e4ad06bb1d1c28fe5042f264d26c3a463605';
+      const token = process.env.NEXT_PUBLIC_DERIV_API_KEY || 'pat_cfb2e4a40d980625474ee7e66a27cd471b39070963ed9402f2b0cab18959025d';
       const socket = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${appId}`);
       
       socket.onopen = () => {
@@ -354,7 +354,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [db, user, addTransaction]);
 
   const performLiveDerivTrade = async (type: 'CALL' | 'PUT', amount: number) => {
-    const token = process.env.NEXT_PUBLIC_DERIV_API_KEY || 'pat_03cb64d39ed7de6f3d9bf2a003b4e4ad06bb1d1c28fe5042f264d26c3a463605';
+    const token = process.env.NEXT_PUBLIC_DERIV_API_KEY || 'pat_cfb2e4a40d980625474ee7e66a27cd471b39070963ed9402f2b0cab18959025d';
     if (!token) throw new Error('API Key Missing');
 
     return new Promise((resolve, reject) => {
@@ -464,7 +464,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           if (action.type === 'hold') continue;
           
           if (strategyType === 'deriv_indices' && action.contractType) {
-            // ENFORCED Safety Rule: Only trade if Confidence > 90%
             if (action.confidence < 90) {
               addLog(`GUARD ACTIVE: Confidence floor not met (${action.confidence}%). Protocol: HOLD.`, 'info');
               continue;
@@ -665,7 +664,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) return;
     
     if (active) {
-      const token = process.env.NEXT_PUBLIC_DERIV_API_KEY || 'pat_03cb64d39ed7de6f3d9bf2a003b4e4ad06bb1d1c28fe5042f264d26c3a463605';
+      const token = process.env.NEXT_PUBLIC_DERIV_API_KEY || 'pat_cfb2e4a40d980625474ee7e66a27cd471b39070963ed9402f2b0cab18959025d';
       
       const handshake = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
       handshake.onopen = () => handshake.send(JSON.stringify({ authorize: token }));
