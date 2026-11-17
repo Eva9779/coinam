@@ -30,7 +30,8 @@ import {
   BrainCircuit,
   Rocket,
   Coins,
-  Cpu
+  Cpu,
+  Wallet
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -92,6 +93,8 @@ export default function TradingBotPage() {
     botAllocation, 
     botRiskLevel, 
     botStrategy,
+    derivBalance,
+    derivActive,
     botLogs, 
     isAnalyzing,
     updateBotSettings,
@@ -144,6 +147,12 @@ export default function TradingBotPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {derivActive && (
+            <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20 px-4 py-1.5 font-black uppercase text-[10px] tracking-widest gap-2">
+              <Wallet className="h-3 w-3" />
+              Real Balance: ${derivBalance.toFixed(2)}
+            </Badge>
+          )}
           <Badge variant="outline" className={cn(
             "px-4 py-1.5 font-black uppercase text-[10px] tracking-[0.2em] border-2",
             botActive ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"

@@ -83,6 +83,7 @@ interface WalletContextType {
   stockBotAllocation: number;
   stockBotLogs: BotLog[];
   derivActive: boolean;
+  derivBalance: number;
   isAnalyzing: boolean;
   isAnalyzingStocks: boolean;
   marketData: any[];
@@ -121,6 +122,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
   const [derivActive, setDerivActive] = useState(false);
+  const [derivBalance, setDerivBalance] = useState(0);
   const [derivTicks, setDerivTicks] = useState<number[]>([]);
   
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -132,9 +134,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const assetsRef = useRef<WalletAsset[]>([]);
   const marketDataRef = useRef<any[]>([]);
   const derivTicksRef = useRef<number[]>([]);
+  const derivBalanceRef = useRef<number>(0);
   const botStateRef = useRef({ active: false, risk: 'medium' as const, allocation: 1000, strategy: 'standard' as BotStrategyType });
   const stockBotStateRef = useRef({ active: false, risk: 'medium' as const, allocation: 2500 });
-  const derivStateRef = useRef({ active: false });
   const derivSocketRef = useRef<WebSocket | null>(null);
 
   const { user } = useUserHook();
@@ -153,6 +155,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [derivTicks]);
 
   useEffect(() => {
+    derivBalanceRef.current = derivBalance;
+  }, [derivBalance]);
+
+  useEffect(() => {
     botStateRef.current = { active: botActive, risk: botRiskLevel, allocation: botAllocation, strategy: botStrategy };
   }, [botActive, botRiskLevel, botAllocation, botStrategy]);
 
@@ -161,20 +167,27 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [stockBotActive, stockBotRisk, stockBotAllocation]);
 
   useEffect(() => {
-    derivStateRef.current = { active: derivActive };
-    
     if (derivActive && !derivSocketRef.current) {
       const appId = 1089;
+      const token = process.env.NEXT_PUBLIC_DERIV_API_KEY || 'pat_03cb64d39ed7de6f3d9bf2a003b4e4ad06bb1d1c28fe5042f264d26c3a463605';
       const socket = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${appId}`);
       
       socket.onopen = () => {
-        socket.send(JSON.stringify({ ticks: 'R_100' }));
+        socket.send(JSON.stringify({ authorize: token }));
       };
 
       socket.onmessage = (msg) => {
         const data = JSON.parse(msg.data);
+        if (data.msg_type === 'authorize') {
+          // Subscribe to both ticks and balance
+          socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
+          socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+        }
         if (data.tick) {
           setDerivTicks(prev => [...prev.slice(-19), data.tick.quote]);
+        }
+        if (data.balance) {
+          setDerivBalance(data.balance.balance);
         }
       };
 
@@ -408,6 +421,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const currentAssets = assetsRef.current;
     const currentTicks = derivTicksRef.current;
+    const currentDerivBal = derivBalanceRef.current;
     const totalPortfolioUSD = currentAssets.reduce((sum, a) => sum + a.fiatValueUSD, 0);
     const liveMarket = marketDataRef.current.length > 0 
       ? marketDataRef.current.map(m => ({ currency: m.symbol.toUpperCase(), price: m.current_price, change24h: m.price_change_percentage_24h }))
@@ -417,6 +431,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     if (strategyType === 'deriv_indices') {
       addLog(`Deriv Hub: Scanning V-100 Synthetic Pulse...`, 'info');
+      
+      if (currentDerivBal <= 0) {
+        addLog(`CRITICAL: Insufficient Funds in Deriv Account ($${currentDerivBal}). Protocol: SAFETY LOCK.`, 'error');
+        setIsAnalyzing(false);
+        return;
+      }
+
       if (currentTicks.length < 10) {
         addLog(`SYNC DELAY: Buffering Tick Stream (${currentTicks.length}/20)...`, 'warning');
         setIsAnalyzing(false);
@@ -450,9 +471,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               continue;
             }
 
+            const tradeAmount = 10;
+            if (currentDerivBal < tradeAmount) {
+              addLog(`ABORTED: Low Balance ($${currentDerivBal.toFixed(2)}). Min required: $${tradeAmount}.`, 'warning');
+              continue;
+            }
+
             addLog(`LIVE EXECUTION: Authorizing ${action.contractType} contract on Vol-100...`, 'info');
             try {
-              await performLiveDerivTrade(action.contractType, 10);
+              await performLiveDerivTrade(action.contractType, tradeAmount);
               const captureYield = 9.45 + (Math.random() * 2.0); 
               
               await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(captureYield) });
@@ -718,7 +745,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     <WalletContext.Provider value={{ 
       assets, stockAssets, transactions, initialized, isSyncing, isProvisioning: provisioning, user,
       kycStatus, totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
-      stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, derivActive, isAnalyzing, isAnalyzingStocks,
+      stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, derivActive, derivBalance, isAnalyzing, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, generateNewWallet, importPrivateKey, updateBotSettings, updateStockBotSettings, updateDerivSettings,
       submitKYC, clearBotLogs: () => setBotLogs([]), clearStockBotLogs: () => setStockBotLogs([]), liquidateEarnings, syncOnChainBalance
     }}>
