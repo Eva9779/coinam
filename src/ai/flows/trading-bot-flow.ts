@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
- * Optimized for Genkit 1.x canonical flow standards.
+ * Enhanced with Principal Protection Protocols for absolute risk management.
  */
 
 import { ai } from '@/ai/genkit';
@@ -15,7 +15,7 @@ const MarketEntrySchema = z.object({
 
 const TradingBotInputSchema = z.object({
   userId: z.string(),
-  strategyType: z.enum(['standard', 'bitcoin_multiplier', 'sol_yield', 'bnb_surge', 'xrp_bridge']).default('standard'),
+  strategyType: z.enum(['standard', 'bitcoin_multiplier', 'sol_yield', 'bnb_surge', 'xrp_bridge', 'deriv_indices']).default('standard'),
   assets: z.array(z.object({
     currency: z.string(),
     amount: z.number(),
@@ -51,25 +51,26 @@ function getLocalStrategy(input: TradingBotInput): TradingBotOutput {
   input.assets.forEach(asset => {
     if (asset.currency === 'USDC') return;
     const market = input.marketData.find(m => m.currency === asset.currency);
-    if (market && market.change24h > 0) {
+    // Principal Protection: Only sell if profit is 3x higher than fees
+    if (market && market.change24h > 1.5) {
       const gainUSD = asset.fiatValue * (market.change24h / 100);
-      if (gainUSD > assumedGasFee) {
+      if (gainUSD > (assumedGasFee * 3)) {
         actions.push({
           type: 'sell',
           fromAsset: asset.currency,
           toAsset: 'USDC',
           amountUSD: asset.fiatValue,
-          reasoning: `MONEY MACHINE: ${asset.currency} surge detected. Harvesting profit to USDC.`
+          reasoning: `SAFETY SIGNAL: ${asset.currency} gains confirmed. Locking principal into Dollar Vault.`
         });
       }
     }
   });
 
   return {
-    strategy: input.isGuardianMode ? '24/7 PROFIT GUARDIAN' : 'MONEY MACHINE PROTOCOL',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'Awaiting surge.' }],
+    strategy: input.isGuardianMode ? 'GUARDIAN PROTECTION PROTOCOL' : 'ALPHA HARVESTER',
+    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'Market trend unconfirmed. Principal protected.' }],
     marketSentiment: 'neutral',
-    error: `Local Enclave Active.`
+    error: `Guardian Active.`
   };
 }
 
@@ -77,14 +78,13 @@ const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `You are the Autonomous Money Machine for Coin A,M user {{{userId}}}. 
-      MISSION: Sell surging assets (BTC, ETH, BNB, SOL, XRP) into USDC the moment they cover gas fees ($7).
-      STRATEGY: {{{strategyType}}}. Risk: {{{riskTolerance}}}.
+  prompt: `You are the Principal Protection Guardian for Coin A,M user {{{userId}}}. 
+      MISSION: Your absolute priority is to ensure the user's balance is protected. You must only trade when trend signals are extremely strong.
       
-      STRICT PROFIT RULES:
-      1. DO NOT WAIT: If Gain USD > $7, SELL IMMEDIATELY.
-      2. USDC LOCK: Every sale must return Principal + Profit to the USDC Dollar Vault.
-      3. SMALL WINS: It is your duty to stack $1 and $2 wins.`,
+      STRICT PROTECTION RULES:
+      1. NO RISK: If market change is less than 1.5%, HOLD IMMEDIATELY. Protect the principal.
+      2. PROFIT LOCK: Every successful signal must return value to the USDC Dollar Vault to prevent drawdown.
+      3. GUARDIAN MODE: {{{#if isGuardianMode}}}Prioritize safety above all else. Ignore small spikes. Only act on major, confirmed trend surges.{{/if}}`,
 });
 
 const tradingBotFlow = ai.defineFlow(
