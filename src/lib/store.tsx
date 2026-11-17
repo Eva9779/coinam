@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -179,7 +178,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       socket.onmessage = (msg) => {
         const data = JSON.parse(msg.data);
         if (data.msg_type === 'authorize') {
-          // Subscribe to both ticks and balance
           socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
         }
@@ -466,6 +464,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           if (action.type === 'hold') continue;
           
           if (strategyType === 'deriv_indices' && action.contractType) {
+            // ENFORCED Safety Rule: Only trade if Confidence > 90%
             if (action.confidence < 90) {
               addLog(`GUARD ACTIVE: Confidence floor not met (${action.confidence}%). Protocol: HOLD.`, 'info');
               continue;
