@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -100,10 +99,10 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
+  // HOISTED UTILITIES: Available to all hooks immediately
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
-  // HOISTED: Defined at the top level to ensure availability for all hooks
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
@@ -137,13 +136,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
-  // PRODUCTION BRIDGE: Alphanumeric App ID Integration
+  // PRODUCTION BRIDGE: Native App ID Integration
   useEffect(() => {
     if (derivActive && user && db) {
-      const appId = '34ZS1m5vhyr6iy1U4CCU0'; 
+      const appId = '34ZRxvOFBnNAdQsr1T3bF'; // NATIVE APP ID
       const token = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
       
-      addLog(`Initializing Secure Bridge [AppID: ${appId}]...`, 'info');
+      addLog(`Initializing Secure Bridge [Native AppID: ${appId}]...`, 'info');
       
       const socketUrl = `wss://ws.binaryws.com/websockets/v3?app_id=${appId}`;
       let socket: WebSocket | null = null;
@@ -154,7 +153,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         
         socket.onopen = () => {
           addLog('Handshake secure. Transmitting authorization...', 'info');
-          // AUTHORIZE IMMEDIATELY
           socket?.send(JSON.stringify({ authorize: token }));
           
           pingInterval = setInterval(() => {
@@ -174,7 +172,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           if (data.msg_type === 'authorize') {
             addLog(`Identity Verified. Synchronizing Live Assets...`, 'success');
-            // Request balance and tick stream
             socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           }
@@ -198,12 +195,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         };
 
         socket.onerror = (err) => {
-          addLog('Socket Error: Connection failed. Verify Domain Whitelisting.', 'error');
+          addLog('Socket Error: Connection failed. Verify App Registration.', 'error');
         };
 
         socket.onclose = () => {
           if (pingInterval) clearInterval(pingInterval);
-          addLog(`Production Bridge Offline. Ensure your domain is whitelisted in Deriv Dashboard.`, 'warning');
+          addLog(`Production Bridge Offline. Ensure your App ID is active in Deriv.`, 'warning');
         };
 
         derivSocketRef.current = socket;
@@ -218,12 +215,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
-  // LIVE EXECUTION LOOP: Purged of all simulation
+  // LIVE EXECUTION LOOP: NO SIMULATION
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
     const executionLoop = setInterval(async () => {
-      // Only execute if socket is open and authorized
       if (derivSocketRef.current?.readyState !== WebSocket.OPEN) return;
       
       setIsAnalyzing(true);
@@ -240,7 +236,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (result.actions && result.actions.length > 0) {
           for (const action of result.actions) {
-            // Real trade transmission
             if (action.type === 'buy' && action.contractType && botStrategy === 'deriv_indices') {
               if (action.confidence > 90) {
                 addLog(`ALPHA SIGNAL: Transmitting real order to Deriv...`, 'info');
@@ -257,8 +252,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                     symbol: 'R_100'
                   }
                 }));
-              } else {
-                addLog(`Signal Low Confidence (${action.confidence}%). Standing by.`, 'info');
               }
             }
           }
