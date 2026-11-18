@@ -195,7 +195,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         socket.onclose = () => {
           if (pingInterval) clearInterval(pingInterval);
-          addLog(`Production Bridge Offline.`, 'warning');
+          addLog(`Production Bridge Offline. Check Redirect URL Whitelist.`, 'warning');
         };
 
         derivSocketRef.current = socket;
