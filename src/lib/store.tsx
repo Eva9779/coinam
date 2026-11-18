@@ -99,7 +99,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // HOISTED UTILITIES: Defined first to prevent ReferenceErrors
+  // HOISTED UTILITIES: Defined at absolute top to prevent ReferenceErrors
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -136,7 +136,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
-  // PRODUCTION BRIDGE: Dynamic Session Provisioning (Modern API)
+  // PRODUCTION BRIDGE: 3-Step Dynamic Session Provisioning (Modern API)
   useEffect(() => {
     if (derivActive && user && db) {
       const appId = '34ZRxvOFBnNAdQsr1T3bF';
@@ -146,25 +146,58 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       let pingInterval: any;
 
       const connectBridge = async () => {
-        addLog(`Provisioning Secure Session [AppID: ${appId}]...`, 'info');
+        addLog(`Initiating Dynamic Session [AppID: ${appId}]...`, 'info');
         
         try {
-          // STEP 1: Discover Primary Account ID
-          const accResponse = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
+          // STEP 1: Discovery - Fetch Options Account list
+          const accountsRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
             headers: { 
               'Authorization': `Bearer ${token}`, 
               'Deriv-App-ID': appId 
             }
           });
-          
-          let accountId = 'primary';
-          if (accResponse.ok) {
-            const accData = await accResponse.json();
-            const realAcc = accData.accounts?.find((a: any) => !a.is_virtual) || accData.accounts?.[0];
-            if (realAcc) accountId = realAcc.account_id;
+
+          if (!accountsRes.ok) {
+             const errText = await accountsRes.text();
+             addLog(`Account Discovery Failed [HTTP ${accountsRes.status}]: ${errText}`, 'error');
+             throw new Error(`HTTP ${accountsRes.status}`);
           }
 
-          // STEP 2: Request Dynamic WebSocket URL via POST OTP
+          const accountsData = await accountsRes.json();
+          let accountId = '';
+
+          // STEP 2: Selection / Creation Logic
+          // Prefer real accounts over virtual, but pick whatever is available for the prototype
+          const existingAcc = accountsData.accounts?.find((a: any) => !a.is_virtual) || accountsData.accounts?.[0];
+          
+          if (existingAcc) {
+            accountId = existingAcc.account_id || existingAcc.id;
+            addLog(`Production Identity Resolved: ${accountId}`, 'success');
+          } else {
+            addLog(`No Options Account found. Provisioning new USD account...`, 'info');
+            const createRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Deriv-App-ID': appId,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ currency: 'USD' })
+            });
+            
+            if (!createRes.ok) {
+              const err = await createRes.text();
+              addLog(`Account Provisioning Failed: ${err}`, 'error');
+              throw new Error("Creation Error");
+            }
+            const createData = await createRes.json();
+            accountId = createData.account_id || createData.id;
+            addLog(`New Production Account Provisioned: ${accountId}`, 'success');
+          }
+
+          // STEP 3: Request Dynamic WebSocket URL via POST OTP
+          // Critical: No literal placeholder "{accountId}". Using the fetched real ID.
+          addLog(`Requesting Dynamic Secure Link for ${accountId}...`, 'info');
           const otpResponse = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
             method: 'POST',
             headers: {
