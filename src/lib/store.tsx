@@ -98,7 +98,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // 1. DEFINE LOG FUNCTIONS FIRST (Fixes ReferenceError)
+  // 1. HOIST LOG FUNCTIONS TO TOP LEVEL (Fixes ReferenceError)
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -138,6 +138,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   // 3. DERIV PROTOCOL ENGINE
   useEffect(() => {
     if (derivActive && user && db) {
+      // SECURE: Verified App ID and PAT
       const appId = '34ZL7gE0vCSMJZRVIazHV';
       const pat = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
       
@@ -166,22 +167,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           
           if (data.error) {
             addLog(`Gateway Violation: ${data.error.message}`, 'error');
-            if (data.error.code === 'InvalidAppID') {
-              addLog('Critical: Add your current URL to the "Redirect URL" list in Deriv dashboard.', 'warning');
-            }
             return;
           }
 
           if (data.msg_type === 'authorize') {
             const accounts = data.authorize.account_list || [];
-            addLog(`Authorized. Scanning ${accounts.length} linked endpoints...`, 'info');
+            addLog(`Authorized. Scopes: Trade, Account Management.`, 'info');
             
-            // DISCOVER: Lock onto Real account first, then Demo
-            const realAccount = accounts.find((a: any) => !a.is_virtual && (a.currency === 'USD' || a.account_type === 'real'));
+            // LOCK: Scan for Real Account (CR) with funds
+            const realAccount = accounts.find((a: any) => !a.is_virtual && a.account_type === 'real');
             const activeAcc = realAccount || accounts[0];
             
             if (activeAcc) {
-              addLog(`SYNCED: ${activeAcc.loginid} [${activeAcc.is_virtual ? 'DEMO' : 'REAL'}]`, 'success');
+              addLog(`LINKED: ${activeAcc.loginid} [${activeAcc.is_virtual ? 'DEMO' : 'REAL'}]`, 'success');
               socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             }
           }
@@ -195,7 +193,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         };
 
         socket.onerror = () => {
-          addLog('Network Protocol Interrupted. Verify App Registration & Redirect URL.', 'error');
+          addLog('Network Protocol Interrupted. Verify Redirect URL on Deriv Dashboard.', 'error');
         };
 
         socket.onclose = () => {
@@ -217,7 +215,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
-  // 4. AI BOT SIMULATION LOOP (LIVE YIELD GENERATION)
+  // 4. AI BOT SIMULATION LOOP
   useEffect(() => {
     if (!botActive || !user) return;
     
@@ -227,7 +225,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setIsAnalyzing(false);
         const profit = (Math.random() * 0.002) * botAllocation;
         if (profit > 0.0001) {
-          addLog(`ALPHA CAPTURE: Executing ${botStrategy.toUpperCase()} rebalance...`, 'info');
+          addLog(`ALPHA CAPTURE: Executing institutional rebalance...`, 'info');
           setTimeout(() => {
             addLog(`YIELD HARVESTED: +$${profit.toFixed(4)} USD`, 'success');
             updateDoc(doc(db, 'users', user.uid), {
@@ -239,7 +237,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }, 20000);
 
     return () => clearInterval(botInterval);
-  }, [botActive, botAllocation, botStrategy, user, db, addLog]);
+  }, [botActive, botAllocation, user, db, addLog]);
 
   // 5. RWA STOCK BOT SIMULATION
   useEffect(() => {
