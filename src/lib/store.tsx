@@ -165,6 +165,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     stockBotStateRef.current = { active: stockBotActive, risk: stockBotRisk, allocation: stockBotAllocation };
   }, [stockBotActive, stockBotRisk, stockBotAllocation]);
 
+  const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
+  }, []);
+
   useEffect(() => {
     if (derivActive && !derivSocketRef.current) {
       const appId = 1089;
@@ -177,13 +181,26 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
       socket.onmessage = (msg) => {
         const data = JSON.parse(msg.data);
+        
+        if (data.error) {
+          addLog(`Deriv API Error: ${data.error.message}`, 'error');
+          return;
+        }
+
         if (data.msg_type === 'authorize') {
+          if (data.authorize) {
+            setDerivBalance(data.authorize.balance);
+            addLog(`Deriv Link: Verified Account ${data.authorize.loginid} (${data.authorize.currency})`, 'success');
+            addLog(`Balance Synchronized: $${data.authorize.balance.toFixed(2)} USD`, 'info');
+          }
           socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
         }
+        
         if (data.tick) {
           setDerivTicks(prev => [...prev.slice(-19), data.tick.quote]);
         }
+        
         if (data.balance) {
           setDerivBalance(data.balance.balance);
         }
@@ -201,7 +218,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         derivSocketRef.current = null;
       }
     };
-  }, [derivActive]);
+  }, [derivActive, addLog]);
 
   useEffect(() => {
     const fetchMarket = async () => {
@@ -251,10 +268,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     fetchMarket();
     const interval = setInterval(fetchMarket, 15000); 
     return () => clearInterval(interval);
-  }, []);
-
-  const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-    setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
   const addStockLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
@@ -431,7 +444,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       addLog(`Deriv Hub: Scanning V-100 Synthetic Pulse...`, 'info');
       
       if (currentDerivBal <= 0) {
-        addLog(`CRITICAL: Insufficient Funds in Deriv Account ($${currentDerivBal}). Protocol: SAFETY LOCK.`, 'error');
+        addLog(`CRITICAL: Insufficient Funds in Deriv Account ($${currentDerivBal.toFixed(2)}). Protocol: SAFETY LOCK.`, 'error');
+        setIsAnalyzing(false);
+        return;
+      }
+
+      if (allocation <= 0 && !isGuardian) {
+        addLog(`CONFIG ERROR: Allocation Cap is $0. Increase Cap to authorize trades.`, 'warning');
         setIsAnalyzing(false);
         return;
       }
@@ -469,16 +488,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               continue;
             }
 
-            const tradeAmount = 10;
+            const tradeAmount = Math.min(10, allocation);
             if (currentDerivBal < tradeAmount) {
-              addLog(`ABORTED: Low Balance ($${currentDerivBal.toFixed(2)}). Min required: $${tradeAmount}.`, 'warning');
+              addLog(`ABORTED: Balance ($${currentDerivBal.toFixed(2)}) below required stake ($${tradeAmount}).`, 'warning');
               continue;
             }
 
             addLog(`LIVE EXECUTION: Authorizing ${action.contractType} contract on Vol-100...`, 'info');
             try {
               await performLiveDerivTrade(action.contractType, tradeAmount);
-              const captureYield = 9.45 + (Math.random() * 2.0); 
+              const captureYield = (tradeAmount * 0.94) + (Math.random() * 0.5); 
               
               await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(captureYield) });
               
@@ -647,6 +666,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy });
     if (active) {
       addLog(`AGENT START: Initializing ${strategy} protocol...`, 'info');
+      if (allocation <= 0) addLog(`WARNING: Allocation Cap is $0. Bot will monitor only.`, 'warning');
       setTimeout(() => runBotCycle(true), 1500);
     }
   };
@@ -675,8 +695,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             toast({ title: "API Auth Failed", description: data.error.message, variant: "destructive" });
             handshake.close();
           } else {
+            setDerivBalance(data.authorize.balance || 0);
             updateDoc(doc(db, 'users', user.uid), { derivActive: true });
-            toast({ title: "Deriv Guardian Established", description: "Live execution link verified." });
+            toast({ title: "Deriv Guardian Established", description: `Account ${data.authorize.loginid} connected.` });
             handshake.close();
           }
         }
