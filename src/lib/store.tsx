@@ -99,7 +99,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // HOISTED UTILITIES: Available to all hooks immediately
+  // HOISTED UTILITIES: Defined first to prevent ReferenceErrors
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -136,7 +136,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
-  // PRODUCTION BRIDGE: Native App ID Integration
+  // PRODUCTION BRIDGE: Direct WebSocket Integration
   useEffect(() => {
     if (derivActive && user && db) {
       const appId = '34ZRxvOFBnNAdQsr1T3bF'; // NATIVE APP ID
@@ -172,6 +172,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           if (data.msg_type === 'authorize') {
             addLog(`Identity Verified. Synchronizing Live Assets...`, 'success');
+            // Request balance for all accounts and subscribe to ticks
             socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           }
@@ -215,7 +216,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
-  // LIVE EXECUTION LOOP: NO SIMULATION
+  // LIVE EXECUTION LOOP: Purged of all simulation
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
