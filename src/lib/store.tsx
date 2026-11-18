@@ -168,7 +168,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const data = JSON.parse(msg.data);
           
           if (data.error) {
-            addLog(`Production Bridge Rejection: ${data.error.message}. Verify App Registration.`, 'error');
+            addLog(`Production Bridge Rejection: ${data.error.message}`, 'error');
             return;
           }
 
@@ -210,7 +210,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
-  // --- LIVE PRODUCTION EXECUTION ENGINE ---
+  // --- LIVE PRODUCTION EXECUTION ENGINE (NO SIMULATION) ---
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
