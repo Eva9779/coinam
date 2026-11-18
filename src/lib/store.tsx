@@ -99,11 +99,11 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 /**
  * PRODUCTION AUTHORIZED CREDENTIALS
  */
-const DERIV_APP_ID = '34ZL7gE0vCSMJZRVIazHV'; 
+const DERIV_APP_ID = '61501'; // Verified Production Bridge ID
 const DERIV_PAT = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // CRITICAL: Hoisted log functions to absolute top-level scope to resolve ReferenceErrors
+  // CRITICAL: Hoisted state and log functions to the absolute top of the component
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -152,7 +152,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       let pingInterval: any;
 
       socket.onopen = () => {
-        addLog('Handshaking with Trade + Account Protocol...', 'info');
+        addLog('Authenticating via Account Protocol...', 'info');
         socket.send(JSON.stringify({ authorize: DERIV_PAT }));
         pingInterval = setInterval(() => socket.send(JSON.stringify({ ping: 1 })), 30000);
       };
@@ -167,33 +167,31 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (data.msg_type === 'authorize') {
           const accounts = data.authorize.account_list || [];
-          addLog(`Identity Authorized. Searching ${accounts.length} linked accounts...`, 'info');
+          addLog(`Identity Authorized. Scopes: Trade, Account. Searching ${accounts.length} linked accounts...`, 'info');
           
-          // DEEP SCAN: Find the Real Account (CR prefix) or the first account with a non-zero balance
-          const realAccount = accounts.find((a: any) => !a.is_virtual && (a.currency === 'USD' || a.account_category === 'real' || a.loginid.startsWith('CR')));
-          const fundedAccount = realAccount || accounts.find((a: any) => parseFloat(a.balance || 0) > 0) || accounts[0];
+          // SEARCH & LOCK: Find the first non-virtual account (usually CRxxxx)
+          const realAccount = accounts.find((a: any) => !a.is_virtual);
           
-          if (fundedAccount) {
-            addLog(`SECURE LINK ESTABLISHED: ${fundedAccount.loginid}`, 'success');
-            setDerivBalance(parseFloat(fundedAccount.balance || 0));
-            // Multi-Stage Sync: Initial snapshot + Continuous Subscription
-            socket.send(JSON.stringify({ balance: 1 }));
+          if (realAccount) {
+            addLog(`SECURE LINK ESTABLISHED: ${realAccount.loginid}`, 'success');
+            // Request live balance immediately
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+            // Subscribe to market ticks for the bot
             socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           } else {
-            addLog(`Protocol Warning: No funded accounts found in registry.`, 'warning');
+            addLog(`Protocol Warning: No funded accounts found.`, 'warning');
           }
         }
 
-        if (data.msg_type === 'balance' || data.balance) {
-          const bal = data.balance ? data.balance.balance : data.authorize?.balance;
+        if (data.msg_type === 'balance') {
+          const bal = data.balance.balance;
           if (bal !== undefined) {
             setDerivBalance(parseFloat(bal));
           }
         }
       };
 
-      socket.onerror = () => addLog('Network Protocol Interrupted. Verify App Registration.', 'error');
+      socket.onerror = () => addLog('Network Protocol Interrupted. Check Internet or App Registration.', 'error');
       socket.onclose = () => { 
         if (pingInterval) clearInterval(pingInterval); 
         derivSocketRef.current = null; 
