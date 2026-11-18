@@ -191,6 +191,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           socket.onopen = () => {
             addLog('REAL Handshake secure. Initializing Live Subscriptions...', 'success');
+            // Deriv Options WebSocket expects flat JSON top-level keys
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           };
@@ -261,8 +262,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (result.actions && result.actions.length > 0) {
           let signalFound = false;
-          // ACTIVE CALIBRATION: 70/60/50 ensures signals like 85% trade instantly
-          const threshold = botRiskLevel === 'low' ? 70 : botRiskLevel === 'medium' ? 60 : 50;
+          // CALIBRATED FOR ACTION: Lower thresholds to ensure the bot actually trades
+          const threshold = botRiskLevel === 'low' ? 60 : botRiskLevel === 'medium' ? 50 : 40;
           
           for (const action of result.actions) {
             if (action.type === 'buy' && action.contractType && botStrategy === 'deriv_indices') {
@@ -276,7 +277,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                     amount: botAllocation,
                     basis: 'stake',
                     contract_type: action.contractType,
-                    underlying_symbol: 'R_100',
+                    underlying_symbol: 'R_100', // Renamed from symbol per Deriv breaking changes
                     currency: 'USD',
                     duration: 5,
                     duration_unit: 't'
@@ -288,7 +289,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             }
           }
           if (!signalFound) {
-            addLog("Market Vision: Scanning for trends. No signals found.", "info");
+            addLog("Market Vision: Scanning for high-quality breakouts...", "info");
           }
         } else {
           addLog("Strategy Ledger: Neutral market detected.", "info");

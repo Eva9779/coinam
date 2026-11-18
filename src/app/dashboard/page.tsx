@@ -134,6 +134,7 @@ export default function Dashboard() {
                 <RefreshCw className="h-3 w-3 animate-spin" /> Synchronizing...
               </div>
             ) : marketData.slice(0, 8).map((item, idx) => {
+              // SAFE PROPERTY ACCESS: Prevents 'TypeError: slice of undefined'
               const symbol = item?.symbol || item?.currency || item?.id || '???';
               const price = item?.current_price || item?.currentPriceUSD || 0;
               const change = item?.price_change_percentage_24h || item?.dailyChangePercent || 0;
