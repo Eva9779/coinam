@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -101,6 +100,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
+  // HOISTED LOGGING UTILITIES: Must be first to prevent ReferenceError
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -137,6 +137,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
+  // DERIV PRODUCTION BRIDGE: Dynamic OTP Provisioning (api.derivws.com)
   useEffect(() => {
     if (derivActive && user && db) {
       const appId = '34ZRxvOFBnNAdQsr1T3bF';
@@ -146,14 +147,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       let pingInterval: any;
 
       const connectBridge = async () => {
-        addLog(`Initializing Secure Bridge [AppID: ${appId}]...`, 'info');
+        addLog(`Provisioning Secure Session [AppID: ${appId}]...`, 'info');
         
         try {
+          // STEP 1: Discover REAL Account UUID
           const accountsRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
             headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
           });
-
-          if (!accountsRes.ok) throw new Error(`Discovery Failed [HTTP ${accountsRes.status}]`);
 
           const getJson = await accountsRes.json();
           const accountsArray = getJson.data || [];
@@ -176,30 +176,34 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             });
             
             const postJson = await createRes.json();
-            if (!createRes.ok) throw new Error(`Provisioning Failed: ${JSON.stringify(postJson)}`);
+            if (!createRes.ok) throw new Error(`Provisioning Failed [HTTP ${createRes.status}]: ${JSON.stringify(postJson)}`);
             accountId = postJson.data?.id || postJson.data?.account_id || postJson.id || postJson.account_id;
           }
 
-          if (!accountId) throw new Error('Verification Failure: Account ID undefined.');
+          if (!accountId) {
+            addLog('Critical Error: Failed to resolve REAL account ID.', 'error');
+            return;
+          }
 
-          addLog(`Requesting Dynamic Secure Link...`, 'info');
+          // STEP 2: Request OTP URL
+          addLog(`Requesting Dynamic Secure Link for ${accountId}...`, 'info');
           const otpResponse = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
           });
 
-          if (!otpResponse.ok) throw new Error(`OTP Session Violation [HTTP ${otpResponse.status}]`);
-
           const otpData = await otpResponse.json();
           const wsUrl = otpData.data?.url || otpData.url;
 
-          if (!wsUrl) throw new Error('Security Protocol Error: No WebSocket URL.');
+          if (!wsUrl) throw new Error('Security Protocol Error: No WebSocket URL returned from /otp.');
 
+          // STEP 3: Connect WebSocket to pre-authenticated URL
           addLog(`Establishing Hardware Handshake...`, 'success');
           socket = new WebSocket(wsUrl);
 
           socket.onopen = () => {
             addLog('REAL Handshake secure. Initializing Live Subscriptions...', 'success');
+            // USE FLAT JSON SCHEMAS (No authorize needed, no method/params)
             socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
             
@@ -214,7 +218,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             const data = JSON.parse(msg.data);
             
             if (data.error) {
-              addLog(`Bridge Protocol Error: ${data.error.message}`, 'error');
+              // LOG FULL ERROR STRING FOR PRODUCTION DEBUGGING
+              addLog(`Bridge Protocol Error: ${JSON.stringify(data.error)}`, 'error');
               return;
             }
 
@@ -238,7 +243,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           socket.onclose = () => {
             if (pingInterval) clearInterval(pingInterval);
-            addLog(`Production Bridge Offline. Ensure App ID is active.`, 'warning');
+            addLog(`Production Bridge Offline. Re-provisioning required.`, 'warning');
           };
 
           derivSocketRef.current = socket;
@@ -256,6 +261,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
+  // AI STRATEGY LOOP
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
@@ -271,15 +277,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       addLog("AI Neural Link: Analyzing R_100 Tick Momentum...", "info");
       
       try {
+        // MAP SCHEMA: satisfy Zod validation right before calling AI
+        const contextData = marketData.map((item: any) => ({
+          currency: item.currency || item.symbol || '???',
+          price: item.price ?? item.currentPriceUSD ?? item.current_price ?? 0,
+          change24h: item.change24h ?? item.dailyChangePercent ?? item.price_change_percentage_24h ?? 0
+        }));
+
         const result = await analyzeMarketAndTrade({
           userId: user.uid,
           strategyType: botStrategy,
           assets: assets.map(a => ({ currency: a.currency, amount: a.amount, fiatValue: a.fiatValueUSD })),
-          marketData: marketData.map((item: any) => ({
-            currency: item.currency || item.symbol || '???',
-            price: item.price ?? item.currentPriceUSD ?? item.current_price ?? 0,
-            change24h: item.change24h ?? item.dailyChangePercent ?? item.price_change_percentage_24h ?? 0
-          })),
+          marketData: contextData,
           riskTolerance: botRiskLevel,
           allocationLimitUSD: botAllocation,
           tickStream: tickStreamRef.current,
@@ -287,7 +296,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (result.actions && result.actions.length > 0) {
           let signalFound = false;
-          // CALIBRATED THRESHOLDS: Low=80%, Med=70%, High=60% to ensure trades execute on 85% signals
+          // PERMISSIVE THRESHOLDS: 80/70/60 to ensure 85% signals execute
           const threshold = botRiskLevel === 'low' ? 80 : botRiskLevel === 'medium' ? 70 : 60;
           
           for (const action of result.actions) {
@@ -295,6 +304,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               signalFound = true;
               if (action.confidence >= threshold) {
                 addLog(`ALPHA SIGNAL: Transmitting REAL Order [${action.contractType}]...`, 'info');
+                
+                // DERIV MODERN PAYLOAD: Use underlying_symbol instead of symbol
                 derivSocketRef.current.send(JSON.stringify({
                   buy: 1,
                   price: botAllocation,
@@ -302,7 +313,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                     amount: botAllocation,
                     basis: 'stake',
                     contract_type: action.contractType,
-                    symbol: 'R_100',
+                    underlying_symbol: 'R_100',
                     currency: 'USD',
                     duration: 5,
                     duration_unit: 't'
