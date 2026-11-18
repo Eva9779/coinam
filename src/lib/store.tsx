@@ -136,78 +136,117 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
-  // PRODUCTION BRIDGE: Direct WebSocket Integration
+  // PRODUCTION BRIDGE: Dynamic Session Provisioning (Modern API)
   useEffect(() => {
     if (derivActive && user && db) {
-      const appId = '34ZRxvOFBnNAdQsr1T3bF'; // NATIVE APP ID
+      const appId = '34ZRxvOFBnNAdQsr1T3bF';
       const token = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
       
-      addLog(`Initializing Secure Bridge [Native AppID: ${appId}]...`, 'info');
-      
-      const socketUrl = `wss://ws.binaryws.com/websockets/v3?app_id=${appId}`;
       let socket: WebSocket | null = null;
       let pingInterval: any;
 
-      try {
-        socket = new WebSocket(socketUrl);
+      const connectBridge = async () => {
+        addLog(`Provisioning Secure Session [AppID: ${appId}]...`, 'info');
         
-        socket.onopen = () => {
-          addLog('Handshake secure. Transmitting authorization...', 'info');
-          socket?.send(JSON.stringify({ authorize: token }));
-          
-          pingInterval = setInterval(() => {
-            if (socket?.readyState === WebSocket.OPEN) {
-              socket.send(JSON.stringify({ ping: 1 }));
+        try {
+          // STEP 1: Discover Primary Account ID
+          const accResponse = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
+            headers: { 
+              'Authorization': `Bearer ${token}`, 
+              'Deriv-App-ID': appId 
             }
-          }, 30000);
-        };
-
-        socket.onmessage = (msg) => {
-          const data = JSON.parse(msg.data);
+          });
           
-          if (data.error) {
-            addLog(`Production Bridge Error: ${data.error.message}`, 'error');
-            return;
+          let accountId = 'primary';
+          if (accResponse.ok) {
+            const accData = await accResponse.json();
+            const realAcc = accData.accounts?.find((a: any) => !a.is_virtual) || accData.accounts?.[0];
+            if (realAcc) accountId = realAcc.account_id;
           }
 
-          if (data.msg_type === 'authorize') {
-            addLog(`Identity Verified. Synchronizing Live Assets...`, 'success');
-            // Request balance for all accounts and subscribe to ticks
-            socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-            socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
+          // STEP 2: Request Dynamic WebSocket URL via POST OTP
+          const otpResponse = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Deriv-App-ID': appId,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (!otpResponse.ok) {
+            const errText = await otpResponse.text();
+            addLog(`Session Request Failed [HTTP ${otpResponse.status}]: ${errText}`, 'error');
+            throw new Error(`HTTP ${otpResponse.status}`);
           }
 
-          if (data.msg_type === 'tick') {
-            const price = data.tick.quote;
-            tickStreamRef.current = [...tickStreamRef.current.slice(-19), price];
-          }
+          const otpData = await otpResponse.json();
+          const wsUrl = otpData.url;
 
-          if (data.msg_type === 'balance') {
-            setDerivBalance(parseFloat(data.balance.balance));
-          }
+          if (!wsUrl) throw new Error('No WebSocket URL returned in session payload.');
 
-          if (data.msg_type === 'buy') {
-            addLog(`LIVE TRADE SUCCESS: Contract ID ${data.buy.contract_id}`, 'success');
-            toast({ 
-              title: "Trade Executed", 
-              description: `Real-world order ${data.buy.contract_id} transmitted to Deriv.` 
-            });
-          }
-        };
+          addLog(`Secure URL Resolved. Establishing Handshake...`, 'success');
+          socket = new WebSocket(wsUrl);
 
-        socket.onerror = (err) => {
-          addLog('Socket Error: Connection failed. Verify App Registration.', 'error');
-        };
+          socket.onopen = () => {
+            addLog('Handshake secure. Transmitting authorization...', 'info');
+            socket?.send(JSON.stringify({ authorize: token }));
+            
+            pingInterval = setInterval(() => {
+              if (socket?.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ ping: 1 }));
+              }
+            }, 30000);
+          };
 
-        socket.onclose = () => {
-          if (pingInterval) clearInterval(pingInterval);
-          addLog(`Production Bridge Offline. Ensure your App ID is active in Deriv.`, 'warning');
-        };
+          socket.onmessage = (msg) => {
+            const data = JSON.parse(msg.data);
+            
+            if (data.error) {
+              addLog(`Bridge Protocol Error: ${data.error.message}`, 'error');
+              return;
+            }
 
-        derivSocketRef.current = socket;
-      } catch (err) {
-        addLog('Critical Connection Failure.', 'error');
-      }
+            if (data.msg_type === 'authorize') {
+              addLog(`Identity Verified. Synchronizing Live Assets...`, 'success');
+              socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+              socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
+            }
+
+            if (data.msg_type === 'tick') {
+              const price = data.tick.quote;
+              tickStreamRef.current = [...tickStreamRef.current.slice(-19), price];
+            }
+
+            if (data.msg_type === 'balance') {
+              setDerivBalance(parseFloat(data.balance.balance));
+            }
+
+            if (data.msg_type === 'buy') {
+              addLog(`LIVE TRADE SUCCESS: Order Broadcasted [ID: ${data.buy.contract_id}]`, 'success');
+              toast({ 
+                title: "Trade Executed", 
+                description: `Real-world order ${data.buy.contract_id} transmitted to Deriv.` 
+              });
+            }
+          };
+
+          socket.onerror = (err) => {
+            addLog('Socket Error: Connection failed. Verify Domain Whitelisting.', 'error');
+          };
+
+          socket.onclose = () => {
+            if (pingInterval) clearInterval(pingInterval);
+            addLog(`Production Bridge Offline. Ensure your App ID is active in Deriv.`, 'warning');
+          };
+
+          derivSocketRef.current = socket;
+        } catch (err: any) {
+          addLog(`Bridge Provisioning Interrupted: ${err.message}`, 'error');
+        }
+      };
+
+      connectBridge();
 
       return () => {
         if (socket && socket.readyState === WebSocket.OPEN) socket.close();
