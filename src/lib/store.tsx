@@ -101,7 +101,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // --- HOISTED LOGGING UTILITIES ---
+  // --- HOISTED LOGGING UTILITIES (CRITICAL FIX FOR REFERENCEERROR) ---
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -138,10 +138,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
-  // --- LIVE DERIV PRODUCTION BRIDGE ---
+  // --- LIVE DERIV PRODUCTION BRIDGE (WEB-BASED ID: 34ZS1m5vhyr6iy1U4CCU0) ---
   useEffect(() => {
     if (derivActive && user && db) {
-      const appId = '34ZRxvOFBnNAdQsr1T3bF'; 
+      const appId = '34ZS1m5vhyr6iy1U4CCU0'; 
       const token = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
       
       addLog(`Initializing Secure Bridge [AppID: ${appId}]...`, 'info');
@@ -168,12 +168,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const data = JSON.parse(msg.data);
           
           if (data.error) {
-            addLog(`Production Bridge Rejection: ${data.error.message}`, 'error');
+            addLog(`Production Bridge Error: ${data.error.message}`, 'error');
             return;
           }
 
           if (data.msg_type === 'authorize') {
-            addLog(`Identity Verified. Syncing Real Account balance...`, 'success');
+            addLog(`Identity Verified. Synchronizing Live USD Balance...`, 'success');
             socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           }
@@ -188,18 +188,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (data.msg_type === 'buy') {
-            addLog(`REAL TRADE EXECUTED: Order ID ${data.buy.contract_id}`, 'success');
-            toast({ title: "Trade Live", description: `Order ${data.buy.contract_id} transmitted.` });
+            addLog(`LIVE TRADE EXECUTED: Order ID ${data.buy.contract_id}`, 'success');
+            toast({ title: "Trade Live", description: `Order ${data.buy.contract_id} transmitted to Deriv.` });
           }
         };
 
         socket.onerror = (err) => {
-          addLog('Socket Error: Connection failed. Verify App Configuration.', 'error');
+          addLog('Socket Error: Connection failed. Verify Domain Whitelisting.', 'error');
         };
 
         socket.onclose = () => {
           if (pingInterval) clearInterval(pingInterval);
-          addLog(`Production Bridge Offline. Ensure URL whitelisting is active.`, 'warning');
+          addLog(`Production Bridge Offline. Ensure your domain is whitelisted in Deriv Dashboard.`, 'warning');
         };
 
         derivSocketRef.current = socket;
@@ -237,7 +237,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           for (const action of result.actions) {
             if (action.type === 'buy' && action.contractType && botStrategy === 'deriv_indices') {
               if (action.confidence > 90) {
-                addLog(`ALPHA CAPTURE: Transmitting live order...`, 'info');
+                addLog(`ALPHA SIGNAL: Executing live order on Deriv...`, 'info');
                 derivSocketRef.current.send(JSON.stringify({
                   buy: 1,
                   price: botAllocation,
