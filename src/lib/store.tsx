@@ -248,7 +248,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const token = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
       
       const connectBridge = async () => {
-        addLog(`Initializing Secure Bridge [AppID: ${appId}]...`, 'info');
+        addLog(`Initializing Production Bridge [AppID: ${appId}]...`, 'info');
         
         try {
           const accountsRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
@@ -257,32 +257,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           const getJson = await accountsRes.json();
           const accountsArray = getJson.data || [];
-          // Switch to Demo Account as requested
-          const demoAcc = accountsArray.find((a: any) => a.account_type === 'demo');
+          // Force select Real account for production balance
+          const realAcc = accountsArray.find((a: any) => a.account_type === 'real');
           
-          let accountId = demoAcc?.id || demoAcc?.account_id;
+          let accountId = realAcc?.id || realAcc?.account_id;
 
           if (!accountId) {
-            addLog(`DEMO account not found. Provisioning virtual enclave...`, 'info');
-            const createRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Deriv-App-ID': appId,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ currency: 'USD', group: 'row', account_type: 'demo' })
-            });
-            const postJson = await createRes.json();
-            accountId = postJson.data?.id || postJson.data?.account_id || postJson.id || postJson.account_id;
-          }
-
-          if (!accountId) {
-            addLog('Critical: Failed to resolve DEMO account ID.', 'error');
+            addLog('Critical: REAL production account not found. Ensure token is authorized.', 'error');
             return;
           }
 
-          addLog(`Requesting Dynamic Secure Link...`, 'info');
+          addLog(`Requesting Production Secure Link...`, 'info');
           const otpResponse = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
@@ -293,11 +278,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           if (!wsUrl) throw new Error('Security Protocol Error: No WebSocket URL returned.');
 
-          addLog(`Establishing DEMO Hardware Handshake...`, 'success');
+          addLog(`Establishing Mainnet Hardware Handshake...`, 'success');
           const socket = new WebSocket(wsUrl);
 
           socket.onopen = () => {
-            addLog('DEMO Handshake secure. Subscribing to Gold (XAU/USD)...', 'success');
+            addLog('Mainnet Handshake secure. Subscribing to Gold (XAU/USD)...', 'success');
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket.send(JSON.stringify({ ticks: 'frxXAUUSD', subscribe: 1 }));
           };
@@ -332,9 +317,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               }
             }
             if (data.msg_type === 'buy') {
-              addLog(`ORDER BROADCAST RESULT: [ID: ${data.buy.contract_id || 'REJECTED'}]`, data.buy.contract_id ? 'success' : 'error');
+              addLog(`PRODUCTION ORDER BROADCAST: [ID: ${data.buy.contract_id || 'REJECTED'}]`, data.buy.contract_id ? 'success' : 'error');
               if (data.buy.contract_id) {
-                toast({ title: "Demo Order Accepted", description: `Contract ID: ${data.buy.contract_id}` });
+                toast({ title: "Production Order Accepted", description: `Contract ID: ${data.buy.contract_id}` });
               }
             }
           };
