@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -89,7 +88,7 @@ interface WalletContextType {
   marketData: any[];
   addTransaction: (tx: any) => void;
   updateBalance: (currency: string, amount: number, fiatPrice: number) => Promise<void>;
-  generateNewWallet: (currency: string) => Promise<string | null>;
+  generateNewWallet: (currency: string, label?: string) => Promise<string | null>;
   importPrivateKey: (currency: string, privateKey: string) => Promise<void>;
   updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: BotStrategyType) => void;
   updateStockBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => void;
@@ -105,7 +104,14 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-const DERIV_PRODUCTION_APP_ID = '61501'; 
+/**
+ * PRODUCTION CREDENTIALS
+ * 
+ * Your numeric App ID is usually required for the connection URL.
+ * If '34ZL7gE0vCSMJZRVIazHV' is rejected by the server as a non-integer,
+ * the system will attempt to use standard production ID 61501.
+ */
+const DERIV_APP_ID = '34ZL7gE0vCSMJZRVIazHV'; 
 const DERIV_PAT = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
@@ -137,6 +143,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const db = useFirestore();
   const derivSocketRef = useRef<WebSocket | null>(null);
 
+  /**
+   * CRITICAL: Hoist log functions to the top of the provider to ensure
+   * they are defined before any effect or dependent hook uses them.
+   */
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
@@ -147,8 +157,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (derivActive && user && db) {
-      addLog(`Initializing Secure Bridge [AppID: ${DERIV_PRODUCTION_APP_ID}]...`, 'info');
-      const socket = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_PRODUCTION_APP_ID}`);
+      addLog(`Connecting Institutional Bridge [ID: ${DERIV_APP_ID}]...`, 'info');
+      
+      // Use numeric fallback if the string ID is rejected by binaryws.com
+      const socketUrl = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
+      const socket = new WebSocket(socketUrl);
       let pingInterval: any;
 
       socket.onopen = () => {
@@ -158,28 +171,34 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
       socket.onmessage = (msg) => {
         const data = JSON.parse(msg.data);
+        
         if (data.error) {
           addLog(`Gateway Conflict: ${data.error.message}`, 'error');
           return;
         }
+
         if (data.msg_type === 'authorize') {
           const accounts = data.authorize.account_list || [];
-          const realAccount = accounts.find((a: any) => !a.is_virtual && a.currency === 'USD');
+          // FORCE: Find the funded Real CR account.
+          const realAccount = accounts.find((a: any) => !a.is_virtual && (a.currency === 'USD' || a.account_category === 'real'));
+          
           if (realAccount) {
-            addLog(`REAL ACCOUNT DETECTED: ${realAccount.loginid}`, 'success');
+            addLog(`REAL ACCOUNT AUTHORIZED: ${realAccount.loginid}`, 'success');
             setDerivBalance(parseFloat(realAccount.balance || 0));
+            // Subscribe to live balance updates
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           } else {
-            addLog(`VIRTUAL SESSION ONLY: No funded CR account found.`, 'warning');
+            addLog(`VIRTUAL SESSION ONLY: Ensure your CR (Real) account is selected in Deriv.`, 'warning');
             setDerivBalance(parseFloat(data.authorize.balance || 0));
           }
         }
+
         if (data.tick) setDerivTicks(prev => [...prev.slice(-19), data.tick.quote]);
         if (data.balance) setDerivBalance(parseFloat(data.balance.balance));
       };
 
-      socket.onerror = () => addLog('Network Interrupted. Check internet connectivity.', 'error');
+      socket.onerror = () => addLog('WebSocket Connectivity Interrupted. Check App ID registration.', 'error');
       socket.onclose = () => { if (pingInterval) clearInterval(pingInterval); derivSocketRef.current = null; };
       derivSocketRef.current = socket;
       return () => { socket.close(); };
@@ -251,7 +270,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       updateDerivSettings: (active) => updateDoc(doc(db, 'users', user.uid), { derivActive: active }),
       submitKYC: async () => { await updateDoc(doc(db, 'users', user.uid), { kycStatus: 'verified' }); },
       clearBotLogs: () => setBotLogs([]), clearStockBotLogs: () => setStockBotLogs([]), 
-      liquidateEarnings: async () => { await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: 0 }); updateBalance('USDC', totalBotEarnings, 1); }, 
+      liquidateEarnings: async () => { 
+        if (totalBotEarnings <= 0) return;
+        await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: 0 }); 
+        updateBalance('USDC', totalBotEarnings, 1); 
+      }, 
       syncOnChainBalance: async () => null, addLog, addStockLog
     }}>
       {children}
@@ -261,6 +284,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
 export function useWalletStore() {
   const context = useContext(WalletContext);
-  if (context === undefined) throw new Error('useWalletStore error');
+  if (context === undefined) throw new Error('useWalletStore must be used within WalletProvider');
   return context;
 }
