@@ -55,18 +55,17 @@ export default function Dashboard() {
     if (!initialized || !marketData.length) return 0;
     
     const cryptoVal = assets.reduce((acc, asset) => {
-      const liveCoin = marketData.find(c => c.symbol?.toUpperCase() === asset.currency?.toUpperCase());
-      const currentPrice = liveCoin?.current_price || (asset.fiatValueUSD / Math.max(asset.amount, 0.00001));
+      const liveCoin = marketData.find(c => (c.symbol || c.currency)?.toUpperCase() === asset.currency?.toUpperCase());
+      const currentPrice = liveCoin?.current_price || liveCoin?.currentPriceUSD || (asset.fiatValueUSD / Math.max(asset.amount, 0.00001));
       return acc + (asset.amount * currentPrice);
     }, 0);
 
     const stockVal = stockAssets.reduce((acc, s) => {
-      const liveStock = marketData.find(m => m.symbol === s.symbol || s.symbol.includes(m.symbol));
+      const liveStock = marketData.find(m => m.symbol === s.symbol || s.symbol?.includes(m.symbol));
       const currentPrice = liveStock?.current_price || s.currentPrice;
       return acc + (s.shares * currentPrice);
     }, 0);
 
-    // UNIFIED: Add the real-time Deriv account balance
     return cryptoVal + stockVal + derivBalance;
   }, [assets, stockAssets, marketData, initialized, derivBalance]);
 
@@ -134,26 +133,32 @@ export default function Dashboard() {
               <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase animate-pulse">
                 <RefreshCw className="h-3 w-3 animate-spin" /> Synchronizing...
               </div>
-            ) : marketData.slice(0, 8).map((item) => (
-              <div key={item.id} className="flex items-center gap-4 shrink-0 animate-in fade-in slide-in-from-left-2 duration-500">
-                {item.image && (
-                  <div className="h-10 w-10 rounded-full bg-muted border overflow-hidden">
-                    <img src={item.image} alt={item.symbol} className="h-full w-full object-cover" />
-                  </div>
-                )}
-                {!item.image && (
-                  <div className="h-10 w-10 rounded-full bg-secondary/10 border-2 border-secondary/20 flex items-center justify-center font-black text-[10px] text-secondary">
-                    {item.symbol.slice(0, 3)}
-                  </div>
-                )}
-                <div>
-                  <div className="text-sm font-black">${item.current_price.toLocaleString()}</div>
-                  <div className={cn("text-[10px] font-bold uppercase", item.price_change_percentage_24h >= 0 ? "text-green-600" : "text-red-600")}>
-                    {item.price_change_percentage_24h >= 0 ? '+' : ''}{item.price_change_percentage_24h?.toFixed(2)}%
+            ) : marketData.slice(0, 8).map((item, idx) => {
+              const symbol = item.symbol || item.currency || '???';
+              const price = item.current_price || item.currentPriceUSD || 0;
+              const change = item.price_change_percentage_24h || item.dailyChangePercent || 0;
+              
+              return (
+                <div key={item.id || idx} className="flex items-center gap-4 shrink-0 animate-in fade-in slide-in-from-left-2 duration-500">
+                  {item.image && (
+                    <div className="h-10 w-10 rounded-full bg-muted border overflow-hidden">
+                      <img src={item.image} alt={symbol} className="h-full w-full object-cover" />
+                    </div>
+                  )}
+                  {!item.image && (
+                    <div className="h-10 w-10 rounded-full bg-secondary/10 border-2 border-secondary/20 flex items-center justify-center font-black text-[10px] text-secondary uppercase">
+                      {symbol.slice(0, 3)}
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-sm font-black">${price.toLocaleString()}</div>
+                    <div className={cn("text-[10px] font-bold uppercase", change >= 0 ? "text-green-600" : "text-red-600")}>
+                      {change >= 0 ? '+' : ''}{change?.toFixed(2)}%
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
       </div>
