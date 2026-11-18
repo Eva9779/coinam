@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -39,6 +38,7 @@ export default function Dashboard() {
     botActive, 
     stockBotActive, 
     derivActive,
+    derivBalance,
     botLogs, 
     totalBotEarnings,
     marketData,
@@ -66,8 +66,9 @@ export default function Dashboard() {
       return acc + (s.shares * currentPrice);
     }, 0);
 
-    return cryptoVal + stockVal;
-  }, [assets, stockAssets, marketData, initialized]);
+    // UNIFIED: Add the real-time Deriv account balance
+    return cryptoVal + stockVal + derivBalance;
+  }, [assets, stockAssets, marketData, initialized, derivBalance]);
 
   if (!initialized || !mounted) {
     return (
