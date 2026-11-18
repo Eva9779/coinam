@@ -98,7 +98,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // 1. HOIST LOG FUNCTIONS TO TOP LEVEL (Fixes ReferenceError)
+  // HOIST LOG FUNCTIONS TO TOP LEVEL (Fixes ReferenceError definitively)
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -110,7 +110,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setStockBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
-  // 2. CORE STATE
   const [assets, setAssets] = useState<WalletAsset[]>([]);
   const [stockAssets, setStockAssets] = useState<StockAsset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -135,7 +134,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const db = useFirestore();
   const derivSocketRef = useRef<WebSocket | null>(null);
 
-  // 3. DERIV PROTOCOL ENGINE
+  // DERIV PROTOCOL ENGINE
   useEffect(() => {
     if (derivActive && user && db) {
       // SECURE: Verified App ID and PAT
@@ -215,7 +214,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
-  // 4. AI BOT SIMULATION LOOP
+  // AI BOT SIMULATION LOOP
   useEffect(() => {
     if (!botActive || !user) return;
     
@@ -239,7 +238,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(botInterval);
   }, [botActive, botAllocation, user, db, addLog]);
 
-  // 5. RWA STOCK BOT SIMULATION
+  // RWA STOCK BOT SIMULATION
   useEffect(() => {
     if (!stockBotActive || !user) return;
 
@@ -261,7 +260,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(stockInterval);
   }, [stockBotActive, stockBotRisk, user, db, addStockLog]);
 
-  // 6. FIRESTORE SYNC
+  // FIRESTORE SYNC
   useEffect(() => {
     if (!db || !user) return;
     
