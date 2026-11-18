@@ -99,6 +99,33 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
+// Technical Analysis Helpers
+function calculateEMA(data: number[], period: number): number {
+  if (data.length === 0) return 0;
+  const k = 2 / (period + 1);
+  let ema = data[0];
+  for (let i = 1; i < data.length; i++) {
+    ema = data[i] * k + ema * (1 - k);
+  }
+  return ema;
+}
+
+function calculateRSI(data: number[], period: number = 14): number {
+  if (data.length <= period) return 50;
+  let gains = 0;
+  let losses = 0;
+  for (let i = data.length - period; i < data.length; i++) {
+    const diff = data[i] - data[i - 1];
+    if (diff >= 0) gains += diff;
+    else losses -= diff;
+  }
+  const avgGain = gains / period;
+  const avgLoss = losses / period;
+  if (avgLoss === 0) return 100;
+  const rs = avgGain / avgLoss;
+  return 100 - (100 / (1 + rs));
+}
+
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
@@ -155,96 +182,65 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { botAllocationRef.current = botAllocation; }, [botAllocation]);
   useEffect(() => { derivBalanceRef.current = derivBalance; }, [derivBalance]);
 
-  const triggerAIAnalysis = useCallback(async () => {
-    if (!botActiveRef.current) return;
-    if (isAnalyzingRef.current) return;
+  const triggerMathematicalAnalysis = useCallback(async () => {
+    if (!botActiveRef.current || isAnalyzingRef.current) return;
 
     const now = Date.now();
     if (now - lastAnalysisTimeRef.current < 15000) return;
 
-    if (!user || !db) {
-      addLog("Analysis skipped: Identity context missing.", "warning");
+    if (tickStreamRef.current.length < 50) {
+      addLog(`Collecting ticks: ${tickStreamRef.current.length}/50...`, 'info');
       return;
     }
-
-    if (derivBalanceRef.current <= 0) {
-      addLog(`Analysis skipped: Real Balance is $${derivBalanceRef.current}.`, "warning");
-      return;
-    }
-
-    if (derivSocketRef.current?.readyState !== WebSocket.OPEN) {
-      addLog("Analysis skipped: Deriv bridge connection is closed.", "error");
-      return;
-    }
-
-    if (tickStreamRef.current.length < 20) return;
 
     isAnalyzingRef.current = true;
     setIsAnalyzing(true);
-    lastAnalysisTimeRef.current = Date.now();
-
-    addLog("AI Neural Link: Analyzing R_100 Tick Momentum...", "info");
+    lastAnalysisTimeRef.current = now;
 
     try {
-      const contextData = marketDataRef.current.map((item: any) => ({
-        currency: item.currency || item.symbol || '???',
-        price: item.price ?? item.currentPriceUSD ?? item.current_price ?? 0,
-        change24h: item.change24h ?? item.dailyChangePercent ?? item.price_change_percentage_24h ?? 0
-      }));
+      const prices = tickStreamRef.current;
+      const ema9 = calculateEMA(prices, 9);
+      const ema21 = calculateEMA(prices, 21);
+      const rsi = calculateRSI(prices, 14);
 
-      const result = await analyzeMarketAndTrade({
-        userId: user.uid,
-        strategyType: botStrategyRef.current,
-        assets: assetsRef.current.map(a => ({ currency: a.currency, amount: a.amount, fiatValue: a.fiatValueUSD })),
-        marketData: contextData,
-        riskTolerance: botRiskLevelRef.current,
-        allocationLimitUSD: botAllocationRef.current,
-        tickStream: tickStreamRef.current,
-      });
+      let action: 'CALL' | 'PUT' | null = null;
+      let reason = '';
 
-      if (!botActiveRef.current) return;
-
-      if (result.actions && result.actions.length > 0) {
-        let signalFound = false;
-        // Selective Trend Follower: Strict 85% Confidence floor
-        const threshold = 85;
-        
-        for (const action of result.actions) {
-          if (action.type === 'buy' && action.contractType && botStrategyRef.current === 'deriv_indices') {
-            signalFound = true;
-            if (action.confidence >= threshold) {
-              addLog(`ALPHA SIGNAL [${action.confidence}%]: Transmitting Fixed $1 Stake...`, 'info');
-              derivSocketRef.current.send(JSON.stringify({
-                buy: 1,
-                price: 1,
-                parameters: {
-                  amount: 1,
-                  basis: 'stake',
-                  contract_type: action.contractType,
-                  underlying_symbol: 'R_100',
-                  currency: 'USD',
-                  duration: 5,
-                  duration_unit: 't'
-                }
-              }));
-            } else {
-              addLog(`Market indecisive — waiting for clear Rise/Fall setup...`, "warning");
-            }
-          }
-        }
-        if (!signalFound) {
-          addLog("Market indecisive — waiting for clear Rise/Fall setup...", "info");
-        }
+      if (ema9 > ema21 && rsi >= 55 && rsi <= 70) {
+        action = 'CALL';
+        reason = `Bullish Crossover: EMA9 (${ema9.toFixed(2)}) > EMA21 (${ema21.toFixed(2)}) | RSI: ${rsi.toFixed(2)}`;
+      } else if (ema9 < ema21 && rsi >= 30 && rsi <= 45) {
+        action = 'PUT';
+        reason = `Bearish Crossover: EMA9 (${ema9.toFixed(2)}) < EMA21 (${ema21.toFixed(2)}) | RSI: ${rsi.toFixed(2)}`;
       } else {
-        addLog("Market indecisive — waiting for clear Rise/Fall setup...", "info");
+        reason = `Indecisive: EMA Diff: ${(ema9-ema21).toFixed(2)}, RSI: ${rsi.toFixed(2)}`;
+      }
+
+      if (action && derivSocketRef.current?.readyState === WebSocket.OPEN) {
+        addLog(`MATHEMATICAL SIGNAL: ${action} - ${reason}`, 'success');
+        derivSocketRef.current.send(JSON.stringify({
+          buy: 1,
+          price: 1,
+          parameters: {
+            amount: 1,
+            basis: 'stake',
+            contract_type: action,
+            underlying_symbol: 'frxXAUUSD',
+            currency: 'USD',
+            duration: 5,
+            duration_unit: 'm'
+          }
+        }));
+      } else {
+        addLog(`Market Indecisive: ${reason}`, 'info');
       }
     } catch (e: any) {
-      addLog(`AI PROCESSING EXCEPTION: ${e.message}`, 'error');
+      addLog(`Math Analysis Exception: ${e.message}`, 'error');
     } finally {
       isAnalyzingRef.current = false;
       setIsAnalyzing(false);
     }
-  }, [user, db, addLog]);
+  }, [addLog]);
 
   useEffect(() => {
     if (derivActive && user && db) {
@@ -261,12 +257,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           const getJson = await accountsRes.json();
           const accountsArray = getJson.data || [];
-          const realAcc = accountsArray.find((a: any) => a.account_type === 'real');
+          // Switch to Demo Account as requested
+          const demoAcc = accountsArray.find((a: any) => a.account_type === 'demo');
           
-          let accountId = realAcc?.id || realAcc?.account_id;
+          let accountId = demoAcc?.id || demoAcc?.account_id;
 
           if (!accountId) {
-            addLog(`REAL account not found. Provisioning...`, 'info');
+            addLog(`DEMO account not found. Provisioning virtual enclave...`, 'info');
             const createRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
               method: 'POST',
               headers: {
@@ -274,14 +271,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 'Deriv-App-ID': appId,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ currency: 'USD', group: 'row', account_type: 'real' })
+              body: JSON.stringify({ currency: 'USD', group: 'row', account_type: 'demo' })
             });
             const postJson = await createRes.json();
             accountId = postJson.data?.id || postJson.data?.account_id || postJson.id || postJson.account_id;
           }
 
           if (!accountId) {
-            addLog('Critical: Failed to resolve REAL account ID.', 'error');
+            addLog('Critical: Failed to resolve DEMO account ID.', 'error');
             return;
           }
 
@@ -296,13 +293,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           if (!wsUrl) throw new Error('Security Protocol Error: No WebSocket URL returned.');
 
-          addLog(`Establishing Hardware Handshake...`, 'success');
+          addLog(`Establishing DEMO Hardware Handshake...`, 'success');
           const socket = new WebSocket(wsUrl);
 
           socket.onopen = () => {
-            addLog('REAL Handshake secure. Initializing Live Subscriptions...', 'success');
+            addLog('DEMO Handshake secure. Subscribing to Gold (XAU/USD)...', 'success');
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-            socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
+            socket.send(JSON.stringify({ ticks: 'frxXAUUSD', subscribe: 1 }));
           };
 
           socket.onmessage = (msg) => {
@@ -313,10 +310,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             }
             if (data.msg_type === 'tick') {
               const price = data.tick.quote;
-              tickStreamRef.current = [...tickStreamRef.current.slice(-19), price];
+              tickStreamRef.current = [...tickStreamRef.current.slice(-49), price];
               
-              if (botActiveRef.current && tickStreamRef.current.length >= 20) {
-                triggerAIAnalysis();
+              if (botActiveRef.current) {
+                triggerMathematicalAnalysis();
               }
             }
             if (data.msg_type === 'balance') {
@@ -328,7 +325,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               } else {
                 const sessionPnL = currentBal - sessionStartingBalance;
                 if (sessionPnL <= -3) {
-                  addLog(`CIRCUIT BREAKER: Session loss threshold ($3) reached.`, 'error');
+                  addLog(`CIRCUIT BREAKER: Session loss limit reached.`, 'error');
                   setBotActive(false);
                   updateDoc(doc(db, 'users', user.uid), { botActive: false });
                 }
@@ -337,7 +334,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             if (data.msg_type === 'buy') {
               addLog(`ORDER BROADCAST RESULT: [ID: ${data.buy.contract_id || 'REJECTED'}]`, data.buy.contract_id ? 'success' : 'error');
               if (data.buy.contract_id) {
-                toast({ title: "Order Accepted", description: `Contract ID: ${data.buy.contract_id}` });
+                toast({ title: "Demo Order Accepted", description: `Contract ID: ${data.buy.contract_id}` });
               }
             }
           };
@@ -355,7 +352,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       };
     }
-  }, [derivActive, user, db, addLog, triggerAIAnalysis]);
+  }, [derivActive, user, db, addLog, triggerMathematicalAnalysis]);
 
   useEffect(() => {
     if (!db || !user) return;
