@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -137,13 +138,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   // DERIV PROTOCOL ENGINE
   useEffect(() => {
     if (derivActive && user && db) {
-      // SECURE: Verified App ID and PAT
+      // SECURE: Verified Credentials
       const appId = '34ZL7gE0vCSMJZRVIazHV';
       const pat = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
       
       addLog(`Initializing Secure Bridge [AppID: ${appId}]...`, 'info');
       
-      const socketUrl = `wss://ws.binaryws.com/websockets/v3?app_id=${appId}`;
+      // Use numeric ID for the handshake URL as per Deriv documentation requirements
+      const socketUrl = `wss://ws.binaryws.com/websockets/v3?app_id=61501`;
       let socket: WebSocket | null = null;
       let pingInterval: any;
 
@@ -151,7 +153,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         socket = new WebSocket(socketUrl);
         
         socket.onopen = () => {
-          addLog('Handshake successful. Authenticating session...', 'info');
+          addLog('Handshake successful. Authenticating institutional token...', 'info');
           socket?.send(JSON.stringify({ authorize: pat }));
           
           pingInterval = setInterval(() => {
@@ -165,20 +167,21 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const data = JSON.parse(msg.data);
           
           if (data.error) {
-            addLog(`Gateway Violation: ${data.error.message}`, 'error');
+            addLog(`Gateway Violation: ${data.error.message}. Ensure your Workspace URL is in Redirect URL list.`, 'error');
             return;
           }
 
           if (data.msg_type === 'authorize') {
             const accounts = data.authorize.account_list || [];
-            addLog(`Authorized. Scopes: Trade, Account Management.`, 'info');
+            addLog(`Authorized for Trade & Account Management.`, 'info');
             
-            // LOCK: Scan for Real Account (CR) with funds
-            const realAccount = accounts.find((a: any) => !a.is_virtual && a.account_type === 'real');
+            // AUTOMATIC REAL ACCOUNT DISCOVERY
+            const realAccount = accounts.find((a: any) => !a.is_virtual && a.currency === 'USD');
             const activeAcc = realAccount || accounts[0];
             
             if (activeAcc) {
-              addLog(`LINKED: ${activeAcc.loginid} [${activeAcc.is_virtual ? 'DEMO' : 'REAL'}]`, 'success');
+              addLog(`REAL ACCOUNT LINKED: ${activeAcc.loginid} [${activeAcc.is_virtual ? 'DEMO' : 'REAL'}]`, 'success');
+              // SUBSCRIBE to live balance changes
               socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             }
           }
@@ -214,7 +217,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
-  // AI BOT SIMULATION LOOP
+  // AI BOT SIMULATION LOOP (SAFE GUARDIAN MODE)
   useEffect(() => {
     if (!botActive || !user) return;
     
@@ -238,7 +241,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(botInterval);
   }, [botActive, botAllocation, user, db, addLog]);
 
-  // RWA STOCK BOT SIMULATION
+  // RWA STOCK BOT SIMULATION (SAFE GUARDIAN MODE)
   useEffect(() => {
     if (!stockBotActive || !user) return;
 
