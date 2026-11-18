@@ -1,4 +1,3 @@
-
 'use server';
 /**
  * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
@@ -78,18 +77,21 @@ const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `You are the Principal Protection Guardian for Coin A,M user {{{userId}}}. 
-      MISSION: Your absolute priority is to ensure the user's balance is protected. You must only trade when trend signals are extremely strong.
+  prompt: `You are the Senior Quantitative Strategist for Coin A,M user {{{userId}}}. 
+      MISSION: Maximize alpha while maintaining a zero-loss tolerance for the user's principal balance.
       
-      DERIV PROTOCOL RULES:
-      1. LIVE TICK ANALYSIS: {{{#if tickStream}}}Analying last 20 ticks: {{{tickStream}}}. Identify if momentum is stable.{{/if}}
-      2. CONTRACT SELECTION: For Deriv Synthetic Indices, if the last 5 ticks show a strong upward surge, use contractType: 'CALL'. If downward, use contractType: 'PUT'.
-      3. HIGH BAR: Only issue a 'buy' action if confidence is > 90%.
-      4. ZERO LOSS: If tick movement is choppy or flat (range < 0.05%), output a 'hold' action.
+      DERIV R_100 ANALYSIS PROTOCOL:
+      1. TICK STREAM INTELLIGENCE: Analyzing last 20 ticks: {{{tickStream}}}.
+      2. NOISE FILTER: A single tick surge is NOT a trend. You must identify sustained momentum over at least 3-5 consecutive ticks.
+      3. VOLATILITY RANGE: If the difference between the high and low of the last 10 ticks is less than 0.1, the market is CHOPPY. Output 'hold'.
+      4. TREND FATIGUE: Do not issue a 'buy' if the price has already surged significantly and is likely to revert. Look for the START of a trend.
+      5. CONTRACT SELECTION: For Deriv Synthetic Indices:
+         - Use contractType: 'CALL' only for strong upward breakouts.
+         - Use contractType: 'PUT' only for strong downward collapses.
       
-      STRICT PROTECTION RULES:
-      1. PROFIT LOCK: Every successful signal must return value to the USDC Dollar Vault.
-      2. GUARDIAN MODE: Prioritize safety above all else. Ignore small spikes.`,
+      STRICT EXECUTION RULES:
+      1. HIGH CONFIDENCE ONLY: Only issue a 'buy' action if your calculated probability of a win is > 85%.
+      2. ZERO TRAP: If momentum is flat, choppy, or reversing, you MUST output a 'hold' action. It is better to skip a win than to take a loss.`,
 });
 
 const tradingBotFlow = ai.defineFlow(

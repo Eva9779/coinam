@@ -100,7 +100,6 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // HOISTED LOGGING UTILITIES: Must be first to prevent ReferenceError
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -137,20 +136,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
-  // DERIV PRODUCTION BRIDGE: Dynamic OTP Provisioning (api.derivws.com)
   useEffect(() => {
     if (derivActive && user && db) {
       const appId = '34ZRxvOFBnNAdQsr1T3bF';
       const token = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
       
-      let socket: WebSocket | null = null;
-      let pingInterval: any;
-
       const connectBridge = async () => {
-        addLog(`Provisioning Secure Session [AppID: ${appId}]...`, 'info');
+        addLog(`Initializing Secure Bridge [AppID: ${appId}]...`, 'info');
         
         try {
-          // STEP 1: Discover REAL Account UUID
           const accountsRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
             headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
           });
@@ -162,7 +156,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           let accountId = '';
           if (realAcc) {
             accountId = realAcc.id || realAcc.account_id;
-            addLog(`Production Real Account Identified: ${accountId}`, 'success');
           } else {
             addLog(`REAL account not found. Provisioning Production Identity...`, 'info');
             const createRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
@@ -174,9 +167,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               },
               body: JSON.stringify({ currency: 'USD', group: 'row', account_type: 'real' })
             });
-            
             const postJson = await createRes.json();
-            if (!createRes.ok) throw new Error(`Provisioning Failed [HTTP ${createRes.status}]: ${JSON.stringify(postJson)}`);
             accountId = postJson.data?.id || postJson.data?.account_id || postJson.id || postJson.account_id;
           }
 
@@ -185,8 +176,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             return;
           }
 
-          // STEP 2: Request OTP URL
-          addLog(`Requesting Dynamic Secure Link for ${accountId}...`, 'info');
+          addLog(`Requesting Dynamic Secure Link...`, 'info');
           const otpResponse = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
@@ -197,53 +187,32 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           if (!wsUrl) throw new Error('Security Protocol Error: No WebSocket URL returned from /otp.');
 
-          // STEP 3: Connect WebSocket to pre-authenticated URL
           addLog(`Establishing Hardware Handshake...`, 'success');
-          socket = new WebSocket(wsUrl);
+          const socket = new WebSocket(wsUrl);
 
           socket.onopen = () => {
             addLog('REAL Handshake secure. Initializing Live Subscriptions...', 'success');
-            // USE FLAT JSON SCHEMAS (No authorize needed, no method/params)
-            socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-            socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
-            
-            pingInterval = setInterval(() => {
-              if (socket?.readyState === WebSocket.OPEN) {
-                socket.send(JSON.stringify({ ping: 1 }));
-              }
-            }, 30000);
+            socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+            socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           };
 
           socket.onmessage = (msg) => {
             const data = JSON.parse(msg.data);
-            
             if (data.error) {
-              // LOG FULL ERROR STRING FOR PRODUCTION DEBUGGING
               addLog(`Bridge Protocol Error: ${JSON.stringify(data.error)}`, 'error');
               return;
             }
-
             if (data.msg_type === 'tick') {
               const price = data.tick.quote;
               tickStreamRef.current = [...tickStreamRef.current.slice(-19), price];
             }
-
             if (data.msg_type === 'balance') {
               setDerivBalance(parseFloat(data.balance.balance));
             }
-
             if (data.msg_type === 'buy') {
               addLog(`REAL TRADE SUCCESS: Order Confirmed [ID: ${data.buy.contract_id}]`, 'success');
-              toast({ 
-                title: "Real Trade Executed", 
-                description: `Order ${data.buy.contract_id} transmitted to Deriv.` 
-              });
+              toast({ title: "Real Trade Executed", description: `Order ${data.buy.contract_id} transmitted to Deriv.` });
             }
-          };
-
-          socket.onclose = () => {
-            if (pingInterval) clearInterval(pingInterval);
-            addLog(`Production Bridge Offline. Re-provisioning required.`, 'warning');
           };
 
           derivSocketRef.current = socket;
@@ -253,15 +222,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       };
 
       connectBridge();
-
       return () => {
-        if (socket && socket.readyState === WebSocket.OPEN) socket.close();
-        if (pingInterval) clearInterval(pingInterval);
+        if (derivSocketRef.current && derivSocketRef.current.readyState === WebSocket.OPEN) derivSocketRef.current.close();
       };
     }
   }, [derivActive, user, db, addLog]);
 
-  // AI STRATEGY LOOP
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
@@ -277,7 +243,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       addLog("AI Neural Link: Analyzing R_100 Tick Momentum...", "info");
       
       try {
-        // MAP SCHEMA: satisfy Zod validation right before calling AI
         const contextData = marketData.map((item: any) => ({
           currency: item.currency || item.symbol || '???',
           price: item.price ?? item.currentPriceUSD ?? item.current_price ?? 0,
@@ -296,16 +261,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (result.actions && result.actions.length > 0) {
           let signalFound = false;
-          // PERMISSIVE THRESHOLDS: 80/70/60 to ensure 85% signals execute
-          const threshold = botRiskLevel === 'low' ? 80 : botRiskLevel === 'medium' ? 70 : 60;
+          // CALIBRATED THRESHOLDS: 85/75/65 for higher win probability
+          const threshold = botRiskLevel === 'low' ? 85 : botRiskLevel === 'medium' ? 75 : 65;
           
           for (const action of result.actions) {
             if (action.type === 'buy' && action.contractType && botStrategy === 'deriv_indices') {
               signalFound = true;
               if (action.confidence >= threshold) {
                 addLog(`ALPHA SIGNAL: Transmitting REAL Order [${action.contractType}]...`, 'info');
-                
-                // DERIV MODERN PAYLOAD: Use underlying_symbol instead of symbol
                 derivSocketRef.current.send(JSON.stringify({
                   buy: 1,
                   price: botAllocation,
