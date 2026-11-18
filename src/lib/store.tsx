@@ -104,8 +104,8 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 // INSTITUTIONAL PRODUCTION CONFIG
-const DERIV_APP_ID = '34ZL7gE0vCSMJZRVIazHV';
-const DERIV_API_KEY = 'pat_cfb2e4a40d980625474ee7e66a27cd471b39070963ed9402f2b0cab18959025d';
+const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || '34ZL7gE0vCSMJZRVIazHV';
+const DERIV_API_KEY = process.env.NEXT_PUBLIC_DERIV_API_KEY || 'pat_cfb2e4a40d980625474ee7e66a27cd471b39070963ed9402f2b0cab18959025d';
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
@@ -180,7 +180,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (derivActive && !derivSocketRef.current && user && db) {
-      addLog(`Initializing Gateway with App ID: ${DERIV_APP_ID}...`, 'info');
+      addLog(`Initializing Institutional Bridge [ID: ${DERIV_APP_ID}]...`, 'info');
       const socket = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
       
       socket.onopen = () => {
@@ -205,13 +205,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             
             if (isVirtual) {
               addLog(`VIRTUAL (DEMO) ACCOUNT ACTIVE [${accountId}]`, 'warning');
+              addLog(`WARNING: System configured for Production. Please use a Real Account PAT.`, 'warning');
             } else {
               addLog(`REAL PRODUCTION ACCOUNT AUTHORIZED [${accountId}]`, 'success');
               addLog(`LIVE REAL BALANCE: $${bal.toFixed(2)} USD`, 'success');
             }
             
-            socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+            socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           }
         }
         
@@ -456,17 +457,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       ? marketDataRef.current.map(m => ({ currency: m.symbol.toUpperCase(), price: m.current_price, change24h: m.price_change_percentage_24h }))
       : INITIAL_MARKET_DATA.map(m => ({ currency: m.currency, price: m.currentPriceUSD, change24h: m.dailyChangePercent }));
 
+    if (allocation <= 0 && !isGuardian) {
+      addLog(`CONFIGURATION ERROR: Please set an Allocation Cap > 0 to authorize trades.`, 'error');
+      return;
+    }
+
     setIsAnalyzing(true);
 
     if (strategyType === 'deriv_indices') {
       if (currentDerivBal <= 0) {
-        addLog(`REAL ACCOUNT EMPTY: Balance $${currentDerivBal.toFixed(2)}. Please fund account.`, 'error');
+        addLog(`REAL ACCOUNT EMPTY: Balance $${currentDerivBal.toFixed(2)}. Please fund your Deriv account.`, 'error');
         setIsAnalyzing(false);
         return;
       }
 
       if (currentTicks.length < 5) {
-        addLog(`Synchronizing tick stream...`, 'info');
+        addLog(`Synchronizing tick stream for Vol-100...`, 'info');
         setIsAnalyzing(false);
         return;
       }
@@ -494,7 +500,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           
           if (strategyType === 'deriv_indices' && action.contractType) {
             if (action.confidence < 90) {
-              addLog(`Momentum score ${action.confidence}% is below safety floor (90%). Protection active.`, 'info');
+              addLog(`Signal confidence ${action.confidence}% is below safety floor (90%). Protected.`, 'info');
               continue;
             }
 
