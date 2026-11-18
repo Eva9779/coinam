@@ -99,6 +99,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
+  // HOISTED UTILITIES: Ensure zero ReferenceErrors during navigation
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -135,7 +136,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
-  // MODERN DERIV BRIDGE: JSON-RPC 2.0 PROTOCOL
+  // PRODUCTION DERIV BRIDGE: FLAT PAYLOAD PROTOCOL
   useEffect(() => {
     if (derivActive && user && db) {
       const appId = '34ZRxvOFBnNAdQsr1T3bF';
@@ -145,25 +146,26 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       let pingInterval: any;
 
       const connectBridge = async () => {
-        addLog(`Provisioning Secure REAL Session [AppID: ${appId}]...`, 'info');
+        addLog(`Initializing Secure Bridge [Native AppID: ${appId}]...`, 'info');
         
         try {
-          // 1. DISCOVERY: Find REAL Options account
+          // 1. DISCOVERY: Filter strictly for account_type === "real"
           const accountsRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
             headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
           });
 
-          if (!accountsRes.ok) throw new Error(`Discovery Failed: HTTP ${accountsRes.status}`);
+          if (!accountsRes.ok) throw new Error(`Discovery Interrupted [HTTP ${accountsRes.status}]`);
 
           const getJson = await accountsRes.json();
-          const accounts = getJson.data?.accounts || getJson.accounts || [];
-          const realAcc = accounts.find((a: any) => a.account_type === 'real');
+          const accountsArray = getJson.data?.accounts || getJson.accounts || [];
+          const realAcc = accountsArray.find((a: any) => a.account_type === 'real');
           
           let accountId = '';
           if (realAcc) {
             accountId = realAcc.id || realAcc.account_id;
+            addLog(`Production Real Account Identified: ${accountId}`, 'success');
           } else {
-            addLog(`No REAL account found. Provisioning new identity...`, 'info');
+            addLog(`REAL account not found. Initializing Production Provisioning...`, 'info');
             const createRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
               method: 'POST',
               headers: {
@@ -175,73 +177,63 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             });
             
             const postJson = await createRes.json();
-            if (!createRes.ok) throw new Error(`Provisioning Error: ${JSON.stringify(postJson)}`);
+            if (!createRes.ok) throw new Error(`Provisioning Violation: ${JSON.stringify(postJson)}`);
             accountId = postJson.data?.id || postJson.data?.account_id || postJson.id || postJson.account_id;
+            addLog(`New Production Account Provisioned: ${accountId}`, 'success');
           }
 
-          if (!accountId) throw new Error('Could not resolve verified Account ID.');
+          if (!accountId) throw new Error('Verification Failure: Account ID remains undefined.');
 
-          // 2. OTP: Request authenticated WebSocket URL
-          addLog(`Requesting Dynamic Link for ${accountId}...`, 'info');
+          // 2. OTP: Provision the authenticated WebSocket URL
+          addLog(`Requesting Dynamic Secure Link for ${accountId}...`, 'info');
           const otpResponse = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
           });
 
-          if (!otpResponse.ok) throw new Error(`OTP Session Failed: HTTP ${otpResponse.status}`);
+          if (!otpResponse.ok) throw new Error(`OTP Session Violation [HTTP ${otpResponse.status}]`);
 
           const otpData = await otpResponse.json();
           const wsUrl = otpData.data?.url || otpData.url;
 
-          if (!wsUrl) throw new Error('No WebSocket URL in response.');
+          if (!wsUrl) throw new Error('Security Protocol Error: No WebSocket URL returned.');
 
-          addLog(`REAL URL Resolved. Establishing Modern Handshake...`, 'success');
+          addLog(`Production URL Resolved. Establishing Hardware Handshake...`, 'success');
           socket = new WebSocket(wsUrl);
 
           socket.onopen = () => {
             addLog('REAL Handshake secure. Initializing Subscriptions...', 'success');
             
-            // JSON-RPC 2.0: NO authorize call needed. Use method/params.
-            socket?.send(JSON.stringify({ 
-              method: 'balance', 
-              params: { subscribe: 1 } 
-            }));
-            
-            socket?.send(JSON.stringify({ 
-              method: 'ticks', 
-              params: { ticks: 'R_100', subscribe: 1 } 
-            }));
+            // PRODUCTION PROTOCOL: Flat top-level keys only. skip authorize.
+            socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+            socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
             
             pingInterval = setInterval(() => {
               if (socket?.readyState === WebSocket.OPEN) {
-                socket.send(JSON.stringify({ method: 'ping' }));
+                socket.send(JSON.stringify({ ping: 1 }));
               }
             }, 30000);
           };
 
           socket.onmessage = (msg) => {
             const data = JSON.parse(msg.data);
-            console.log('Deriv Production Stream:', data);
             
             if (data.error) {
               addLog(`Bridge Protocol Error: ${data.error.message}`, 'error');
               return;
             }
 
-            // Deriv JSON-RPC responses often use msg_type or mirror the method name
-            const type = data.msg_type || data.method;
-
-            if (type === 'tick') {
+            if (data.msg_type === 'tick') {
               const price = data.tick.quote;
               tickStreamRef.current = [...tickStreamRef.current.slice(-19), price];
             }
 
-            if (type === 'balance') {
+            if (data.msg_type === 'balance') {
               setDerivBalance(parseFloat(data.balance.balance));
             }
 
-            if (type === 'buy') {
-              addLog(`REAL TRADE SUCCESS: Order Broadcasted [ID: ${data.buy.contract_id}]`, 'success');
+            if (data.msg_type === 'buy') {
+              addLog(`REAL TRADE SUCCESS: Order Confirmed [ID: ${data.buy.contract_id}]`, 'success');
               toast({ 
                 title: "Real Trade Executed", 
                 description: `Production order ${data.buy.contract_id} transmitted to Deriv.` 
@@ -251,12 +243,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           socket.onclose = () => {
             if (pingInterval) clearInterval(pingInterval);
-            addLog(`REAL Production Bridge Offline.`, 'warning');
+            addLog(`Production Bridge Offline. Ensure your App ID is active in Deriv.`, 'warning');
           };
 
           derivSocketRef.current = socket;
         } catch (err: any) {
-          addLog(`REAL Bridge Error: ${err.message}`, 'error');
+          addLog(`Bridge Provisioning Interrupted: ${err.message}`, 'error');
         }
       };
 
@@ -269,7 +261,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
-  // AI EXECUTION LOOP: MODERN JSON-RPC FORMAT
+  // AI EXECUTION ENGINE: FLAT BUY PAYLOAD
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
@@ -294,21 +286,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               if (action.confidence > 90) {
                 addLog(`ALPHA SIGNAL: Transmitting REAL Order [${action.contractType}]...`, 'info');
                 
-                // MODERN JSON-RPC 2.0 PAYLOAD
+                // PRODUCTION PAYLOAD: Flat top-level keys
                 derivSocketRef.current.send(JSON.stringify({
-                  method: 'buy',
-                  params: {
-                    buy: 1,
-                    price: botAllocation,
-                    parameters: {
-                      amount: botAllocation,
-                      basis: 'stake',
-                      contract_type: action.contractType,
-                      currency: 'USD',
-                      duration: 5,
-                      duration_unit: 't',
-                      symbol: 'R_100'
-                    }
+                  buy: 1,
+                  price: botAllocation,
+                  parameters: {
+                    amount: botAllocation,
+                    basis: 'stake',
+                    contract_type: action.contractType,
+                    currency: 'USD',
+                    duration: 5,
+                    duration_unit: 't',
+                    symbol: 'R_100'
                   }
                 }));
               }
@@ -316,7 +305,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (e: any) {
-        addLog(`Analysis Interrupted: ${e.message}`, 'error');
+        addLog(`Analysis Error: ${e.message}`, 'error');
       } finally {
         setIsAnalyzing(false);
       }
@@ -325,7 +314,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(executionLoop);
   }, [botActive, derivActive, botStrategy, botAllocation, botRiskLevel, user, db, assets, marketData, addLog]);
 
-  // FIRESTORE SYNC
+  // FIRESTORE REAL-TIME SYNC
   useEffect(() => {
     if (!db || !user) return;
     
