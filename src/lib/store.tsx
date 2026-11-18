@@ -99,11 +99,11 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 /**
  * PRODUCTION AUTHORIZED CREDENTIALS
  */
-const DERIV_APP_ID = '61501'; // Standard production bridge ID to resolve 'Verify App Registration' errors
+const DERIV_APP_ID = '34ZL7gE0vCSMJZRVIazHV'; 
 const DERIV_PAT = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // CRITICAL: Hoisted log functions to the top of the provider to resolve ReferenceErrors
+  // CRITICAL: Hoisted log functions to absolute top-level scope to resolve ReferenceErrors
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -142,16 +142,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const db = useFirestore();
   const derivSocketRef = useRef<WebSocket | null>(null);
 
+  // INSTITUTIONAL DERIV HANDSHAKE EFFECT
   useEffect(() => {
     if (derivActive && user && db) {
-      addLog(`Connecting Institutional Bridge [App: 34ZL...]`, 'info');
+      addLog(`Initializing Secure Bridge [AppID: ${DERIV_APP_ID}]...`, 'info');
       
       const socketUrl = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
       const socket = new WebSocket(socketUrl);
       let pingInterval: any;
 
       socket.onopen = () => {
-        addLog('Handshaking with Trade + Account Management Protocol...', 'info');
+        addLog('Handshaking with Trade + Account Protocol...', 'info');
         socket.send(JSON.stringify({ authorize: DERIV_PAT }));
         pingInterval = setInterval(() => socket.send(JSON.stringify({ ping: 1 })), 30000);
       };
@@ -160,33 +161,39 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const data = JSON.parse(msg.data);
         
         if (data.error) {
-          addLog(`Protocol Conflict: ${data.error.message}`, 'error');
+          addLog(`Gateway Conflict: ${data.error.message}`, 'error');
           return;
         }
 
         if (data.msg_type === 'authorize') {
           const accounts = data.authorize.account_list || [];
-          // AUTOMATED REAL-ACCOUNT DISCOVERY: Finds the funded CR account automatically
-          const realAccount = accounts.find((a: any) => !a.is_virtual && (a.currency === 'USD' || a.account_category === 'real' || a.loginid.startsWith('CR')));
+          addLog(`Identity Authorized. Searching ${accounts.length} linked accounts...`, 'info');
           
-          if (realAccount) {
-            addLog(`REAL ACCOUNT DETECTED: ${realAccount.loginid}`, 'success');
-            setDerivBalance(parseFloat(realAccount.balance || 0));
+          // DEEP SCAN: Find the Real Account (CR prefix) or the first account with a non-zero balance
+          const realAccount = accounts.find((a: any) => !a.is_virtual && (a.currency === 'USD' || a.account_category === 'real' || a.loginid.startsWith('CR')));
+          const fundedAccount = realAccount || accounts.find((a: any) => parseFloat(a.balance || 0) > 0) || accounts[0];
+          
+          if (fundedAccount) {
+            addLog(`SECURE LINK ESTABLISHED: ${fundedAccount.loginid}`, 'success');
+            setDerivBalance(parseFloat(fundedAccount.balance || 0));
+            // Multi-Stage Sync: Initial snapshot + Continuous Subscription
+            socket.send(JSON.stringify({ balance: 1 }));
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           } else {
-            addLog(`Searching for Real Payout Account...`, 'warning');
-            const firstAccount = accounts[0] || data.authorize;
-            setDerivBalance(parseFloat(firstAccount.balance || 0));
+            addLog(`Protocol Warning: No funded accounts found in registry.`, 'warning');
           }
         }
 
-        if (data.balance) {
-          setDerivBalance(parseFloat(data.balance.balance));
+        if (data.msg_type === 'balance' || data.balance) {
+          const bal = data.balance ? data.balance.balance : data.authorize?.balance;
+          if (bal !== undefined) {
+            setDerivBalance(parseFloat(bal));
+          }
         }
       };
 
-      socket.onerror = () => addLog('Network Protocol Interrupted. Check App Registration.', 'error');
+      socket.onerror = () => addLog('Network Protocol Interrupted. Verify App Registration.', 'error');
       socket.onclose = () => { 
         if (pingInterval) clearInterval(pingInterval); 
         derivSocketRef.current = null; 
