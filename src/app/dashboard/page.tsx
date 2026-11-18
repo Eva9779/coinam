@@ -134,18 +134,18 @@ export default function Dashboard() {
                 <RefreshCw className="h-3 w-3 animate-spin" /> Synchronizing...
               </div>
             ) : marketData.slice(0, 8).map((item, idx) => {
-              const symbol = item.symbol || item.currency || '???';
-              const price = item.current_price || item.currentPriceUSD || 0;
-              const change = item.price_change_percentage_24h || item.dailyChangePercent || 0;
+              const symbol = item?.symbol || item?.currency || '???';
+              const price = item?.current_price || item?.currentPriceUSD || 0;
+              const change = item?.price_change_percentage_24h || item?.dailyChangePercent || 0;
               
               return (
-                <div key={item.id || idx} className="flex items-center gap-4 shrink-0 animate-in fade-in slide-in-from-left-2 duration-500">
-                  {item.image && (
+                <div key={item?.id || idx} className="flex items-center gap-4 shrink-0 animate-in fade-in slide-in-from-left-2 duration-500">
+                  {item?.image && (
                     <div className="h-10 w-10 rounded-full bg-muted border overflow-hidden">
                       <img src={item.image} alt={symbol} className="h-full w-full object-cover" />
                     </div>
                   )}
-                  {!item.image && (
+                  {!item?.image && (
                     <div className="h-10 w-10 rounded-full bg-secondary/10 border-2 border-secondary/20 flex items-center justify-center font-black text-[10px] text-secondary uppercase">
                       {symbol.slice(0, 3)}
                     </div>

@@ -100,7 +100,6 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // HOISTED: Logging utilities at the absolute top level to prevent ReferenceError crashes
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -149,12 +148,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         addLog(`Initializing Secure Bridge [AppID: ${appId}]...`, 'info');
         
         try {
-          // STEP 1: Discovery - Find the Real account
           const accountsRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
             headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
           });
 
-          if (!accountsRes.ok) throw new Error(`Discovery Interrupted [HTTP ${accountsRes.status}]`);
+          if (!accountsRes.ok) throw new Error(`Discovery Failed [HTTP ${accountsRes.status}]`);
 
           const getJson = await accountsRes.json();
           const accountsArray = getJson.data || [];
@@ -165,7 +163,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             accountId = realAcc.id || realAcc.account_id;
             addLog(`Production Real Account Identified: ${accountId}`, 'success');
           } else {
-            // STEP 2: Auto-Provisioning (if missing)
             addLog(`REAL account not found. Provisioning Production Identity...`, 'info');
             const createRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
               method: 'POST',
@@ -182,9 +179,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             accountId = postJson.data?.id || postJson.data?.account_id || postJson.id || postJson.account_id;
           }
 
-          if (!accountId) throw new Error('Verification Failure: Account ID remains undefined.');
+          if (!accountId) throw new Error('Verification Failure: Account ID undefined.');
 
-          // STEP 3: Dynamic OTP Resolution
           addLog(`Requesting Dynamic Secure Link...`, 'info');
           const otpResponse = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
             method: 'POST',
@@ -196,15 +192,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const otpData = await otpResponse.json();
           const wsUrl = otpData.data?.url || otpData.url;
 
-          if (!wsUrl) throw new Error('Security Protocol Error: No WebSocket URL returned.');
+          if (!wsUrl) throw new Error('Security Protocol Error: No WebSocket URL.');
 
-          // STEP 4: WebSocket Connection using Dynamic URL
           addLog(`Establishing Hardware Handshake...`, 'success');
           socket = new WebSocket(wsUrl);
 
           socket.onopen = () => {
             addLog('REAL Handshake secure. Initializing Live Subscriptions...', 'success');
-            // MODERIZED: Using flat top-level keys for balance and ticks as required by Deriv Options API
             socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
             
@@ -243,7 +237,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           socket.onclose = () => {
             if (pingInterval) clearInterval(pingInterval);
-            addLog(`Production Bridge Offline. Ensure your App ID is active in Deriv.`, 'warning');
+            addLog(`Production Bridge Offline. Ensure App ID is active.`, 'warning');
           };
 
           derivSocketRef.current = socket;
@@ -264,12 +258,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
-    // PULSE: 30-second execution loop for AI market analysis
     const executionLoop = setInterval(async () => {
       if (derivSocketRef.current?.readyState !== WebSocket.OPEN) return;
       
       if (tickStreamRef.current.length < 5) {
-        addLog("Awaiting sufficient tick stream data for analysis...", "info");
+        addLog("Awaiting sufficient tick stream data...", "info");
         return;
       }
 
@@ -281,7 +274,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           userId: user.uid,
           strategyType: botStrategy,
           assets: assets.map(a => ({ currency: a.currency, amount: a.amount, fiatValue: a.fiatValueUSD })),
-          marketData: marketData,
+          // CRITICAL: Schema mapping to align with Genkit flow requirements
+          marketData: marketData.map((item: any) => ({
+            currency: item.currency || item.symbol || '???',
+            price: item.price ?? item.currentPriceUSD ?? item.current_price ?? 0,
+            change24h: item.change24h ?? item.dailyChangePercent ?? item.price_change_percentage_24h ?? 0
+          })),
           riskTolerance: botRiskLevel,
           allocationLimitUSD: botAllocation,
           tickStream: tickStreamRef.current,
@@ -294,8 +292,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               signalFound = true;
               if (action.confidence > 90) {
                 addLog(`ALPHA SIGNAL: Transmitting REAL Order [${action.contractType}]...`, 'info');
-                
-                // FINAL: Transmitting flat buy payload to authenticated Deriv WebSocket
                 derivSocketRef.current.send(JSON.stringify({
                   buy: 1,
                   price: botAllocation,
@@ -303,10 +299,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                     amount: botAllocation,
                     basis: 'stake',
                     contract_type: action.contractType,
+                    symbol: 'R_100',
                     currency: 'USD',
                     duration: 5,
-                    duration_unit: 't',
-                    symbol: 'R_100'
+                    duration_unit: 't'
                   }
                 }));
               } else {
@@ -315,10 +311,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             }
           }
           if (!signalFound) {
-            addLog("Market Vision: Scanning for high-probability trends. No signals detected.", "info");
+            addLog("Market Vision: Scanning for high-probability trends. No signals.", "info");
           }
         } else {
-          addLog("Strategy Ledger: Neutral market detected. Holding positions.", "info");
+          addLog("Strategy Ledger: Neutral market detected.", "info");
         }
       } catch (e: any) {
         addLog(`Analysis Error: ${e.message}`, 'error');
