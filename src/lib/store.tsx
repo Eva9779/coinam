@@ -99,7 +99,6 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // HOISTED UTILITIES: Defined at absolute top to prevent ReferenceErrors
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -136,7 +135,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
-  // PRODUCTION BRIDGE: 3-Step Dynamic Session Provisioning (Modern API)
   useEffect(() => {
     if (derivActive && user && db) {
       const appId = '34ZRxvOFBnNAdQsr1T3bF';
@@ -149,7 +147,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         addLog(`Initiating Dynamic Session [AppID: ${appId}]...`, 'info');
         
         try {
-          // STEP 1: Discovery - Fetch Options Account list
           const accountsRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
             headers: { 
               'Authorization': `Bearer ${token}`, 
@@ -166,8 +163,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const accountsData = await accountsRes.json();
           let accountId = '';
 
-          // STEP 2: Selection / Creation Logic
-          // Prefer real accounts over virtual, but pick whatever is available for the prototype
           const existingAcc = accountsData.accounts?.find((a: any) => !a.is_virtual) || accountsData.accounts?.[0];
           
           if (existingAcc) {
@@ -182,21 +177,23 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 'Deriv-App-ID': appId,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ currency: 'USD' })
+              body: JSON.stringify({ 
+                currency: 'USD', 
+                group: 'row', 
+                account_type: 'demo' 
+              })
             });
             
             if (!createRes.ok) {
-              const err = await createRes.text();
-              addLog(`Account Provisioning Failed: ${err}`, 'error');
-              throw new Error("Creation Error");
+              const errBody = await createRes.text();
+              addLog(`Account Provisioning Failed [HTTP ${createRes.status}]: ${errBody}`, 'error');
+              throw new Error(`Creation Error ${createRes.status}`);
             }
             const createData = await createRes.json();
             accountId = createData.account_id || createData.id;
             addLog(`New Production Account Provisioned: ${accountId}`, 'success');
           }
 
-          // STEP 3: Request Dynamic WebSocket URL via POST OTP
-          // Critical: No literal placeholder "{accountId}". Using the fetched real ID.
           addLog(`Requesting Dynamic Secure Link for ${accountId}...`, 'info');
           const otpResponse = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
             method: 'POST',
@@ -288,7 +285,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
-  // LIVE EXECUTION LOOP: Purged of all simulation
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
