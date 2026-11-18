@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -103,8 +102,8 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-// SECURE: Verified Deriv API Key from Environment or Fallback
-const DERIV_API_KEY = process.env.NEXT_PUBLIC_DERIV_API_KEY || 'pat_cfb2e4a40d980625474ee7e66a27cd471b39070963ed9402f2b0cab18959025d';
+// AUTHORIZED DERIV KEY - LOCKED TO NEW PAT
+const DERIV_API_KEY = 'pat_cfb2e4a40d980625474ee7e66a27cd471b39070963ed9402f2b0cab18959025d';
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
@@ -179,6 +178,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (derivActive && !derivSocketRef.current && user && db) {
+      addLog('Opening secure market pipe...', 'info');
       const appId = 1089;
       const socket = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${appId}`);
       
@@ -190,19 +190,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const data = JSON.parse(msg.data);
         
         if (data.error) {
-          addLog(`Deriv Error: ${data.error.message}`, 'error');
-          // Don't auto-disable, allow retry
+          addLog(`Protocol Error: ${data.error.message}`, 'error');
           return;
         }
 
         if (data.msg_type === 'authorize') {
           if (data.authorize) {
-            setDerivBalance(data.authorize.balance);
-            addLog(`Account Verified: ${data.authorize.loginid} (${data.authorize.currency})`, 'success');
-            addLog(`Real Balance: $${data.authorize.balance.toFixed(2)}`, 'info');
+            const bal = parseFloat(data.authorize.balance || 0);
+            setDerivBalance(bal);
+            derivBalanceRef.current = bal;
+            addLog(`API AUTHORIZED: Account ${data.authorize.loginid} linked.`, 'success');
+            addLog(`EXTRACTED BALANCE: $${bal.toFixed(2)} detected in vault.`, 'info');
+            
+            // Subscribe to live updates
+            socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
+            socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
           }
-          socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
-          socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
         }
         
         if (data.tick) {
@@ -210,12 +213,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
         
         if (data.balance) {
-          setDerivBalance(data.balance.balance);
+          const newBal = parseFloat(data.balance.balance);
+          setDerivBalance(newBal);
+          derivBalanceRef.current = newBal;
         }
       };
 
       socket.onclose = () => {
         derivSocketRef.current = null;
+        addLog('Market pipe closed.', 'warning');
       };
 
       derivSocketRef.current = socket;
@@ -687,6 +693,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     } else {
       toast({ title: "Deriv Offline" });
       setDerivBalance(0);
+      derivBalanceRef.current = 0;
     }
   };
 
