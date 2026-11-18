@@ -142,7 +142,7 @@ export default function Dashboard() {
                 <div key={item?.id || idx} className="flex items-center gap-4 shrink-0 animate-in fade-in slide-in-from-left-2 duration-500">
                   {item?.image && (
                     <div className="h-10 w-10 rounded-full bg-muted border overflow-hidden">
-                      <img src={item.image} alt={symbol} className="h-full w-full object-cover" />
+                      <img src={item.image} alt={String(symbol)} className="h-full w-full object-cover" />
                     </div>
                   )}
                   {!item?.image && (

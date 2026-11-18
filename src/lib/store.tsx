@@ -239,7 +239,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       }
 
       setIsAnalyzing(true);
-      addLog("AI Neural Link: Analyzing R_100 Tick Momentum...", "info");
       
       try {
         const contextData = marketData.map((item: any) => ({
@@ -247,6 +246,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           price: item.price ?? item.currentPriceUSD ?? item.current_price ?? 0,
           change24h: item.change24h ?? item.dailyChangePercent ?? item.price_change_percentage_24h ?? 0
         }));
+
+        addLog("AI Neural Link: Analyzing R_100 Tick Momentum...", "info");
 
         const result = await analyzeMarketAndTrade({
           userId: user.uid,
@@ -260,7 +261,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (result.actions && result.actions.length > 0) {
           let signalFound = false;
-          // ACTIVATION THRESHOLDS: 70/60/50 for optimal scalping
+          // ACTIVE CALIBRATION: 70/60/50 ensures signals like 85% trade instantly
           const threshold = botRiskLevel === 'low' ? 70 : botRiskLevel === 'medium' ? 60 : 50;
           
           for (const action of result.actions) {

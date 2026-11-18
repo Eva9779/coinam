@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
- * Enhanced with Live Tick-Stream Intelligence and Deriv Execution Parameters.
+ * Enhanced with Trend Exhaustion Shield and Mean Reversion Protection.
  */
 
 import { ai } from '@/ai/genkit';
@@ -82,12 +82,15 @@ const tradingBotPrompt = ai.definePrompt({
       
       ANALYSIS PROTOCOL:
       1. TICK STREAM: Analyzing the last 20 ticks: {{{tickStream}}}.
-      2. MOMENTUM: Identify clear 3-5 tick trend shifts. Ignore 1-tick spikes.
-      3. DECISION: If a momentum breakout is occurring, issue a 'buy' with confidence.
-      4. RISK: If the price is at a 20-tick high/low, be wary of reversal (Mean Reversion).
-      5. CONTRACT: Use 'CALL' for upward breakouts, 'PUT' for downward breakdowns.
+      2. MOMENTUM: Identify clear 3-5 tick trend shifts. Ignore 1-tick spikes or noise.
+      3. EXHAUSTION SHIELD (CRITICAL): 
+         - DO NOT issue a CALL if the current price is the HIGHEST of the last 20 ticks (Avoid buying the top).
+         - DO NOT issue a PUT if the current price is the LOWEST of the last 20 ticks (Avoid selling the bottom).
+      4. CONFIRMATION: Only issue a 'buy' if the momentum is corroborated by at least 3 consecutive ticks in the same direction.
+      5. DECISION: If a momentum breakout is occurring and not exhausted, issue a 'buy' with high confidence.
+      6. CONTRACT: Use 'CALL' for upward breakouts, 'PUT' for downward breakdowns.
       
-      GOAL: Institutional high-probability scalping. Target confidence > 70 for actionable alpha.`,
+      GOAL: Institutional high-probability scalping. Prioritize winning percentage over trade volume.`,
 });
 
 const tradingBotFlow = ai.defineFlow(
