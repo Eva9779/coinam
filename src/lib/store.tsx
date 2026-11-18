@@ -153,13 +153,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const accountsArray = getJson.data || [];
           const realAcc = accountsArray.find((a: any) => a.account_type === 'real');
           
-          let accountId = '';
-          if (realAcc) {
-            accountId = realAcc.id || realAcc.account_id;
-          }
+          let accountId = realAcc?.id || realAcc?.account_id;
 
           if (!accountId) {
-            addLog(`REAL account not found. Provisioning Production Identity...`, 'info');
+            addLog(`REAL account not found. Provisioning...`, 'info');
             const createRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
               method: 'POST',
               headers: {
@@ -174,7 +171,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (!accountId) {
-            addLog('Critical Error: Failed to resolve REAL account ID.', 'error');
+            addLog('Critical: Failed to resolve REAL account ID.', 'error');
             return;
           }
 
@@ -263,8 +260,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (result.actions && result.actions.length > 0) {
           let signalFound = false;
-          // CALIBRATED FOR ACTION: 80/70/60 thresholds
-          const threshold = botRiskLevel === 'low' ? 80 : botRiskLevel === 'medium' ? 70 : 60;
+          // ACTIVATION THRESHOLDS: 70/60/50 for optimal scalping
+          const threshold = botRiskLevel === 'low' ? 70 : botRiskLevel === 'medium' ? 60 : 50;
           
           for (const action of result.actions) {
             if (action.type === 'buy' && action.contractType && botStrategy === 'deriv_indices') {
@@ -290,7 +287,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             }
           }
           if (!signalFound) {
-            addLog("Market Vision: Scanning for high-probability trends. No signals.", "info");
+            addLog("Market Vision: Scanning for trends. No signals found.", "info");
           }
         } else {
           addLog("Strategy Ledger: Neutral market detected.", "info");

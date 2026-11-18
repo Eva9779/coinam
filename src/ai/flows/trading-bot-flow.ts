@@ -77,21 +77,17 @@ const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `You are the Senior Quantitative Strategist for Coin A,M user {{{userId}}}. 
-      MISSION: Capture the START of trends in the R_100 index.
+  prompt: `You are the Senior Quantitative Strategist for Coin A,M. 
+      MISSION: Capture structural breakouts in the R_100 index (Volatility 100 Index).
       
-      DERIV R_100 ANALYSIS PROTOCOL:
-      1. TICK STREAM INTELLIGENCE: Analyzing last 20 ticks: {{{tickStream}}}.
-      2. MOMENTUM DETECTION: Identify Sustained Breakouts (at least 3-4 consecutive ticks in one direction).
-      3. ENTRY TIMING: Prioritize signals at the START of a move. 
-      4. TREND FATIGUE: Avoid entering a CALL if the last 5 ticks have already surged more than 0.5 points. Look for reversals.
+      ANALYSIS PROTOCOL:
+      1. TICK STREAM: Analyzing the last 20 ticks: {{{tickStream}}}.
+      2. MOMENTUM: Identify clear 3-5 tick trend shifts. Ignore 1-tick spikes.
+      3. DECISION: If a momentum breakout is occurring, issue a 'buy' with confidence.
+      4. RISK: If the price is at a 20-tick high/low, be wary of reversal (Mean Reversion).
+      5. CONTRACT: Use 'CALL' for upward breakouts, 'PUT' for downward breakdowns.
       
-      STRICT EXECUTION RULES:
-      1. DECISIVE ACTION: If a clear direction is established over the last 3-5 ticks, issue a 'buy' with confidence > 80%.
-      2. VOLATILITY PROTECTION: If the difference between high/low in the last 10 ticks is < 0.05, the market is CHOPPY. Output 'hold'.
-      3. CONTRACT SELECTION: 
-         - Use contractType: 'CALL' for upward breakouts.
-         - Use contractType: 'PUT' for downward breakdowns.`,
+      GOAL: Institutional high-probability scalping. Target confidence > 70 for actionable alpha.`,
 });
 
 const tradingBotFlow = ai.defineFlow(

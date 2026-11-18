@@ -55,7 +55,7 @@ export default function Dashboard() {
     if (!initialized || !marketData.length) return 0;
     
     const cryptoVal = assets.reduce((acc, asset) => {
-      const liveCoin = marketData.find(c => (c.symbol || c.currency)?.toUpperCase() === asset.currency?.toUpperCase());
+      const liveCoin = marketData.find(c => (c.symbol || c.currency || c.id)?.toUpperCase() === asset.currency?.toUpperCase());
       const currentPrice = liveCoin?.current_price || liveCoin?.currentPriceUSD || (asset.fiatValueUSD / Math.max(asset.amount, 0.00001));
       return acc + (asset.amount * currentPrice);
     }, 0);
@@ -134,7 +134,7 @@ export default function Dashboard() {
                 <RefreshCw className="h-3 w-3 animate-spin" /> Synchronizing...
               </div>
             ) : marketData.slice(0, 8).map((item, idx) => {
-              const symbol = item?.symbol || item?.currency || '???';
+              const symbol = item?.symbol || item?.currency || item?.id || '???';
               const price = item?.current_price || item?.currentPriceUSD || 0;
               const change = item?.price_change_percentage_24h || item?.dailyChangePercent || 0;
               
@@ -147,7 +147,7 @@ export default function Dashboard() {
                   )}
                   {!item?.image && (
                     <div className="h-10 w-10 rounded-full bg-secondary/10 border-2 border-secondary/20 flex items-center justify-center font-black text-[10px] text-secondary uppercase">
-                      { symbol?.slice?.(0, 3) || '???' }
+                      { String(symbol).slice(0, 3) }
                     </div>
                   )}
                   <div>
