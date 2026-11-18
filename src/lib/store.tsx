@@ -1,7 +1,6 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import { useUserHook, useFirestore } from '@/firebase';
 import { 
   collection, 
@@ -9,15 +8,8 @@ import {
   setDoc, 
   onSnapshot, 
   updateDoc,
-  increment,
-  getDoc
+  increment
 } from 'firebase/firestore';
-import { toast } from '@/hooks/use-toast';
-import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
-import { analyzeEquityMarket } from '@/ai/flows/stock-bot-flow';
-import { INITIAL_MARKET_DATA } from '@/lib/data';
-import { getLiveBalance } from '@/lib/blockchain';
-import { encryptKey } from '@/lib/encryption';
 
 export interface WalletAsset {
   id: string;
@@ -105,11 +97,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 /**
- * PRODUCTION CREDENTIALS
- * 
- * Your numeric App ID is usually required for the connection URL.
- * If '34ZL7gE0vCSMJZRVIazHV' is rejected by the server as a non-integer,
- * the system will attempt to use standard production ID 61501.
+ * PRODUCTION AUTHORIZED CREDENTIALS
  */
 const DERIV_APP_ID = '34ZL7gE0vCSMJZRVIazHV'; 
 const DERIV_PAT = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
@@ -132,7 +120,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
   const [derivActive, setDerivActive] = useState(false);
   const [derivBalance, setDerivBalance] = useState(0);
-  const [derivTicks, setDerivTicks] = useState<number[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isAnalyzingStocks, setIsAnalyzingStocks] = useState(false);
   const [initialized, setInitialized] = useState(false);
@@ -144,8 +131,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
 
   /**
-   * CRITICAL: Hoist log functions to the top of the provider to ensure
-   * they are defined before any effect or dependent hook uses them.
+   * CRITICAL: Hoisted log functions to the top level of the provider.
+   * This definitively prevents "addStockLog is not defined" reference errors.
    */
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
@@ -157,14 +144,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (derivActive && user && db) {
-      addLog(`Connecting Institutional Bridge [ID: ${DERIV_APP_ID}]...`, 'info');
+      addLog(`Initializing Secure Bridge [AppID: ${DERIV_APP_ID}]...`, 'info');
       
-      // Use numeric fallback if the string ID is rejected by binaryws.com
       const socketUrl = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
       const socket = new WebSocket(socketUrl);
       let pingInterval: any;
 
       socket.onopen = () => {
+        // Handshake using your Trade + Account Management authorized token
         socket.send(JSON.stringify({ authorize: DERIV_PAT }));
         pingInterval = setInterval(() => socket.send(JSON.stringify({ ping: 1 })), 30000);
       };
@@ -179,27 +166,32 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (data.msg_type === 'authorize') {
           const accounts = data.authorize.account_list || [];
-          // FORCE: Find the funded Real CR account.
+          // AUTOMATED REAL-ACCOUNT DISCOVERY: Prioritize non-virtual CR accounts
           const realAccount = accounts.find((a: any) => !a.is_virtual && (a.currency === 'USD' || a.account_category === 'real'));
           
           if (realAccount) {
-            addLog(`REAL ACCOUNT AUTHORIZED: ${realAccount.loginid}`, 'success');
+            addLog(`REAL ACCOUNT DETECTED: ${realAccount.loginid}`, 'success');
             setDerivBalance(parseFloat(realAccount.balance || 0));
-            // Subscribe to live balance updates
+            // Force subscription to real balance for UI heartbeat
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           } else {
-            addLog(`VIRTUAL SESSION ONLY: Ensure your CR (Real) account is selected in Deriv.`, 'warning');
+            addLog(`VIRTUAL SESSION ACTIVE. Check your CR account permissions.`, 'warning');
             setDerivBalance(parseFloat(data.authorize.balance || 0));
           }
         }
 
-        if (data.tick) setDerivTicks(prev => [...prev.slice(-19), data.tick.quote]);
-        if (data.balance) setDerivBalance(parseFloat(data.balance.balance));
+        if (data.balance) {
+          setDerivBalance(parseFloat(data.balance.balance));
+        }
       };
 
-      socket.onerror = () => addLog('WebSocket Connectivity Interrupted. Check App ID registration.', 'error');
-      socket.onclose = () => { if (pingInterval) clearInterval(pingInterval); derivSocketRef.current = null; };
+      socket.onerror = () => addLog('Network Protocol Interrupted. Verify App Registration.', 'error');
+      socket.onclose = () => { 
+        if (pingInterval) clearInterval(pingInterval); 
+        derivSocketRef.current = null; 
+      };
+      
       derivSocketRef.current = socket;
       return () => { socket.close(); };
     }
