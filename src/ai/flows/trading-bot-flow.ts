@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
- * Enhanced with Trend Exhaustion Shield and Mean Reversion Protection.
+ * Optimized as a Selective Trend Follower for R_100.
  */
 
 import { ai } from '@/ai/genkit';
@@ -60,15 +60,15 @@ function getLocalStrategy(input: TradingBotInput): TradingBotOutput {
       contractType: isRising ? 'CALL' : 'PUT',
       fromAsset: 'USD',
       toAsset: 'VOL100',
-      amountUSD: 10,
-      reasoning: `LOCAL ENCLAVE: ${isRising ? 'Rising' : 'Falling'} trend detected.`,
+      amountUSD: 1,
+      reasoning: `LOCAL PROTOCOL: ${isRising ? 'Rising' : 'Falling'} trend detected.`,
       confidence: 85
     });
   }
 
   return {
-    strategy: input.isGuardianMode ? 'GUARDIAN PROTECTION PROTOCOL' : 'ALPHA HARVESTER',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'Market trend unconfirmed.', confidence: 0 }],
+    strategy: 'SELECTIVE TREND FOLLOWER',
+    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'Market indecisive.', confidence: 0 }],
     marketSentiment: 'neutral'
   };
 }
@@ -77,20 +77,20 @@ const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `You are the Senior Quantitative Strategist for Coin A,M. 
+  prompt: `You are the Senior Quantitative Strategist for Coin A,M operating as a SELECTIVE TREND FOLLOWER. 
       MISSION: Capture structural breakouts in the R_100 index (Volatility 100 Index).
       
-      ANALYSIS PROTOCOL:
-      1. TICK STREAM: Analyzing the last 20 ticks: {{{tickStream}}}.
-      2. MOMENTUM: Identify clear 3-5 tick trend shifts. Ignore 1-tick spikes or noise.
-      3. EXHAUSTION SHIELD (CRITICAL): 
-         - DO NOT issue a CALL if the current price is the HIGHEST of the last 20 ticks (Avoid buying the top).
-         - DO NOT issue a PUT if the current price is the LOWEST of the last 20 ticks (Avoid selling the bottom).
-      4. CONFIRMATION: Only issue a 'buy' if the momentum is corroborated by at least 3 consecutive ticks in the same direction.
-      5. DECISION: If a momentum breakout is occurring and not exhausted, issue a 'buy' with high confidence.
-      6. CONTRACT: Use 'CALL' for upward breakouts, 'PUT' for downward breakdowns.
+      STRICT TRADING RULES:
+      1. SELECTIVE TREND: Watch the last 20 ticks: {{{tickStream}}}. Evaluate if a clear direction exists.
+      2. CALL (RISE): Only issue a CALL if momentum is strongly upward with >= 85% confidence.
+      3. PUT (FALL): Only issue a PUT if momentum is strongly downward with >= 85% confidence.
+      4. STANDBY: If the market is sideways, choppy, or moving in a tight range without clear direction, do NOT place a trade. Set confidence < 85.
       
-      GOAL: Institutional high-probability scalping. Prioritize winning percentage over trade volume.`,
+      ANALYSIS PROTOCOL:
+      - EXHAUSTION SHIELD: DO NOT CALL if current price is the 20-tick high. DO NOT PUT if current price is the 20-tick low.
+      - MOMENTUM: Look for at least 3-5 ticks moving in the same direction.
+      
+      GOAL: Maximize win rate by skipping choppy market cycles. Only enter during high-probability breakouts.`,
 });
 
 const tradingBotFlow = ai.defineFlow(

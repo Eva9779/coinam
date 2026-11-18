@@ -136,7 +136,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
   
-  // LOGIC REFS to prevent infinite useEffect loops
   const isAnalyzingRef = useRef(false);
   const lastAnalysisTimeRef = useRef(0);
   const botActiveRef = useRef(false);
@@ -148,7 +147,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivBalanceRef = useRef(derivBalance);
   const [sessionStartingBalance, setSessionStartingBalance] = useState<number | null>(null);
 
-  // Keep refs in sync with state for use inside stable callbacks
   useEffect(() => { botActiveRef.current = botActive; }, [botActive]);
   useEffect(() => { marketDataRef.current = marketData; }, [marketData]);
   useEffect(() => { assetsRef.current = assets; }, [assets]);
@@ -159,17 +157,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const triggerAIAnalysis = useCallback(async () => {
     if (!botActiveRef.current) return;
-    
-    // Prevent overlapping analyses
-    if (isAnalyzingRef.current) {
-      return;
-    }
+    if (isAnalyzingRef.current) return;
 
-    // Mandatory 15-second cooldown
     const now = Date.now();
-    if (now - lastAnalysisTimeRef.current < 15000) {
-       return;
-    }
+    if (now - lastAnalysisTimeRef.current < 15000) return;
 
     if (!user || !db) {
       addLog("Analysis skipped: Identity context missing.", "warning");
@@ -186,9 +177,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    if (tickStreamRef.current.length < 20) {
-      return;
-    }
+    if (tickStreamRef.current.length < 20) return;
 
     isAnalyzingRef.current = true;
     setIsAnalyzing(true);
@@ -217,7 +206,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
       if (result.actions && result.actions.length > 0) {
         let signalFound = false;
-        const threshold = botRiskLevelRef.current === 'low' ? 80 : botRiskLevelRef.current === 'medium' ? 70 : 60;
+        // Selective Trend Follower: Strict 85% Confidence floor
+        const threshold = 85;
         
         for (const action of result.actions) {
           if (action.type === 'buy' && action.contractType && botStrategyRef.current === 'deriv_indices') {
@@ -238,15 +228,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 }
               }));
             } else {
-              addLog(`Signal Filtered: Confidence (${action.confidence}%) below threshold (${threshold}%).`, "warning");
+              addLog(`Market indecisive — waiting for clear Rise/Fall setup...`, "warning");
             }
           }
         }
         if (!signalFound) {
-          addLog("Scanning for high-conviction breakout...", "info");
+          addLog("Market indecisive — waiting for clear Rise/Fall setup...", "info");
         }
       } else {
-        addLog("Strategy Feed: Market Neutral.", "info");
+        addLog("Market indecisive — waiting for clear Rise/Fall setup...", "info");
       }
     } catch (e: any) {
       addLog(`AI PROCESSING EXCEPTION: ${e.message}`, 'error');
@@ -254,7 +244,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       isAnalyzingRef.current = false;
       setIsAnalyzing(false);
     }
-  }, [user, db, addLog]); // Stable dependencies
+  }, [user, db, addLog]);
 
   useEffect(() => {
     if (derivActive && user && db) {
@@ -326,10 +316,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               tickStreamRef.current = [...tickStreamRef.current.slice(-19), price];
               
               if (botActiveRef.current && tickStreamRef.current.length >= 20) {
-                // Periodically log progress, but trigger AI based on ref logic
-                if (tickStreamRef.current.length % 5 === 0) {
-                   addLog(`Collecting ticks: ${tickStreamRef.current.length}/20`, 'info');
-                }
                 triggerAIAnalysis();
               }
             }
@@ -369,7 +355,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       };
     }
-  }, [derivActive, user, db, addLog, triggerAIAnalysis]); // Stable deps
+  }, [derivActive, user, db, addLog, triggerAIAnalysis]);
 
   useEffect(() => {
     if (!db || !user) return;
