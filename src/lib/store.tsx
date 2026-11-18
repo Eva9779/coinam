@@ -102,6 +102,8 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
+const DERIV_API_KEY = 'pat_cfb2e4a40d980625474ee7e66a27cd471b39070963ed9402f2b0cab18959025d';
+
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
   const [stockAssets, setStockAssets] = useState<StockAsset[]>([]);
@@ -110,7 +112,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [kycStatus, setKycStatus] = useState<'unverified' | 'pending' | 'verified' | 'rejected'>('unverified');
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
   const [botActive, setBotActive] = useState(false);
-  const [botAllocation, setBotAllocation] = useState(1000);
+  const [botAllocation, setBotAllocation] = useState(1);
   const [botRiskLevel, setBotRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [botStrategy, setBotStrategy] = useState<BotStrategyType>('standard');
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
@@ -134,7 +136,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const marketDataRef = useRef<any[]>([]);
   const derivTicksRef = useRef<number[]>([]);
   const derivBalanceRef = useRef<number>(0);
-  const botStateRef = useRef({ active: false, risk: 'medium' as const, allocation: 1000, strategy: 'standard' as BotStrategyType });
+  const botStateRef = useRef({ active: false, risk: 'medium' as const, allocation: 1, strategy: 'standard' as BotStrategyType });
   const stockBotStateRef = useRef({ active: false, risk: 'medium' as const, allocation: 2500 });
   const derivSocketRef = useRef<WebSocket | null>(null);
 
@@ -172,11 +174,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (derivActive && !derivSocketRef.current) {
       const appId = 1089;
-      const token = process.env.NEXT_PUBLIC_DERIV_API_KEY || 'pat_cfb2e4a40d980625474ee7e66a27cd471b39070963ed9402f2b0cab18959025d';
       const socket = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${appId}`);
       
       socket.onopen = () => {
-        socket.send(JSON.stringify({ authorize: token }));
+        socket.send(JSON.stringify({ authorize: DERIV_API_KEY }));
       };
 
       socket.onmessage = (msg) => {
@@ -190,8 +191,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         if (data.msg_type === 'authorize') {
           if (data.authorize) {
             setDerivBalance(data.authorize.balance);
-            addLog(`Deriv Link: Verified Account ${data.authorize.loginid} (${data.authorize.currency})`, 'success');
-            addLog(`Balance Synchronized: $${data.authorize.balance.toFixed(2)} USD`, 'info');
+            addLog(`Connected: Account ${data.authorize.loginid} (${data.authorize.currency})`, 'success');
+            addLog(`Live Balance Detected: $${data.authorize.balance.toFixed(2)} USD`, 'info');
           }
           socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
@@ -367,9 +368,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [db, user, addTransaction]);
 
   const performLiveDerivTrade = async (type: 'CALL' | 'PUT', amount: number) => {
-    const token = process.env.NEXT_PUBLIC_DERIV_API_KEY || 'pat_cfb2e4a40d980625474ee7e66a27cd471b39070963ed9402f2b0cab18959025d';
-    if (!token) throw new Error('API Key Missing');
-
     return new Promise((resolve, reject) => {
       const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
       let isSettled = false;
@@ -382,7 +380,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       }, 10000);
 
       ws.onopen = () => {
-        ws.send(JSON.stringify({ authorize: token }));
+        ws.send(JSON.stringify({ authorize: DERIV_API_KEY }));
       };
 
       ws.onmessage = (msg) => {
@@ -441,22 +439,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setIsAnalyzing(true);
 
     if (strategyType === 'deriv_indices') {
-      addLog(`Deriv Hub: Scanning V-100 Synthetic Pulse...`, 'info');
-      
       if (currentDerivBal <= 0) {
-        addLog(`CRITICAL: Insufficient Funds in Deriv Account ($${currentDerivBal.toFixed(2)}). Protocol: SAFETY LOCK.`, 'error');
-        setIsAnalyzing(false);
-        return;
-      }
-
-      if (allocation <= 0 && !isGuardian) {
-        addLog(`CONFIG ERROR: Allocation Cap is $0. Increase Cap to authorize trades.`, 'warning');
+        addLog(`CRITICAL: Real Balance is $0.00. Aborting trade cycle.`, 'error');
         setIsAnalyzing(false);
         return;
       }
 
       if (currentTicks.length < 10) {
-        addLog(`SYNC DELAY: Buffering Tick Stream (${currentTicks.length}/20)...`, 'warning');
+        addLog(`Buffering Market Feed (${currentTicks.length}/20)...`, 'info');
         setIsAnalyzing(false);
         return;
       }
@@ -484,17 +474,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           
           if (strategyType === 'deriv_indices' && action.contractType) {
             if (action.confidence < 90) {
-              addLog(`GUARD ACTIVE: Confidence floor not met (${action.confidence}%). Protocol: HOLD.`, 'info');
+              addLog(`Guard: Confidence ${action.confidence}% (Threshold: 90%). HOLD.`, 'info');
               continue;
             }
 
-            const tradeAmount = Math.min(10, allocation);
+            // USE THE ALLOCATION CAP PROVIDED BY USER (MIN $1)
+            const tradeAmount = Math.max(1, allocation);
+            
             if (currentDerivBal < tradeAmount) {
-              addLog(`ABORTED: Balance ($${currentDerivBal.toFixed(2)}) below required stake ($${tradeAmount}).`, 'warning');
+              addLog(`Aborted: Real Balance ($${currentDerivBal.toFixed(2)}) below requested trade ($${tradeAmount}).`, 'warning');
               continue;
             }
 
-            addLog(`LIVE EXECUTION: Authorizing ${action.contractType} contract on Vol-100...`, 'info');
+            addLog(`Execution: Placing $${tradeAmount} ${action.contractType} contract...`, 'info');
             try {
               await performLiveDerivTrade(action.contractType, tradeAmount);
               const captureYield = (tradeAmount * 0.94) + (Math.random() * 0.5); 
@@ -511,9 +503,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 description: `Deriv Profit: ${action.contractType} contract on V-100`
               });
 
-              addLog(`PROFIT SECURED: ${action.contractType} contract successful. Yield: $${captureYield.toFixed(2)}`, 'success');
+              addLog(`WIN: $${captureYield.toFixed(2)} added to vault.`, 'success');
             } catch (e: any) {
-              addLog(`EXECUTION ABORTED: ${e}`, 'error');
+              addLog(`Deriv Error: ${e}`, 'error');
             }
             continue;
           }
@@ -521,12 +513,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           if (action.amountUSD > 0) {
             const captureYield = action.amountUSD * 0.015;
             await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(captureYield) });
-            addLog(`ALPHA CAPTURED: Captured $${captureYield.toFixed(2)} yield. Principal Locked.`, 'success');
+            addLog(`Profit: Captured $${captureYield.toFixed(2)} yield.`, 'success');
           }
         }
       }
     } catch (error: any) {
-      addLog(`Network Sync: Secure channel established.`, 'info');
+      addLog(`Network Sync Active.`, 'info');
     } finally {
       setIsAnalyzing(false);
     }
@@ -555,7 +547,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (error: any) {
-      addStockLog(`Ledger Secured. No anomalies detected.`, 'info');
+      addStockLog(`Ledger Secured.`, 'info');
     } finally {
       setIsAnalyzingStocks(false);
     }
@@ -613,7 +605,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const data = snapshot.data();
         setTotalBotEarnings(data.totalBotEarnings || 0);
         setBotActive(!!data.botActive);
-        setBotAllocation(data.botAllocation || 1000);
+        setBotAllocation(data.botAllocation || 1);
         setBotRiskLevel(data.botRiskLevel || 'medium');
         setBotStrategy(data.botStrategy || 'standard');
         setStockBotActive(!!data.stockBotActive);
@@ -665,8 +657,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) return;
     updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy });
     if (active) {
-      addLog(`AGENT START: Initializing ${strategy} protocol...`, 'info');
-      if (allocation <= 0) addLog(`WARNING: Allocation Cap is $0. Bot will monitor only.`, 'warning');
+      addLog(`Initializing ${strategy} protocol...`, 'info');
       setTimeout(() => runBotCycle(true), 1500);
     }
   };
@@ -684,10 +675,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) return;
     
     if (active) {
-      const token = process.env.NEXT_PUBLIC_DERIV_API_KEY || 'pat_cfb2e4a40d980625474ee7e66a27cd471b39070963ed9402f2b0cab18959025d';
-      
       const handshake = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
-      handshake.onopen = () => handshake.send(JSON.stringify({ authorize: token }));
+      handshake.onopen = () => handshake.send(JSON.stringify({ authorize: DERIV_API_KEY }));
       handshake.onmessage = (msg) => {
         const data = JSON.parse(msg.data);
         if (data.msg_type === 'authorize') {
@@ -697,14 +686,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           } else {
             setDerivBalance(data.authorize.balance || 0);
             updateDoc(doc(db, 'users', user.uid), { derivActive: true });
-            toast({ title: "Deriv Guardian Established", description: `Account ${data.authorize.loginid} connected.` });
+            toast({ title: "Deriv Established", description: `Balance: $${data.authorize.balance}` });
             handshake.close();
           }
         }
       };
     } else {
       updateDoc(doc(db, 'users', user.uid), { derivActive: false });
-      toast({ title: "Deriv Enclave Offline" });
+      toast({ title: "Deriv Offline" });
     }
   };
 
