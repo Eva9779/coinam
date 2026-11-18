@@ -100,6 +100,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
+  // HOISTED: Logging utilities at the absolute top level to prevent ReferenceError crashes
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -148,6 +149,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         addLog(`Initializing Secure Bridge [AppID: ${appId}]...`, 'info');
         
         try {
+          // STEP 1: Discovery - Find the Real account
           const accountsRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
             headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
           });
@@ -155,7 +157,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           if (!accountsRes.ok) throw new Error(`Discovery Interrupted [HTTP ${accountsRes.status}]`);
 
           const getJson = await accountsRes.json();
-          const accountsArray = getJson.data?.accounts || getJson.accounts || [];
+          const accountsArray = getJson.data || [];
           const realAcc = accountsArray.find((a: any) => a.account_type === 'real');
           
           let accountId = '';
@@ -163,6 +165,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             accountId = realAcc.id || realAcc.account_id;
             addLog(`Production Real Account Identified: ${accountId}`, 'success');
           } else {
+            // STEP 2: Auto-Provisioning (if missing)
             addLog(`REAL account not found. Provisioning Production Identity...`, 'info');
             const createRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
               method: 'POST',
@@ -181,6 +184,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           if (!accountId) throw new Error('Verification Failure: Account ID remains undefined.');
 
+          // STEP 3: Dynamic OTP Resolution
           addLog(`Requesting Dynamic Secure Link...`, 'info');
           const otpResponse = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
             method: 'POST',
@@ -194,11 +198,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           if (!wsUrl) throw new Error('Security Protocol Error: No WebSocket URL returned.');
 
+          // STEP 4: WebSocket Connection using Dynamic URL
           addLog(`Establishing Hardware Handshake...`, 'success');
           socket = new WebSocket(wsUrl);
 
           socket.onopen = () => {
             addLog('REAL Handshake secure. Initializing Live Subscriptions...', 'success');
+            // MODERIZED: Using flat top-level keys for balance and ticks as required by Deriv Options API
             socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
             
@@ -258,6 +264,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
+    // PULSE: 30-second execution loop for AI market analysis
     const executionLoop = setInterval(async () => {
       if (derivSocketRef.current?.readyState !== WebSocket.OPEN) return;
       
@@ -288,6 +295,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               if (action.confidence > 90) {
                 addLog(`ALPHA SIGNAL: Transmitting REAL Order [${action.contractType}]...`, 'info');
                 
+                // FINAL: Transmitting flat buy payload to authenticated Deriv WebSocket
                 derivSocketRef.current.send(JSON.stringify({
                   buy: 1,
                   price: botAllocation,
