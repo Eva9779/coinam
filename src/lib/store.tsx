@@ -9,7 +9,8 @@ import {
   setDoc, 
   onSnapshot, 
   updateDoc,
-  increment
+  increment,
+  serverTimestamp
 } from 'firebase/firestore';
 
 export interface WalletAsset {
@@ -97,14 +98,8 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-/**
- * INSTITUTIONAL AUTHORIZED CREDENTIALS
- */
-const DERIV_APP_ID = '34ZL7gE0vCSMJZRVIazHV'; 
-const DERIV_PAT = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
-
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // CRITICAL FIX: Hoist state and callbacks to the top level of the provider scope
+  // 1. HOISTED LOGGING UTILITIES (CRITICAL FIX FOR REFERENCE ERROR)
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -116,6 +111,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setStockBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
+  // 2. CORE STATE
   const [assets, setAssets] = useState<WalletAsset[]>([]);
   const [stockAssets, setStockAssets] = useState<StockAsset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -126,111 +122,154 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [botAllocation, setBotAllocation] = useState(1);
   const [botRiskLevel, setBotRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [botStrategy, setBotStrategy] = useState<BotStrategyType>('standard');
-  
   const [stockBotActive, setStockBotActive] = useState(false);
   const [stockBotAllocation, setStockBotAllocation] = useState(2500);
   const [stockBotRisk, setStockBotRisk] = useState<'low' | 'medium' | 'high'>('medium');
-  
   const [derivActive, setDerivActive] = useState(false);
   const [derivBalance, setDerivBalance] = useState(0);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isAnalyzingStocks, setIsAnalyzingStocks] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
-  const [provisioning, setProvisioning] = useState(false);
-
+  
   const { user } = useUserHook();
   const db = useFirestore();
   const derivSocketRef = useRef<WebSocket | null>(null);
 
-  // INSTITUTIONAL DERIV HANDSHAKE EFFECT
+  // 3. DERIV PROTOCOL ENGINE (LOCKED APP ID & AUTHORIZED TOKEN)
   useEffect(() => {
     if (derivActive && user && db) {
-      addLog(`Initializing Secure Bridge [AppID: ${DERIV_APP_ID}]...`, 'info');
+      const appId = '34ZL7gE0vCSMJZRVIazHV';
+      const pat = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
       
-      const socketUrl = `wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`;
-      const socket = new WebSocket(socketUrl);
+      addLog(`Initializing Secure Bridge [AppID: ${appId}]...`, 'info');
+      
+      const socketUrl = `wss://ws.binaryws.com/websockets/v3?app_id=${appId}`;
+      let socket: WebSocket | null = null;
       let pingInterval: any;
 
-      socket.onopen = () => {
-        addLog('Authenticating via Account & Trade Token...', 'info');
-        socket.send(JSON.stringify({ authorize: DERIV_PAT }));
-        pingInterval = setInterval(() => {
-          if (socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({ ping: 1 }));
-          }
-        }, 30000);
-      };
-
-      socket.onmessage = (msg) => {
-        const data = JSON.parse(msg.data);
+      try {
+        socket = new WebSocket(socketUrl);
         
-        if (data.error) {
-          addLog(`Gateway Conflict: ${data.error.message}`, 'error');
-          return;
-        }
-
-        if (data.msg_type === 'authorize') {
-          const accounts = data.authorize.account_list || [];
-          addLog(`Protocol Authorized. Scanning ${accounts.length} linked endpoints for real funds...`, 'info');
+        socket.onopen = () => {
+          addLog('Handshake successful. Authenticating session...', 'info');
+          socket?.send(JSON.stringify({ authorize: pat }));
           
-          // SEARCH & LOCK: Prioritize Real CR accounts for balance sync
-          const realAccount = accounts.find((a: any) => !a.is_virtual && (a.currency === 'USD' || a.account_type === 'real'));
+          pingInterval = setInterval(() => {
+            if (socket?.readyState === WebSocket.OPEN) {
+              socket.send(JSON.stringify({ ping: 1 }));
+            }
+          }, 30000);
+        };
+
+        socket.onmessage = (msg) => {
+          const data = JSON.parse(msg.data);
           
-          if (realAccount) {
-            addLog(`REAL ACCOUNT SECURED: ${realAccount.loginid}`, 'success');
-            // Request live balance immediately with subscription
-            socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-          } else {
-            addLog(`ACCOUNT SYNC ERROR: Real Balance $0.00. Fund your CR account via Deriv.`, 'warning');
+          if (data.error) {
+            addLog(`Gateway Violation: ${data.error.message}`, 'error');
+            if (data.error.code === 'InvalidAppID') {
+              addLog('Critical: Add your URL to the Redirect list in Deriv Dashboard.', 'warning');
+            }
+            return;
           }
-        }
 
-        if (data.msg_type === 'balance') {
-          const bal = data.balance.balance;
-          if (bal !== undefined) {
-            setDerivBalance(parseFloat(bal));
+          if (data.msg_type === 'authorize') {
+            const accounts = data.authorize.account_list || [];
+            addLog(`Institutional Verified. Scanning ${accounts.length} linked endpoints...`, 'info');
+            
+            // DISCOVER: Look for funded Real USD account
+            const realAccount = accounts.find((a: any) => !a.is_virtual && (a.currency === 'USD' || a.account_type === 'real'));
+            
+            if (realAccount) {
+              addLog(`REAL ACCOUNT SECURED: ${realAccount.loginid}`, 'success');
+              socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+            } else {
+              addLog(`Account Sync Gap: Funded CR account not found. Syncing demo balance...`, 'warning');
+              socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+            }
           }
+
+          if (data.msg_type === 'balance') {
+            const bal = data.balance.balance;
+            if (bal !== undefined) {
+              setDerivBalance(parseFloat(bal));
+            }
+          }
+        };
+
+        socket.onerror = () => {
+          addLog('Network Protocol Interrupted. Verify App Registration & Redirect URL.', 'error');
+        };
+
+        socket.onclose = () => {
+          if (pingInterval) clearInterval(pingInterval);
+          addLog('Secure Bridge Disconnected.', 'warning');
+        };
+
+        derivSocketRef.current = socket;
+      } catch (err) {
+        addLog('Bridge Initialization Failed.', 'error');
+      }
+
+      return () => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.close();
         }
-      };
-
-      socket.onerror = () => {
-        addLog('Network Protocol Interrupted. Verify App Registration.', 'error');
-      };
-
-      socket.onclose = () => { 
-        if (pingInterval) clearInterval(pingInterval); 
-        derivSocketRef.current = null; 
-      };
-      
-      derivSocketRef.current = socket;
-      return () => { 
-        if (socket.readyState === WebSocket.OPEN) socket.close(); 
+        if (pingInterval) clearInterval(pingInterval);
       };
     }
   }, [derivActive, user, db, addLog]);
 
-  const addTransaction = useCallback((tx: any) => {
-    if (!db || !user) return;
-    const txId = `tx_${Date.now()}`;
-    setDoc(doc(db, 'users', user.uid, 'transactions', txId), {
-      ...tx, id: txId, timestamp: new Date().toISOString(), status: 'completed'
-    });
-  }, [db, user]);
+  // 4. AI BOT SIMULATION LOOP (LIVE YIELD GENERATION)
+  useEffect(() => {
+    if (!botActive || !user) return;
+    
+    const botInterval = setInterval(() => {
+      setIsAnalyzing(true);
+      setTimeout(() => {
+        setIsAnalyzing(false);
+        const profit = (Math.random() * 0.002) * botAllocation; // Institutional rebalance yield
+        if (profit > 0.0001) {
+          addLog(`ALPHA CAPTURE: Executing ${botStrategy.toUpperCase()} rebalance...`, 'info');
+          setTimeout(() => {
+            addLog(`YIELD HARVESTED: +$${profit.toFixed(4)} USD`, 'success');
+            updateDoc(doc(db, 'users', user.uid), {
+              totalBotEarnings: increment(profit)
+            });
+          }, 2000);
+        }
+      }, 4000);
+    }, 20000);
 
-  const updateBalance = useCallback(async (currency: string, amount: number, fiatPrice: number) => {
-    if (!db || !user) return;
-    const asset = assets.find(a => a.currency === currency);
-    if (asset) {
-      await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
-        amount: increment(amount),
-        fiatValueUSD: increment(amount * fiatPrice)
-      });
-    }
-  }, [db, user, assets]);
+    return () => clearInterval(botInterval);
+  }, [botActive, botAllocation, botStrategy, user, db, addLog]);
 
+  // 5. RWA STOCK BOT SIMULATION
+  useEffect(() => {
+    if (!stockBotActive || !user) return;
+
+    const stockInterval = setInterval(() => {
+      setIsAnalyzingStocks(true);
+      setTimeout(() => {
+        setIsAnalyzingStocks(false);
+        const profit = (Math.random() * 0.5) * (stockBotRisk === 'high' ? 2 : 1);
+        addStockLog(`RWA ENCLAVE: Scanning institutional order blocks...`, 'info');
+        setTimeout(() => {
+          addStockLog(`EQUITY SURGE CAPTURED: +$${profit.toFixed(2)} USD`, 'success');
+          updateDoc(doc(db, 'users', user.uid), {
+            totalBotEarnings: increment(profit)
+          });
+        }, 2000);
+      }, 5000);
+    }, 30000);
+
+    return () => clearInterval(stockInterval);
+  }, [stockBotActive, stockBotRisk, user, db, addStockLog]);
+
+  // 6. FIRESTORE SYNC
   useEffect(() => {
     if (!db || !user) return;
+    
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
       if (s.exists()) {
         const d = s.data();
@@ -246,23 +285,54 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setDerivActive(!!d.derivActive);
       }
     });
+
     const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), (s) => {
       setAssets(s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset)));
       setInitialized(true);
       setIsSyncing(false);
     });
+
     const unsubTx = onSnapshot(collection(db, 'users', user.uid, 'transactions'), (s) => {
       setTransactions(s.docs.map(d => ({ ...d.data(), id: d.id } as Transaction)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
     });
+
     const unsubStocks = onSnapshot(collection(db, 'users', user.uid, 'stocks'), (s) => {
       setStockAssets(s.docs.map(doc => ({ ...doc.data(), id: doc.id } as StockAsset)));
     });
-    return () => { unsubProfile(); unsubAssets(); unsubTx(); unsubStocks(); };
+
+    return () => { 
+      unsubProfile(); 
+      unsubAssets(); 
+      unsubTx(); 
+      unsubStocks(); 
+    };
   }, [db, user]);
+
+  const addTransaction = useCallback((tx: any) => {
+    if (!db || !user) return;
+    const txId = `tx_${Date.now()}`;
+    setDoc(doc(db, 'users', user.uid, 'transactions', txId), {
+      ...tx, 
+      id: txId, 
+      timestamp: new Date().toISOString(), 
+      status: 'completed'
+    });
+  }, [db, user]);
+
+  const updateBalance = useCallback(async (currency: string, amount: number, fiatPrice: number) => {
+    if (!db || !user) return;
+    const asset = assets.find(a => a.currency === currency);
+    if (asset) {
+      await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
+        amount: increment(amount),
+        fiatValueUSD: increment(amount * fiatPrice)
+      });
+    }
+  }, [db, user, assets]);
 
   return (
     <WalletContext.Provider value={{ 
-      assets, stockAssets, transactions, initialized, isSyncing, isProvisioning: provisioning, user,
+      assets, stockAssets, transactions, initialized, isSyncing, isProvisioning: false, user,
       kycStatus, totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, derivActive, derivBalance, isAnalyzing, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, generateNewWallet: async () => null, importPrivateKey: async () => {}, 
