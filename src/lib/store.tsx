@@ -99,7 +99,6 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // HOISTED UTILITIES: Initialized at absolute top level to prevent ReferenceErrors
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -136,7 +135,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
-  // PRODUCTION DERIV BRIDGE: STRICT REAL ACCOUNT ONLY
+  // MODERN DERIV BRIDGE: JSON-RPC 2.0 PROTOCOL
   useEffect(() => {
     if (derivActive && user && db) {
       const appId = '34ZRxvOFBnNAdQsr1T3bF';
@@ -146,39 +145,25 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       let pingInterval: any;
 
       const connectBridge = async () => {
-        addLog(`Initiating Secure REAL Session [AppID: ${appId}]...`, 'info');
+        addLog(`Provisioning Secure REAL Session [AppID: ${appId}]...`, 'info');
         
         try {
-          // 1. CALL GET /trading/v1/options/accounts to find REAL account
+          // 1. DISCOVERY: Find REAL Options account
           const accountsRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
-            headers: { 
-              'Authorization': `Bearer ${token}`, 
-              'Deriv-App-ID': appId 
-            }
+            headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
           });
 
-          if (!accountsRes.ok) {
-             const errText = await accountsRes.text();
-             addLog(`Account Discovery Failed [HTTP ${accountsRes.status}]: ${errText}`, 'error');
-             throw new Error(`HTTP ${accountsRes.status}`);
-          }
+          if (!accountsRes.ok) throw new Error(`Discovery Failed: HTTP ${accountsRes.status}`);
 
           const getJson = await accountsRes.json();
-          // DEBUG: Log raw JSON to see exact keys
-          console.log('GET Accounts Raw JSON:', getJson);
-          
-          let accountId = '';
           const accounts = getJson.data?.accounts || getJson.accounts || [];
-
-          // Find the REAL Options account strictly
           const realAcc = accounts.find((a: any) => a.account_type === 'real');
           
+          let accountId = '';
           if (realAcc) {
             accountId = realAcc.id || realAcc.account_id;
-            addLog(`Real Production Identity Resolved: ${accountId}`, 'success');
           } else {
-            // 2. If no real account, create one with EXACT payload
-            addLog(`No REAL Options Account found. Provisioning new REAL USD account...`, 'info');
+            addLog(`No REAL account found. Provisioning new identity...`, 'info');
             const createRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
               method: 'POST',
               headers: {
@@ -186,93 +171,76 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 'Deriv-App-ID': appId,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ 
-                currency: 'USD', 
-                group: 'row', 
-                account_type: 'real' 
-              })
+              body: JSON.stringify({ currency: 'USD', group: 'row', account_type: 'real' })
             });
             
             const postJson = await createRes.json();
-            // DEBUG: Log raw JSON for creation
-            console.log('POST Account Creation Raw JSON:', postJson);
-
-            if (!createRes.ok) {
-              addLog(`Real Account Provisioning Failed [HTTP ${createRes.status}]: ${JSON.stringify(postJson)}`, 'error');
-              throw new Error(`Creation Error ${createRes.status}`);
-            }
-
-            // Correctly extract ID from nested data object
+            if (!createRes.ok) throw new Error(`Provisioning Error: ${JSON.stringify(postJson)}`);
             accountId = postJson.data?.id || postJson.data?.account_id || postJson.id || postJson.account_id;
-            addLog(`New REAL Production Account Provisioned: ${accountId}`, 'success');
           }
 
-          // CRITICAL: Stop immediately if accountId is still undefined
-          if (!accountId || accountId === 'undefined') {
-            addLog('Critical Error: Resolved Account ID is invalid or undefined. Aborting session request.', 'error');
-            return;
-          }
+          if (!accountId) throw new Error('Could not resolve verified Account ID.');
 
-          // 3. Pass REAL account_id to /otp for WebSocket URL
-          addLog(`Requesting REAL Dynamic Link for ${accountId}...`, 'info');
+          // 2. OTP: Request authenticated WebSocket URL
+          addLog(`Requesting Dynamic Link for ${accountId}...`, 'info');
           const otpResponse = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
             method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Deriv-App-ID': appId,
-              'Content-Type': 'application/json'
-            }
+            headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
           });
 
-          if (!otpResponse.ok) {
-            const errText = await otpResponse.text();
-            addLog(`REAL Session Request Failed [HTTP ${otpResponse.status}]: ${errText}`, 'error');
-            throw new Error(`HTTP ${otpResponse.status}`);
-          }
+          if (!otpResponse.ok) throw new Error(`OTP Session Failed: HTTP ${otpResponse.status}`);
 
           const otpData = await otpResponse.json();
           const wsUrl = otpData.data?.url || otpData.url;
 
-          if (!wsUrl) throw new Error('No WebSocket URL returned in REAL session payload.');
+          if (!wsUrl) throw new Error('No WebSocket URL in response.');
 
-          addLog(`REAL Secure URL Resolved. Establishing Handshake...`, 'success');
+          addLog(`REAL URL Resolved. Establishing Modern Handshake...`, 'success');
           socket = new WebSocket(wsUrl);
 
           socket.onopen = () => {
-            addLog('REAL Handshake secure. Transmitting authorization...', 'info');
-            socket?.send(JSON.stringify({ authorize: token }));
+            addLog('REAL Handshake secure. Initializing Subscriptions...', 'success');
+            
+            // JSON-RPC 2.0: NO authorize call needed. Use method/params.
+            socket?.send(JSON.stringify({ 
+              method: 'balance', 
+              params: { subscribe: 1 } 
+            }));
+            
+            socket?.send(JSON.stringify({ 
+              method: 'ticks', 
+              params: { ticks: 'R_100', subscribe: 1 } 
+            }));
             
             pingInterval = setInterval(() => {
               if (socket?.readyState === WebSocket.OPEN) {
-                socket.send(JSON.stringify({ ping: 1 }));
+                socket.send(JSON.stringify({ method: 'ping' }));
               }
             }, 30000);
           };
 
           socket.onmessage = (msg) => {
             const data = JSON.parse(msg.data);
+            console.log('Deriv Production Stream:', data);
             
             if (data.error) {
               addLog(`Bridge Protocol Error: ${data.error.message}`, 'error');
               return;
             }
 
-            if (data.msg_type === 'authorize') {
-              addLog(`Identity Verified. Synchronizing REAL Assets...`, 'success');
-              socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-              socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
-            }
+            // Deriv JSON-RPC responses often use msg_type or mirror the method name
+            const type = data.msg_type || data.method;
 
-            if (data.msg_type === 'tick') {
+            if (type === 'tick') {
               const price = data.tick.quote;
               tickStreamRef.current = [...tickStreamRef.current.slice(-19), price];
             }
 
-            if (data.msg_type === 'balance') {
+            if (type === 'balance') {
               setDerivBalance(parseFloat(data.balance.balance));
             }
 
-            if (data.msg_type === 'buy') {
+            if (type === 'buy') {
               addLog(`REAL TRADE SUCCESS: Order Broadcasted [ID: ${data.buy.contract_id}]`, 'success');
               toast({ 
                 title: "Real Trade Executed", 
@@ -281,18 +249,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             }
           };
 
-          socket.onerror = (err) => {
-            addLog('Socket Error: Connection failed. Verify Domain Whitelisting.', 'error');
-          };
-
           socket.onclose = () => {
             if (pingInterval) clearInterval(pingInterval);
-            addLog(`REAL Production Bridge Offline. Ensure your App ID is active in Deriv.`, 'warning');
+            addLog(`REAL Production Bridge Offline.`, 'warning');
           };
 
           derivSocketRef.current = socket;
         } catch (err: any) {
-          addLog(`REAL Bridge Provisioning Interrupted: ${err.message}`, 'error');
+          addLog(`REAL Bridge Error: ${err.message}`, 'error');
         }
       };
 
@@ -305,7 +269,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
-  // AI EXECUTION LOOP
+  // AI EXECUTION LOOP: MODERN JSON-RPC FORMAT
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
@@ -328,18 +292,23 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           for (const action of result.actions) {
             if (action.type === 'buy' && action.contractType && botStrategy === 'deriv_indices') {
               if (action.confidence > 90) {
-                addLog(`ALPHA SIGNAL: Transmitting REAL order to Deriv...`, 'info');
+                addLog(`ALPHA SIGNAL: Transmitting REAL Order [${action.contractType}]...`, 'info');
+                
+                // MODERN JSON-RPC 2.0 PAYLOAD
                 derivSocketRef.current.send(JSON.stringify({
-                  buy: 1,
-                  price: botAllocation,
-                  parameters: {
-                    amount: botAllocation,
-                    basis: 'stake',
-                    contract_type: action.contractType,
-                    currency: 'USD',
-                    duration: 5,
-                    duration_unit: 't',
-                    symbol: 'R_100'
+                  method: 'buy',
+                  params: {
+                    buy: 1,
+                    price: botAllocation,
+                    parameters: {
+                      amount: botAllocation,
+                      basis: 'stake',
+                      contract_type: action.contractType,
+                      currency: 'USD',
+                      duration: 5,
+                      duration_unit: 't',
+                      symbol: 'R_100'
+                    }
                   }
                 }));
               }
