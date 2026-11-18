@@ -13,6 +13,7 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
+import { toast } from '@/hooks/use-toast';
 
 export interface WalletAsset {
   id: string;
@@ -100,7 +101,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // --- HOISTED LOGGING (CRITICAL: DEFINED AT THE TOP) ---
+  // --- HOISTED LOGGING (FIXES REFERENCE ERROR) ---
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -137,10 +138,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
-  // --- DERIV LIVE PRODUCTION BRIDGE ---
+  // --- DERIV LIVE PRODUCTION BRIDGE (NUMERIC APP ID URL REQUIRED) ---
   useEffect(() => {
     if (derivActive && user && db) {
-      const appId = '34ZL7gE0vCSMJZRVIazHV';
+      // SECURE: We use a numeric App ID for the URL handshake, but your Token for Authorization.
+      const appId = '61501'; 
       const pat = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
       
       addLog(`Initializing Secure Bridge [AppID: ${appId}]...`, 'info');
@@ -167,13 +169,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const data = JSON.parse(msg.data);
           
           if (data.error) {
-            addLog(`Network Protocol Interrupted. Verify App Registration.`, 'error');
+            addLog(`Network Protocol Interrupted. Reason: ${data.error.message}`, 'error');
             console.error('Deriv Socket Error:', data.error);
             return;
           }
 
           if (data.msg_type === 'authorize') {
-            addLog(`Identity Verified: ${data.authorize.loginid} [${data.authorize.currency}]. Real balance sync active.`, 'success');
+            addLog(`Identity Verified. Syncing real USD balances...`, 'success');
             // Request balance and start live tick stream
             socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
@@ -190,12 +192,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           if (data.msg_type === 'buy') {
             addLog(`LIVE TRADE EXECUTED: Order ID ${data.buy.contract_id} processed on Mainnet.`, 'success');
+            toast({ title: "Trade Executed", description: `Order ${data.buy.contract_id} is live.` });
           }
         };
 
-        socket.onclose = () => {
+        socket.onclose = (e) => {
           if (pingInterval) clearInterval(pingInterval);
-          addLog('Production Bridge Offline.', 'warning');
+          addLog(`Production Bridge Offline [Code: ${e.code}]. Check Redirect URL.`, 'warning');
         };
 
         derivSocketRef.current = socket;
@@ -212,7 +215,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
-  // --- LIVE PRODUCTION EXECUTION ENGINE (NO SIMULATION) ---
+  // --- LIVE PRODUCTION EXECUTION ENGINE ---
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
@@ -253,7 +256,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                   }
                 }));
               } else {
-                addLog('Protection Protocol: Confidence below threshold. Order suppressed.', 'warning');
+                addLog('Protection Protocol: Confidence below threshold.', 'warning');
               }
             } else if (action.type === 'hold') {
               addLog(`Enclave Protection: ${action.reasoning}`, 'info');
