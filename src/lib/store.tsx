@@ -99,6 +99,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
+  // HOISTED UTILITIES: Initialized at absolute top level to prevent ReferenceErrors
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -135,6 +136,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
+  // PRODUCTION DERIV BRIDGE: STRICT REAL ACCOUNT ONLY
   useEffect(() => {
     if (derivActive && user && db) {
       const appId = '34ZRxvOFBnNAdQsr1T3bF';
@@ -144,9 +146,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       let pingInterval: any;
 
       const connectBridge = async () => {
-        addLog(`Initiating Dynamic Session [AppID: ${appId}]...`, 'info');
+        addLog(`Initiating Secure REAL Session [AppID: ${appId}]...`, 'info');
         
         try {
+          // 1. CALL GET /trading/v1/options/accounts to find REAL account
           const accountsRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
             headers: { 
               'Authorization': `Bearer ${token}`, 
@@ -163,13 +166,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const accountsData = await accountsRes.json();
           let accountId = '';
 
-          const existingAcc = accountsData.accounts?.find((a: any) => !a.is_virtual) || accountsData.accounts?.[0];
+          // Find the REAL Options account strictly
+          const realAcc = accountsData.accounts?.find((a: any) => a.account_type === 'real');
           
-          if (existingAcc) {
-            accountId = existingAcc.account_id || existingAcc.id;
-            addLog(`Production Identity Resolved: ${accountId}`, 'success');
+          if (realAcc) {
+            accountId = realAcc.account_id || realAcc.id;
+            addLog(`Real Production Identity Resolved: ${accountId}`, 'success');
           } else {
-            addLog(`No Options Account found. Provisioning new USD account...`, 'info');
+            // 2. If no real account, create one with EXACT payload
+            addLog(`No REAL Options Account found. Provisioning new REAL USD account...`, 'info');
             const createRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
               method: 'POST',
               headers: {
@@ -180,21 +185,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               body: JSON.stringify({ 
                 currency: 'USD', 
                 group: 'row', 
-                account_type: 'demo' 
+                account_type: 'real' 
               })
             });
             
             if (!createRes.ok) {
               const errBody = await createRes.text();
-              addLog(`Account Provisioning Failed [HTTP ${createRes.status}]: ${errBody}`, 'error');
+              addLog(`Real Account Provisioning Failed [HTTP ${createRes.status}]: ${errBody}`, 'error');
               throw new Error(`Creation Error ${createRes.status}`);
             }
             const createData = await createRes.json();
             accountId = createData.account_id || createData.id;
-            addLog(`New Production Account Provisioned: ${accountId}`, 'success');
+            addLog(`New REAL Production Account Provisioned: ${accountId}`, 'success');
           }
 
-          addLog(`Requesting Dynamic Secure Link for ${accountId}...`, 'info');
+          // 3. Pass REAL account_id to /otp for WebSocket URL
+          addLog(`Requesting REAL Dynamic Link for ${accountId}...`, 'info');
           const otpResponse = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
             method: 'POST',
             headers: {
@@ -206,20 +212,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           if (!otpResponse.ok) {
             const errText = await otpResponse.text();
-            addLog(`Session Request Failed [HTTP ${otpResponse.status}]: ${errText}`, 'error');
+            addLog(`REAL Session Request Failed [HTTP ${otpResponse.status}]: ${errText}`, 'error');
             throw new Error(`HTTP ${otpResponse.status}`);
           }
 
           const otpData = await otpResponse.json();
           const wsUrl = otpData.url;
 
-          if (!wsUrl) throw new Error('No WebSocket URL returned in session payload.');
+          if (!wsUrl) throw new Error('No WebSocket URL returned in REAL session payload.');
 
-          addLog(`Secure URL Resolved. Establishing Handshake...`, 'success');
+          addLog(`REAL Secure URL Resolved. Establishing Handshake...`, 'success');
           socket = new WebSocket(wsUrl);
 
           socket.onopen = () => {
-            addLog('Handshake secure. Transmitting authorization...', 'info');
+            addLog('REAL Handshake secure. Transmitting authorization...', 'info');
             socket?.send(JSON.stringify({ authorize: token }));
             
             pingInterval = setInterval(() => {
@@ -238,7 +244,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             }
 
             if (data.msg_type === 'authorize') {
-              addLog(`Identity Verified. Synchronizing Live Assets...`, 'success');
+              addLog(`Identity Verified. Synchronizing REAL Assets...`, 'success');
               socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
               socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
             }
@@ -253,10 +259,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             }
 
             if (data.msg_type === 'buy') {
-              addLog(`LIVE TRADE SUCCESS: Order Broadcasted [ID: ${data.buy.contract_id}]`, 'success');
+              addLog(`REAL TRADE SUCCESS: Order Broadcasted [ID: ${data.buy.contract_id}]`, 'success');
               toast({ 
-                title: "Trade Executed", 
-                description: `Real-world order ${data.buy.contract_id} transmitted to Deriv.` 
+                title: "Real Trade Executed", 
+                description: `Production order ${data.buy.contract_id} transmitted to Deriv.` 
               });
             }
           };
@@ -267,12 +273,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           socket.onclose = () => {
             if (pingInterval) clearInterval(pingInterval);
-            addLog(`Production Bridge Offline. Ensure your App ID is active in Deriv.`, 'warning');
+            addLog(`REAL Production Bridge Offline. Ensure your App ID is active in Deriv.`, 'warning');
           };
 
           derivSocketRef.current = socket;
         } catch (err: any) {
-          addLog(`Bridge Provisioning Interrupted: ${err.message}`, 'error');
+          addLog(`REAL Bridge Provisioning Interrupted: ${err.message}`, 'error');
         }
       };
 
@@ -285,6 +291,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
+  // AI EXECUTION LOOP
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
@@ -307,7 +314,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           for (const action of result.actions) {
             if (action.type === 'buy' && action.contractType && botStrategy === 'deriv_indices') {
               if (action.confidence > 90) {
-                addLog(`ALPHA SIGNAL: Transmitting real order to Deriv...`, 'info');
+                addLog(`ALPHA SIGNAL: Transmitting REAL order to Deriv...`, 'info');
                 derivSocketRef.current.send(JSON.stringify({
                   buy: 1,
                   price: botAllocation,
@@ -335,6 +342,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(executionLoop);
   }, [botActive, derivActive, botStrategy, botAllocation, botRiskLevel, user, db, assets, marketData, addLog]);
 
+  // FIRESTORE SYNC
   useEffect(() => {
     if (!db || !user) return;
     
