@@ -145,6 +145,97 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     botActiveRef.current = botActive;
   }, [botActive]);
 
+  // Restored Analysis Trigger for real-time response
+  const triggerAIAnalysis = useCallback(async () => {
+    if (!botActiveRef.current) return;
+    if (isAnalyzing) {
+      // Quietly skip if already processing, as ticks come fast
+      return;
+    }
+
+    if (!user || !db) {
+      addLog("Analysis skipped: Identity context missing.", "warning");
+      return;
+    }
+
+    if (derivBalance <= 0) {
+      addLog(`Analysis skipped: Real Balance is $${derivBalance}. Funding required.`, "warning");
+      return;
+    }
+
+    if (derivSocketRef.current?.readyState !== WebSocket.OPEN) {
+      addLog("Analysis skipped: Deriv bridge connection is closed.", "error");
+      return;
+    }
+
+    if (tickStreamRef.current.length < 20) {
+      // Just log the progress, no error
+      return;
+    }
+
+    setIsAnalyzing(true);
+    addLog("AI Neural Link: Analyzing R_100 Tick Momentum...", "info");
+
+    try {
+      const contextData = marketData.map((item: any) => ({
+        currency: item.currency || item.symbol || '???',
+        price: item.price ?? item.currentPriceUSD ?? item.current_price ?? 0,
+        change24h: item.change24h ?? item.dailyChangePercent ?? item.price_change_percentage_24h ?? 0
+      }));
+
+      const result = await analyzeMarketAndTrade({
+        userId: user.uid,
+        strategyType: botStrategy,
+        assets: assets.map(a => ({ currency: a.currency, amount: a.amount, fiatValue: a.fiatValueUSD })),
+        marketData: contextData,
+        riskTolerance: botRiskLevel,
+        allocationLimitUSD: botAllocation,
+        tickStream: tickStreamRef.current,
+      });
+
+      // Double-check active status after async AI call
+      if (!botActiveRef.current) return;
+
+      if (result.actions && result.actions.length > 0) {
+        let signalFound = false;
+        const threshold = botRiskLevel === 'low' ? 80 : botRiskLevel === 'medium' ? 70 : 60;
+        
+        for (const action of result.actions) {
+          if (action.type === 'buy' && action.contractType && botStrategy === 'deriv_indices') {
+            signalFound = true;
+            if (action.confidence >= threshold) {
+              addLog(`ALPHA SIGNAL [${action.confidence}%]: Transmitting Fixed $1 Stake...`, 'info');
+              derivSocketRef.current.send(JSON.stringify({
+                buy: 1,
+                price: 1,
+                parameters: {
+                  amount: 1,
+                  basis: 'stake',
+                  contract_type: action.contractType,
+                  underlying_symbol: 'R_100',
+                  currency: 'USD',
+                  duration: 5,
+                  duration_unit: 't'
+                }
+              }));
+            } else {
+              addLog(`Signal Filtered: Confidence (${action.confidence}%) below threshold (${threshold}%).`, "warning");
+            }
+          }
+        }
+        if (!signalFound) {
+          addLog("Scanning for high-conviction breakout...", "info");
+        }
+      } else {
+        addLog("Strategy Feed: Market Neutral. No signal emitted.", "info");
+      }
+    } catch (e: any) {
+      addLog(`AI PROCESSING EXCEPTION: ${e.message}`, 'error');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }, [botActive, botStrategy, botAllocation, botRiskLevel, user, db, assets, marketData, addLog, isAnalyzing, derivBalance]);
+
   useEffect(() => {
     if (derivActive && user && db) {
       const appId = '34ZRxvOFBnNAdQsr1T3bF';
@@ -213,8 +304,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             if (data.msg_type === 'tick') {
               const price = data.tick.quote;
               tickStreamRef.current = [...tickStreamRef.current.slice(-19), price];
-              if (tickStreamRef.current.length % 5 === 0 && botActiveRef.current) {
+              
+              if (botActiveRef.current && tickStreamRef.current.length >= 20 && tickStreamRef.current.length % 5 === 0) {
                 addLog(`Collecting ticks: ${tickStreamRef.current.length}/20`, 'info');
+                triggerAIAnalysis();
               }
             }
             if (data.msg_type === 'balance') {
@@ -226,9 +319,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               } else {
                 const sessionPnL = currentBal - sessionStartingBalance;
                 if (sessionPnL <= -3) {
-                  addLog(`CIRCUIT BREAKER: Session loss threshold ($3) reached. Pausing...`, 'error');
-                  updateDoc(doc(db, 'users', user.uid), { botActive: false });
+                  addLog(`CIRCUIT BREAKER: Session loss threshold ($3) reached. Deactivating...`, 'error');
                   setBotActive(false);
+                  updateDoc(doc(db, 'users', user.uid), { botActive: false });
                 }
               }
             }
@@ -249,98 +342,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         if (derivSocketRef.current && derivSocketRef.current.readyState === WebSocket.OPEN) derivSocketRef.current.close();
       };
     }
-  }, [derivActive, user, db, addLog, sessionStartingBalance]);
-
-  useEffect(() => {
-    if (!botActive || !derivActive || !user || !db) return;
-
-    const executionLoop = setInterval(async () => {
-      // 1. RE-CHECK STATUS AT START OF LOOP (Air-tight termination)
-      if (!botActiveRef.current) {
-        clearInterval(executionLoop);
-        return;
-      }
-
-      try {
-        if (derivSocketRef.current?.readyState !== WebSocket.OPEN) return;
-        
-        if (tickStreamRef.current.length < 20) {
-          addLog(`Enclave: Awaiting tick saturation (${tickStreamRef.current.length}/20)...`, "info");
-          return;
-        }
-
-        setIsAnalyzing(true);
-        
-        const contextData = marketData.map((item: any) => ({
-          currency: item.currency || item.symbol || '???',
-          price: item.price ?? item.currentPriceUSD ?? item.current_price ?? 0,
-          change24h: item.change24h ?? item.dailyChangePercent ?? item.price_change_percentage_24h ?? 0
-        }));
-
-        addLog("AI Neural Link: Analyzing R_100 Momentum Pattern...", "info");
-
-        const result = await analyzeMarketAndTrade({
-          userId: user.uid,
-          strategyType: botStrategy,
-          assets: assets.map(a => ({ currency: a.currency, amount: a.amount, fiatValue: a.fiatValueUSD })),
-          marketData: contextData,
-          riskTolerance: botRiskLevel,
-          allocationLimitUSD: botAllocation,
-          tickStream: tickStreamRef.current,
-        });
-
-        // 2. RE-CHECK STATUS AFTER ASYNC AI CALL (Prevents trading during analysis)
-        if (!botActiveRef.current) return;
-
-        if (result.actions && result.actions.length > 0) {
-          let signalFound = false;
-          // Thresholds calibrated for production action
-          const threshold = botRiskLevel === 'low' ? 60 : botRiskLevel === 'medium' ? 50 : 40;
-          
-          for (const action of result.actions) {
-            if (action.type === 'buy' && action.contractType && botStrategy === 'deriv_indices') {
-              signalFound = true;
-              if (action.confidence >= threshold) {
-                addLog(`ALPHA SIGNAL [${action.confidence}%]: Transmitting Fixed $1 Stake...`, 'info');
-                derivSocketRef.current.send(JSON.stringify({
-                  buy: 1,
-                  price: 1,
-                  parameters: {
-                    amount: 1,
-                    basis: 'stake',
-                    contract_type: action.contractType,
-                    underlying_symbol: 'R_100',
-                    currency: 'USD',
-                    duration: 5,
-                    duration_unit: 't'
-                  }
-                }));
-              } else {
-                addLog(`Signal Filtered: Confidence (${action.confidence}%) below threshold (${threshold}%).`, "warning");
-              }
-            }
-          }
-          if (!signalFound) {
-            addLog("Scanning for high-conviction breakout...", "info");
-          }
-        } else {
-          addLog("Strategy Feed: Market Neutral. No signal emitted.", "info");
-        }
-      } catch (e: any) {
-        if (botActiveRef.current) {
-          addLog(`AI PROCESSING EXCEPTION: ${e.message}`, 'error');
-          console.error("AI Logic Failure:", e);
-        }
-      } finally {
-        setIsAnalyzing(false);
-      }
-    }, 30000); 
-
-    return () => {
-      clearInterval(executionLoop);
-      addLog("STRATEGY AGENT DEACTIVATED", "warning");
-    };
-  }, [botActive, derivActive, botStrategy, botAllocation, botRiskLevel, user, db, assets, marketData, addLog]);
+  }, [derivActive, user, db, addLog, sessionStartingBalance, triggerAIAnalysis]);
 
   useEffect(() => {
     if (!db || !user) return;
@@ -418,9 +420,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, derivActive, derivBalance, isAnalyzing, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, generateNewWallet: async () => null, importPrivateKey: async () => {}, 
       updateBotSettings: (active, allocation, risk, strategy) => {
-        setBotActive(active); // IMMEDIATE LOCAL UPDATE for instant loop termination
+        setBotActive(active); 
         if (!user || !db) return;
         updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy });
+        if (!active) addLog("STRATEGY AGENT DEACTIVATED", "warning");
       },
       updateStockBotSettings: (active, allocation, risk) => {
         setStockBotActive(active);
