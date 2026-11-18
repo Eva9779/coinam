@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -99,7 +98,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // 1. HOISTED LOGGING UTILITIES (CRITICAL FIX FOR REFERENCE ERROR)
+  // 1. DEFINE LOG FUNCTIONS FIRST (Fixes ReferenceError)
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -136,7 +135,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const db = useFirestore();
   const derivSocketRef = useRef<WebSocket | null>(null);
 
-  // 3. DERIV PROTOCOL ENGINE (LOCKED APP ID & AUTHORIZED TOKEN)
+  // 3. DERIV PROTOCOL ENGINE
   useEffect(() => {
     if (derivActive && user && db) {
       const appId = '34ZL7gE0vCSMJZRVIazHV';
@@ -168,23 +167,21 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           if (data.error) {
             addLog(`Gateway Violation: ${data.error.message}`, 'error');
             if (data.error.code === 'InvalidAppID') {
-              addLog('Critical: Add your URL to the Redirect list in Deriv Dashboard.', 'warning');
+              addLog('Critical: Add your current URL to the "Redirect URL" list in Deriv dashboard.', 'warning');
             }
             return;
           }
 
           if (data.msg_type === 'authorize') {
             const accounts = data.authorize.account_list || [];
-            addLog(`Institutional Verified. Scanning ${accounts.length} linked endpoints...`, 'info');
+            addLog(`Authorized. Scanning ${accounts.length} linked endpoints...`, 'info');
             
-            // DISCOVER: Look for funded Real USD account
+            // DISCOVER: Lock onto Real account first, then Demo
             const realAccount = accounts.find((a: any) => !a.is_virtual && (a.currency === 'USD' || a.account_type === 'real'));
+            const activeAcc = realAccount || accounts[0];
             
-            if (realAccount) {
-              addLog(`REAL ACCOUNT SECURED: ${realAccount.loginid}`, 'success');
-              socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-            } else {
-              addLog(`Account Sync Gap: Funded CR account not found. Syncing demo balance...`, 'warning');
+            if (activeAcc) {
+              addLog(`SYNCED: ${activeAcc.loginid} [${activeAcc.is_virtual ? 'DEMO' : 'REAL'}]`, 'success');
               socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             }
           }
@@ -228,7 +225,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setIsAnalyzing(true);
       setTimeout(() => {
         setIsAnalyzing(false);
-        const profit = (Math.random() * 0.002) * botAllocation; // Institutional rebalance yield
+        const profit = (Math.random() * 0.002) * botAllocation;
         if (profit > 0.0001) {
           addLog(`ALPHA CAPTURE: Executing ${botStrategy.toUpperCase()} rebalance...`, 'info');
           setTimeout(() => {
