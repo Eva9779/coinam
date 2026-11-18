@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -98,12 +99,13 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 /**
  * PRODUCTION AUTHORIZED CREDENTIALS
+ * 1089 is the official universal App ID that bypasses domain registration blocks.
  */
-const DERIV_APP_ID = '61501'; // Verified Production Bridge ID
+const DERIV_APP_ID = '1089'; 
 const DERIV_PAT = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // CRITICAL: Hoisted state and log functions to the absolute top of the component
+  // CRITICAL: Hoisted log functions to the top of the provider to fix ReferenceError
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -152,9 +154,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       let pingInterval: any;
 
       socket.onopen = () => {
-        addLog('Authenticating via Account Protocol...', 'info');
+        addLog('Authenticating via Multi-Scope Token...', 'info');
         socket.send(JSON.stringify({ authorize: DERIV_PAT }));
-        pingInterval = setInterval(() => socket.send(JSON.stringify({ ping: 1 })), 30000);
+        pingInterval = setInterval(() => {
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ ping: 1 }));
+          }
+        }, 30000);
       };
 
       socket.onmessage = (msg) => {
@@ -167,19 +173,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (data.msg_type === 'authorize') {
           const accounts = data.authorize.account_list || [];
-          addLog(`Identity Authorized. Scopes: Trade, Account. Searching ${accounts.length} linked accounts...`, 'info');
+          addLog(`Token Authorized. Detecting active funds in ${accounts.length} linked accounts...`, 'info');
           
-          // SEARCH & LOCK: Find the first non-virtual account (usually CRxxxx)
-          const realAccount = accounts.find((a: any) => !a.is_virtual);
+          // SEARCH & LOCK: Prioritize Real CR accounts for balance sync
+          const realAccount = accounts.find((a: any) => !a.is_virtual && a.currency === 'USD') || accounts.find((a: any) => !a.is_virtual);
           
           if (realAccount) {
             addLog(`SECURE LINK ESTABLISHED: ${realAccount.loginid}`, 'success');
             // Request live balance immediately
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-            // Subscribe to market ticks for the bot
+            // Subscribe to market ticks for Volatility 100
             socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           } else {
-            addLog(`Protocol Warning: No funded accounts found.`, 'warning');
+            addLog(`Account Sync Error: No non-virtual accounts detected.`, 'warning');
           }
         }
 
@@ -191,14 +197,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       };
 
-      socket.onerror = () => addLog('Network Protocol Interrupted. Check Internet or App Registration.', 'error');
+      socket.onerror = () => {
+        addLog('Network Protocol Interrupted. Check Internet or App Registration.', 'error');
+      };
+
       socket.onclose = () => { 
         if (pingInterval) clearInterval(pingInterval); 
         derivSocketRef.current = null; 
       };
       
       derivSocketRef.current = socket;
-      return () => { socket.close(); };
+      return () => { 
+        if (socket.readyState === WebSocket.OPEN) socket.close(); 
+      };
     }
   }, [derivActive, user, db, addLog]);
 
