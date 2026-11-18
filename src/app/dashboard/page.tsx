@@ -147,7 +147,7 @@ export default function Dashboard() {
                   )}
                   {!item?.image && (
                     <div className="h-10 w-10 rounded-full bg-secondary/10 border-2 border-secondary/20 flex items-center justify-center font-black text-[10px] text-secondary uppercase">
-                      { symbol?.slice(0, 3) || '???' }
+                      { symbol?.slice?.(0, 3) || '???' }
                     </div>
                   )}
                   <div>

@@ -78,20 +78,20 @@ const tradingBotPrompt = ai.definePrompt({
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
   prompt: `You are the Senior Quantitative Strategist for Coin A,M user {{{userId}}}. 
-      MISSION: Maximize alpha while maintaining a zero-loss tolerance for the user's principal balance.
+      MISSION: Capture the START of trends in the R_100 index.
       
       DERIV R_100 ANALYSIS PROTOCOL:
       1. TICK STREAM INTELLIGENCE: Analyzing last 20 ticks: {{{tickStream}}}.
-      2. NOISE FILTER: A single tick surge is NOT a trend. You must identify sustained momentum over at least 3-5 consecutive ticks.
-      3. VOLATILITY RANGE: If the difference between the high and low of the last 10 ticks is less than 0.1, the market is CHOPPY. Output 'hold'.
-      4. TREND FATIGUE: Do not issue a 'buy' if the price has already surged significantly and is likely to revert. Look for the START of a trend.
-      5. CONTRACT SELECTION: For Deriv Synthetic Indices:
-         - Use contractType: 'CALL' only for strong upward breakouts.
-         - Use contractType: 'PUT' only for strong downward collapses.
+      2. MOMENTUM DETECTION: Identify Sustained Breakouts (at least 3-4 consecutive ticks in one direction).
+      3. ENTRY TIMING: Prioritize signals at the START of a move. 
+      4. TREND FATIGUE: Avoid entering a CALL if the last 5 ticks have already surged more than 0.5 points. Look for reversals.
       
       STRICT EXECUTION RULES:
-      1. HIGH CONFIDENCE ONLY: Only issue a 'buy' action if your calculated probability of a win is > 85%.
-      2. ZERO TRAP: If momentum is flat, choppy, or reversing, you MUST output a 'hold' action. It is better to skip a win than to take a loss.`,
+      1. DECISIVE ACTION: If a clear direction is established over the last 3-5 ticks, issue a 'buy' with confidence > 80%.
+      2. VOLATILITY PROTECTION: If the difference between high/low in the last 10 ticks is < 0.05, the market is CHOPPY. Output 'hold'.
+      3. CONTRACT SELECTION: 
+         - Use contractType: 'CALL' for upward breakouts.
+         - Use contractType: 'PUT' for downward breakdowns.`,
 });
 
 const tradingBotFlow = ai.defineFlow(

@@ -156,7 +156,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           let accountId = '';
           if (realAcc) {
             accountId = realAcc.id || realAcc.account_id;
-          } else {
+          }
+
+          if (!accountId) {
             addLog(`REAL account not found. Provisioning Production Identity...`, 'info');
             const createRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
               method: 'POST',
@@ -261,8 +263,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (result.actions && result.actions.length > 0) {
           let signalFound = false;
-          // CALIBRATED THRESHOLDS: 85/75/65 for higher win probability
-          const threshold = botRiskLevel === 'low' ? 85 : botRiskLevel === 'medium' ? 75 : 65;
+          // CALIBRATED FOR ACTION: 80/70/60 thresholds
+          const threshold = botRiskLevel === 'low' ? 80 : botRiskLevel === 'medium' ? 70 : 60;
           
           for (const action of result.actions) {
             if (action.type === 'buy' && action.contractType && botStrategy === 'deriv_indices') {
