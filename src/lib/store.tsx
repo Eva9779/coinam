@@ -100,7 +100,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // --- PRODUCTION HOISTED LOGGING ---
+  // --- HOISTED LOGGING (CRITICAL: DEFINED AT THE TOP) ---
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -137,13 +137,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
-  // --- DERIV PRODUCTION BRIDGE ---
+  // --- DERIV LIVE PRODUCTION BRIDGE ---
   useEffect(() => {
     if (derivActive && user && db) {
       const appId = '34ZL7gE0vCSMJZRVIazHV';
       const pat = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
       
-      addLog(`Connecting Production Bridge [AppID: ${appId}]...`, 'info');
+      addLog(`Initializing Secure Bridge [AppID: ${appId}]...`, 'info');
       
       const socketUrl = `wss://ws.binaryws.com/websockets/v3?app_id=${appId}`;
       let socket: WebSocket | null = null;
@@ -153,7 +153,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         socket = new WebSocket(socketUrl);
         
         socket.onopen = () => {
-          addLog('Handshake secure. Authorizing Trade & Account scopes...', 'info');
+          addLog('Handshake secure. Sending production authorization...', 'info');
           socket?.send(JSON.stringify({ authorize: pat }));
           
           pingInterval = setInterval(() => {
@@ -167,15 +167,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const data = JSON.parse(msg.data);
           
           if (data.error) {
-            addLog(`Network Rejection: ${data.error.message}. Ensure URL is whitelisted in Deriv Dashboard.`, 'error');
+            addLog(`Network Protocol Interrupted. Verify App Registration.`, 'error');
+            console.error('Deriv Socket Error:', data.error);
             return;
           }
 
           if (data.msg_type === 'authorize') {
-            addLog(`Identity Verified. Real account discovery active.`, 'success');
-            // Subscribe to real account ticks (R_100 for Volatility 100)
-            socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
+            addLog(`Identity Verified: ${data.authorize.loginid} [${data.authorize.currency}]. Real balance sync active.`, 'success');
+            // Request balance and start live tick stream
             socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
+            socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           }
 
           if (data.msg_type === 'tick') {
@@ -188,13 +189,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (data.msg_type === 'buy') {
-            addLog(`LIVE TRADE EXECUTED: Contract ${data.buy.contract_id} opened.`, 'success');
+            addLog(`LIVE TRADE EXECUTED: Order ID ${data.buy.contract_id} processed on Mainnet.`, 'success');
           }
         };
 
         socket.onclose = () => {
           if (pingInterval) clearInterval(pingInterval);
-          addLog('Production Bridge Disconnected.', 'warning');
+          addLog('Production Bridge Offline.', 'warning');
         };
 
         derivSocketRef.current = socket;
@@ -211,9 +212,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
-  // --- LIVE PRODUCTION EXECUTION ENGINE ---
+  // --- LIVE PRODUCTION EXECUTION ENGINE (NO SIMULATION) ---
   useEffect(() => {
-    if (!botActive || !derivActive || !user) return;
+    if (!botActive || !derivActive || !user || !db) return;
 
     const executionLoop = setInterval(async () => {
       if (derivSocketRef.current?.readyState !== WebSocket.OPEN) return;
@@ -236,7 +237,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               addLog(`AI SIGNAL: ${action.reasoning} [Conf: ${action.confidence}%]`, 'info');
               
               if (action.confidence > 90) {
-                // TRANSMIT REAL ORDER
+                addLog(`Executing institutional rebalance on Deriv...`, 'success');
+                // TRANSMIT REAL PRODUCTION ORDER
                 derivSocketRef.current.send(JSON.stringify({
                   buy: 1,
                   price: botAllocation,
@@ -263,10 +265,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       } finally {
         setIsAnalyzing(false);
       }
-    }, 45000); // 45s execution cycle for stability
+    }, 45000); 
 
     return () => clearInterval(executionLoop);
-  }, [botActive, derivActive, botStrategy, botAllocation, botRiskLevel, user, assets, marketData, addLog]);
+  }, [botActive, derivActive, botStrategy, botAllocation, botRiskLevel, user, db, assets, marketData, addLog]);
 
   // --- FIRESTORE PRODUCTION SYNC ---
   useEffect(() => {
