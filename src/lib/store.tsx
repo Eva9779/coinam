@@ -101,7 +101,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // --- HOISTED LOGGING UTILITIES (CRITICAL FIX FOR REFERENCEERROR) ---
+  // --- HOISTED LOGGING UTILITIES ---
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -138,11 +138,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
-  // --- LIVE DERIV PRODUCTION BRIDGE (ALPHANUMERIC APP ID) ---
+  // --- LIVE DERIV PRODUCTION BRIDGE ---
   useEffect(() => {
     if (derivActive && user && db) {
       const appId = '34ZRxvOFBnNAdQsr1T3bF'; 
-      const pat = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
+      const token = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
       
       addLog(`Initializing Secure Bridge [AppID: ${appId}]...`, 'info');
       
@@ -154,8 +154,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         socket = new WebSocket(socketUrl);
         
         socket.onopen = () => {
-          addLog('Handshake secure. Authorizing production token...', 'info');
-          socket?.send(JSON.stringify({ authorize: pat }));
+          addLog('Handshake secure. Transmitting authorization...', 'info');
+          socket?.send(JSON.stringify({ authorize: token }));
           
           pingInterval = setInterval(() => {
             if (socket?.readyState === WebSocket.OPEN) {
@@ -173,7 +173,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (data.msg_type === 'authorize') {
-            addLog(`Identity Verified. Syncing real account...`, 'success');
+            addLog(`Identity Verified. Syncing Real Account balance...`, 'success');
             socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           }
@@ -193,9 +193,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
         };
 
+        socket.onerror = (err) => {
+          addLog('Socket Error: Connection failed. Verify App Configuration.', 'error');
+        };
+
         socket.onclose = () => {
           if (pingInterval) clearInterval(pingInterval);
-          addLog(`Production Bridge Offline. Check Redirect URL Whitelist.`, 'warning');
+          addLog(`Production Bridge Offline. Ensure URL whitelisting is active.`, 'warning');
         };
 
         derivSocketRef.current = socket;
@@ -210,7 +214,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
-  // --- LIVE PRODUCTION EXECUTION ENGINE (NO SIMULATION) ---
+  // --- LIVE PRODUCTION EXECUTION ENGINE ---
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
