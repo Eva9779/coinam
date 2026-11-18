@@ -173,6 +173,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
+  const addStockLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    setStockBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
+  }, []);
+
   useEffect(() => {
     if (derivActive && !derivSocketRef.current && user && db) {
       const appId = 1089;
