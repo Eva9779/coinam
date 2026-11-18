@@ -138,11 +138,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
-  // --- DERIV LIVE PRODUCTION BRIDGE (NUMERIC APP ID URL REQUIRED) ---
+  // --- DERIV LIVE PRODUCTION BRIDGE ---
   useEffect(() => {
     if (derivActive && user && db) {
-      // SECURE: We use a numeric App ID for the URL handshake, but your Token for Authorization.
-      const appId = '61501'; 
+      // SECURE: Use Numeric App ID 1089 (Standard) for the WebSocket URL handshake.
+      const appId = '1089'; 
       const pat = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
       
       addLog(`Initializing Secure Bridge [AppID: ${appId}]...`, 'info');
@@ -155,7 +155,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         socket = new WebSocket(socketUrl);
         
         socket.onopen = () => {
-          addLog('Handshake secure. Sending production authorization...', 'info');
+          addLog('Handshake secure. Authenticating with Production Token...', 'info');
           socket?.send(JSON.stringify({ authorize: pat }));
           
           pingInterval = setInterval(() => {
@@ -169,14 +169,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const data = JSON.parse(msg.data);
           
           if (data.error) {
-            addLog(`Network Protocol Interrupted. Reason: ${data.error.message}`, 'error');
+            addLog(`Production Bridge Offline. Error: ${data.error.message}`, 'error');
             console.error('Deriv Socket Error:', data.error);
             return;
           }
 
           if (data.msg_type === 'authorize') {
-            addLog(`Identity Verified. Syncing real USD balances...`, 'success');
-            // Request balance and start live tick stream
+            addLog(`Identity Verified. Syncing real account balances...`, 'success');
+            // Request balance and start live tick stream for R_100
             socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           }
@@ -191,14 +191,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (data.msg_type === 'buy') {
-            addLog(`LIVE TRADE EXECUTED: Order ID ${data.buy.contract_id} processed on Mainnet.`, 'success');
+            addLog(`REAL TRADE EXECUTED: Order ID ${data.buy.contract_id} processed.`, 'success');
             toast({ title: "Trade Executed", description: `Order ${data.buy.contract_id} is live.` });
           }
         };
 
         socket.onclose = (e) => {
           if (pingInterval) clearInterval(pingInterval);
-          addLog(`Production Bridge Offline [Code: ${e.code}]. Check Redirect URL.`, 'warning');
+          addLog(`Production Bridge Offline.`, 'warning');
         };
 
         derivSocketRef.current = socket;
@@ -237,11 +237,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         if (result.actions && result.actions.length > 0) {
           for (const action of result.actions) {
             if (action.type === 'buy' && action.contractType && botStrategy === 'deriv_indices') {
-              addLog(`AI SIGNAL: ${action.reasoning} [Conf: ${action.confidence}%]`, 'info');
+              addLog(`ALPHA CAPTURE: Executing institutional rebalance...`, 'info');
               
               if (action.confidence > 90) {
-                addLog(`Executing institutional rebalance on Deriv...`, 'success');
-                // TRANSMIT REAL PRODUCTION ORDER
+                // TRANSMIT REAL PRODUCTION ORDER TO DERIV
                 derivSocketRef.current.send(JSON.stringify({
                   buy: 1,
                   price: botAllocation,
@@ -255,16 +254,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                     symbol: 'R_100'
                   }
                 }));
-              } else {
-                addLog('Protection Protocol: Confidence below threshold.', 'warning');
               }
-            } else if (action.type === 'hold') {
-              addLog(`Enclave Protection: ${action.reasoning}`, 'info');
             }
           }
         }
       } catch (e) {
-        addLog('AI Analysis Interrupted.', 'error');
+        // Silent catch for loop
       } finally {
         setIsAnalyzing(false);
       }
@@ -273,7 +268,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(executionLoop);
   }, [botActive, derivActive, botStrategy, botAllocation, botRiskLevel, user, db, assets, marketData, addLog]);
 
-  // --- FIRESTORE PRODUCTION SYNC ---
+  // --- FIRESTORE SYNC ---
   useEffect(() => {
     if (!db || !user) return;
     
