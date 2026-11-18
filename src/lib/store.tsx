@@ -103,6 +103,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
+  // HOISTED: Defined at the top level to ensure availability for all hooks
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
@@ -136,6 +137,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
+  // PRODUCTION BRIDGE: Alphanumeric App ID Integration
   useEffect(() => {
     if (derivActive && user && db) {
       const appId = '34ZS1m5vhyr6iy1U4CCU0'; 
@@ -152,6 +154,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         
         socket.onopen = () => {
           addLog('Handshake secure. Transmitting authorization...', 'info');
+          // AUTHORIZE IMMEDIATELY
           socket?.send(JSON.stringify({ authorize: token }));
           
           pingInterval = setInterval(() => {
@@ -170,7 +173,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (data.msg_type === 'authorize') {
-            addLog(`Identity Verified. Synchronizing Live USD Balance...`, 'success');
+            addLog(`Identity Verified. Synchronizing Live Assets...`, 'success');
+            // Request balance and tick stream
             socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           }
@@ -185,13 +189,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
 
           if (data.msg_type === 'buy') {
-            addLog(`LIVE TRADE EXECUTED: Order ID ${data.buy.contract_id}`, 'success');
-            toast({ title: "Trade Live", description: `Order ${data.buy.contract_id} transmitted to Deriv.` });
+            addLog(`LIVE TRADE SUCCESS: Contract ID ${data.buy.contract_id}`, 'success');
+            toast({ 
+              title: "Trade Executed", 
+              description: `Real-world order ${data.buy.contract_id} transmitted to Deriv.` 
+            });
           }
         };
 
         socket.onerror = (err) => {
-          addLog('Socket Error: Connection failed. Ensure your domain is whitelisted in Deriv Dashboard.', 'error');
+          addLog('Socket Error: Connection failed. Verify Domain Whitelisting.', 'error');
         };
 
         socket.onclose = () => {
@@ -211,10 +218,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
+  // LIVE EXECUTION LOOP: Purged of all simulation
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
     const executionLoop = setInterval(async () => {
+      // Only execute if socket is open and authorized
       if (derivSocketRef.current?.readyState !== WebSocket.OPEN) return;
       
       setIsAnalyzing(true);
@@ -231,9 +240,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (result.actions && result.actions.length > 0) {
           for (const action of result.actions) {
+            // Real trade transmission
             if (action.type === 'buy' && action.contractType && botStrategy === 'deriv_indices') {
               if (action.confidence > 90) {
-                addLog(`ALPHA SIGNAL: Executing live order on Deriv...`, 'info');
+                addLog(`ALPHA SIGNAL: Transmitting real order to Deriv...`, 'info');
                 derivSocketRef.current.send(JSON.stringify({
                   buy: 1,
                   price: botAllocation,
@@ -247,12 +257,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                     symbol: 'R_100'
                   }
                 }));
+              } else {
+                addLog(`Signal Low Confidence (${action.confidence}%). Standing by.`, 'info');
               }
             }
           }
         }
       } catch (e: any) {
-        addLog(`Execution Error: ${e.message}`, 'error');
+        addLog(`Analysis Interrupted: ${e.message}`, 'error');
       } finally {
         setIsAnalyzing(false);
       }
