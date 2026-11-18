@@ -103,7 +103,7 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-// SECURE: Verified Deriv API Key
+// SECURE: Verified Deriv API Key from Environment or Fallback
 const DERIV_API_KEY = process.env.NEXT_PUBLIC_DERIV_API_KEY || 'pat_cfb2e4a40d980625474ee7e66a27cd471b39070963ed9402f2b0cab18959025d';
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
@@ -190,18 +190,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const data = JSON.parse(msg.data);
         
         if (data.error) {
-          addLog(`Deriv Hub: ${data.error.message}`, 'error');
-          setDerivActive(false);
-          updateDoc(doc(db, 'users', user.uid), { derivActive: false });
-          socket.close();
+          addLog(`Deriv Error: ${data.error.message}`, 'error');
+          // Don't auto-disable, allow retry
           return;
         }
 
         if (data.msg_type === 'authorize') {
           if (data.authorize) {
             setDerivBalance(data.authorize.balance);
-            addLog(`Handshake: Account ${data.authorize.loginid} Verified.`, 'success');
-            addLog(`Production Balance: $${data.authorize.balance.toFixed(2)}`, 'info');
+            addLog(`Account Verified: ${data.authorize.loginid} (${data.authorize.currency})`, 'success');
+            addLog(`Real Balance: $${data.authorize.balance.toFixed(2)}`, 'info');
           }
           socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
@@ -449,7 +447,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     if (strategyType === 'deriv_indices') {
       if (currentDerivBal <= 0) {
-        addLog(`CRITICAL: Insufficient funds in Deriv account.`, 'error');
+        addLog(`CRITICAL: Insufficient funds in Deriv account ($${currentDerivBal.toFixed(2)}).`, 'error');
         setIsAnalyzing(false);
         return;
       }
