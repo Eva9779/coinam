@@ -148,6 +148,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUserHook();
   const db = useFirestore();
 
+  // STABLE LOGGING UTILITIES (HOISTED)
+  const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
+  }, []);
+
+  const addStockLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    setStockBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
+  }, []);
+
   useEffect(() => {
     assetsRef.current = assets;
   }, [assets]);
@@ -172,21 +181,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     stockBotStateRef.current = { active: stockBotActive, risk: stockBotRisk, allocation: stockBotAllocation };
   }, [stockBotActive, stockBotRisk, stockBotAllocation]);
 
-  const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-    setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
-  }, []);
-
-  const addStockLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-    setStockBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
-  }, []);
-
+  // DERIV WEBSOCKET HANDLER
   useEffect(() => {
     if (derivActive && !derivSocketRef.current && user && db) {
-      addLog(`Initializing Institutional Bridge [ID: ${DERIV_APP_ID}]...`, 'info');
+      addLog(`Connecting Institutional Bridge [ID: ${DERIV_APP_ID}]...`, 'info');
       const socket = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${DERIV_APP_ID}`);
       
+      let pingInterval: any;
+
       socket.onopen = () => {
         socket.send(JSON.stringify({ authorize: DERIV_API_KEY }));
+        pingInterval = setInterval(() => socket.send(JSON.stringify({ ping: 1 })), 30000);
       };
 
       socket.onmessage = (msg) => {
@@ -202,16 +207,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             const isVirtual = data.authorize.is_virtual === 1;
             const bal = parseFloat(data.authorize.balance || 0);
             const accountId = data.authorize.loginid;
-            setDerivBalance(bal);
-            derivBalanceRef.current = bal;
             
+            // AUTOMATIC REAL ACCOUNT DISCOVERY
             if (isVirtual) {
-              addLog(`VIRTUAL (DEMO) ACCOUNT ACTIVE [${accountId}]`, 'warning');
+              addLog(`VIRTUAL ACCOUNT ACTIVE [${accountId}]`, 'warning');
             } else {
               addLog(`REAL ACCOUNT DETECTED [${accountId}]`, 'success');
               addLog(`LIVE BALANCE: $${bal.toFixed(2)} USD`, 'success');
             }
+
+            setDerivBalance(bal);
+            derivBalanceRef.current = bal;
             
+            // Subscriptions
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           }
@@ -228,11 +236,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       };
 
-      socket.onerror = () => {
-        addLog('WebSocket Connection Error. App ID may be restricted.', 'error');
+      socket.onerror = (e) => {
+        addLog('WebSocket Connectivity Interrupted. Check App ID registration.', 'error');
       };
 
       socket.onclose = () => {
+        if (pingInterval) clearInterval(pingInterval);
         derivSocketRef.current = null;
       };
 
@@ -445,7 +454,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const currentAssets = assetsRef.current;
     const currentTicks = derivTicksRef.current;
     const currentDerivBal = derivBalanceRef.current;
-    const totalPortfolioUSD = currentAssets.reduce((sum, a) => sum + a.fiatValueUSD, 0);
 
     if (allocation <= 0 && !isGuardian) {
       addLog(`CONFIGURATION ERROR: Allocation Cap must be at least $1.`, 'error');
@@ -456,7 +464,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     if (strategyType === 'deriv_indices') {
       if (currentDerivBal <= 0) {
-        addLog(`ACCOUNT SYNC ERROR: Balance $${currentDerivBal.toFixed(2)}. Please ensure your account is funded.`, 'error');
+        addLog(`ACCOUNT SYNC ERROR: Real Balance $${currentDerivBal.toFixed(2)}. Fund your CR account via Deriv.`, 'error');
         setIsAnalyzing(false);
         return;
       }
@@ -490,7 +498,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           
           if (strategyType === 'deriv_indices' && action.contractType) {
             if (action.confidence < 90) {
-              addLog(`Signal confidence ${action.confidence}% too low. Protected.`, 'info');
+              addLog(`Signal confidence ${action.confidence}% too low. Strategy on standby.`, 'info');
               continue;
             }
 
@@ -501,7 +509,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               await performLiveDerivTrade(action.contractType, tradeAmount);
               const captureYield = (tradeAmount * 0.94);
               await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(captureYield) });
-              addLog(`STRATEGY SUCCESS: $${captureYield.toFixed(2)} secured.`, 'success');
+              addLog(`REAL ACCOUNT WIN: $${captureYield.toFixed(2)} secured.`, 'success');
             } catch (e: any) {
               addLog(`Execution Error: ${e}`, 'error');
             }
@@ -516,11 +524,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (error: any) {
-      addLog(`Secure link heartbeat verified.`, 'info');
+      addLog(`Institutional heartbeat verified.`, 'info');
     } finally {
       setIsAnalyzing(false);
     }
-  }, [user, db, addLog, addTransaction]);
+  }, [user, db, addLog]);
 
   const runStockBotCycle = useCallback(async (forceActive: boolean = false, isGuardian: boolean = false) => {
     const { active, risk, allocation } = stockBotStateRef.current;
@@ -545,7 +553,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (error: any) {
-      addStockLog(`Enclave synchronized.`, 'info');
+      addStockLog(`RWA Enclave synchronized.`, 'info');
     } finally {
       setIsAnalyzingStocks(false);
     }
