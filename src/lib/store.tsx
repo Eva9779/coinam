@@ -163,14 +163,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
              throw new Error(`HTTP ${accountsRes.status}`);
           }
 
-          const accountsData = await accountsRes.json();
+          const getJson = await accountsRes.json();
+          // DEBUG: Log raw JSON to see exact keys
+          console.log('GET Accounts Raw JSON:', getJson);
+          
           let accountId = '';
+          const accounts = getJson.data?.accounts || getJson.accounts || [];
 
           // Find the REAL Options account strictly
-          const realAcc = accountsData.accounts?.find((a: any) => a.account_type === 'real');
+          const realAcc = accounts.find((a: any) => a.account_type === 'real');
           
           if (realAcc) {
-            accountId = realAcc.account_id || realAcc.id;
+            accountId = realAcc.id || realAcc.account_id;
             addLog(`Real Production Identity Resolved: ${accountId}`, 'success');
           } else {
             // 2. If no real account, create one with EXACT payload
@@ -189,14 +193,24 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               })
             });
             
+            const postJson = await createRes.json();
+            // DEBUG: Log raw JSON for creation
+            console.log('POST Account Creation Raw JSON:', postJson);
+
             if (!createRes.ok) {
-              const errBody = await createRes.text();
-              addLog(`Real Account Provisioning Failed [HTTP ${createRes.status}]: ${errBody}`, 'error');
+              addLog(`Real Account Provisioning Failed [HTTP ${createRes.status}]: ${JSON.stringify(postJson)}`, 'error');
               throw new Error(`Creation Error ${createRes.status}`);
             }
-            const createData = await createRes.json();
-            accountId = createData.account_id || createData.id;
+
+            // Correctly extract ID from nested data object
+            accountId = postJson.data?.id || postJson.data?.account_id || postJson.id || postJson.account_id;
             addLog(`New REAL Production Account Provisioned: ${accountId}`, 'success');
+          }
+
+          // CRITICAL: Stop immediately if accountId is still undefined
+          if (!accountId || accountId === 'undefined') {
+            addLog('Critical Error: Resolved Account ID is invalid or undefined. Aborting session request.', 'error');
+            return;
           }
 
           // 3. Pass REAL account_id to /otp for WebSocket URL
@@ -217,7 +231,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
 
           const otpData = await otpResponse.json();
-          const wsUrl = otpData.url;
+          const wsUrl = otpData.data?.url || otpData.url;
 
           if (!wsUrl) throw new Error('No WebSocket URL returned in REAL session payload.');
 
