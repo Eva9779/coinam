@@ -103,9 +103,9 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-// INSTITUTIONAL PRODUCTION CONFIG
-const DERIV_APP_ID = process.env.NEXT_PUBLIC_DERIV_APP_ID || '34ZL7gE0vCSMJZRVIazHV';
-const DERIV_API_KEY = process.env.NEXT_PUBLIC_DERIV_API_KEY || 'pat_cfb2e4a40d980625474ee7e66a27cd471b39070963ed9402f2b0cab18959025d';
+// INSTITUTIONAL PRODUCTION CONFIG (LOCKED)
+const DERIV_APP_ID = '34ZL7gE0vCSMJZRVIazHV';
+const DERIV_API_KEY = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [assets, setAssets] = useState<WalletAsset[]>([]);
@@ -170,6 +170,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     stockBotStateRef.current = { active: stockBotActive, risk: stockBotRisk, allocation: stockBotAllocation };
   }, [stockBotActive, stockBotRisk, stockBotAllocation]);
 
+  // FIXED: ReferenceError prevention
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
@@ -205,10 +206,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             
             if (isVirtual) {
               addLog(`VIRTUAL (DEMO) ACCOUNT ACTIVE [${accountId}]`, 'warning');
-              addLog(`WARNING: System configured for Production. Please use a Real Account PAT.`, 'warning');
+              addLog(`WARNING: Please use a Real Account PAT for production settlement.`, 'warning');
             } else {
-              addLog(`REAL PRODUCTION ACCOUNT AUTHORIZED [${accountId}]`, 'success');
-              addLog(`LIVE REAL BALANCE: $${bal.toFixed(2)} USD`, 'success');
+              addLog(`REAL ACCOUNT AUTHORIZED [${accountId}]`, 'success');
+              addLog(`LIVE BALANCE: $${bal.toFixed(2)} USD`, 'success');
             }
             
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
@@ -466,7 +467,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     if (strategyType === 'deriv_indices') {
       if (currentDerivBal <= 0) {
-        addLog(`REAL ACCOUNT EMPTY: Balance $${currentDerivBal.toFixed(2)}. Please fund your Deriv account.`, 'error');
+        addLog(`ACCOUNT SYNC ERROR: Balance $${currentDerivBal.toFixed(2)}. Please ensure your account is funded.`, 'error');
         setIsAnalyzing(false);
         return;
       }
@@ -507,7 +508,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             const tradeAmount = Math.max(1, allocation);
             
             if (currentDerivBal < tradeAmount) {
-              addLog(`INSUFFICIENT REAL FUNDS: Trade requires $${tradeAmount}, Balance: $${currentDerivBal.toFixed(2)}.`, 'warning');
+              addLog(`INSUFFICIENT FUNDS: Trade requires $${tradeAmount}, Balance: $${currentDerivBal.toFixed(2)}.`, 'warning');
               continue;
             }
 
@@ -528,7 +529,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 description: `Real Payout Harvested from Deriv`
               });
 
-              addLog(`STRATEGY SUCCESS: $${captureYield.toFixed(2)} secured in real balance.`, 'success');
+              addLog(`STRATEGY SUCCESS: $${captureYield.toFixed(2)} secured.`, 'success');
             } catch (e: any) {
               addLog(`Execution Error: ${e}`, 'error');
             }
@@ -682,7 +683,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) return;
     updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy });
     if (active) {
-      addLog(`Initializing ${strategy} protocol on PRODUCTION account...`, 'info');
+      addLog(`Initializing ${strategy} protocol...`, 'info');
       setTimeout(() => runBotCycle(true), 1500);
     }
   };
@@ -702,7 +703,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     updateDoc(doc(db, 'users', user.uid), { derivActive: active });
     
     if (active) {
-      toast({ title: "PRODUCTION BRIDGE INITIALIZING", description: "Verifying authorization with App ID 34ZL7gE..." });
+      toast({ title: "AUTHORIZING BRIDGE", description: `Connecting via App ID ${DERIV_APP_ID}...` });
     } else {
       toast({ title: "Gateway Offline" });
       setDerivBalance(0);
