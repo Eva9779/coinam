@@ -137,8 +137,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const tickStreamRef = useRef<number[]>([]);
   
   // Circuit Breaker State
-  const [consecutiveLosses, setConsecutiveLosses] = useState(0);
   const [sessionStartingBalance, setSessionStartingBalance] = useState<number | null>(null);
+
+  // Safety Ref to ensure immediate termination inside async callbacks
+  const botActiveRef = useRef(false);
+  useEffect(() => {
+    botActiveRef.current = botActive;
+  }, [botActive]);
 
   useEffect(() => {
     if (derivActive && user && db) {
@@ -208,8 +213,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             if (data.msg_type === 'tick') {
               const price = data.tick.quote;
               tickStreamRef.current = [...tickStreamRef.current.slice(-19), price];
-              // Telemetry: Log tick collection progress periodically
-              if (tickStreamRef.current.length % 5 === 0 || tickStreamRef.current.length === 20) {
+              if (tickStreamRef.current.length % 5 === 0 && botActiveRef.current) {
                 addLog(`Collecting ticks: ${tickStreamRef.current.length}/20`, 'info');
               }
             }
@@ -221,10 +225,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 setSessionStartingBalance(currentBal);
               } else {
                 const sessionPnL = currentBal - sessionStartingBalance;
-                // Safety Breaker: Drop of $3 USD
                 if (sessionPnL <= -3) {
                   addLog(`CIRCUIT BREAKER: Session loss threshold ($3) reached. Pausing...`, 'error');
                   updateDoc(doc(db, 'users', user.uid), { botActive: false });
+                  setBotActive(false);
                 }
               }
             }
@@ -245,13 +249,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         if (derivSocketRef.current && derivSocketRef.current.readyState === WebSocket.OPEN) derivSocketRef.current.close();
       };
     }
-  }, [derivActive, user, db, addLog]);
+  }, [derivActive, user, db, addLog, sessionStartingBalance]);
 
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
     const executionLoop = setInterval(async () => {
-      // 1. Tick-to-AI Trigger with Try/Catch
+      // 1. RE-CHECK STATUS AT START OF LOOP (Air-tight termination)
+      if (!botActiveRef.current) {
+        clearInterval(executionLoop);
+        return;
+      }
+
       try {
         if (derivSocketRef.current?.readyState !== WebSocket.OPEN) return;
         
@@ -280,16 +289,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           tickStream: tickStreamRef.current,
         });
 
+        // 2. RE-CHECK STATUS AFTER ASYNC AI CALL (Prevents trading during analysis)
+        if (!botActiveRef.current) return;
+
         if (result.actions && result.actions.length > 0) {
           let signalFound = false;
-          // Action Thresholds: 60/50/40 for immediate execution
+          // Thresholds calibrated for production action
           const threshold = botRiskLevel === 'low' ? 60 : botRiskLevel === 'medium' ? 50 : 40;
           
           for (const action of result.actions) {
             if (action.type === 'buy' && action.contractType && botStrategy === 'deriv_indices') {
               signalFound = true;
               if (action.confidence >= threshold) {
-                // SAFETY: Stake fixed at $1 USD per trade (No Martingale)
                 addLog(`ALPHA SIGNAL [${action.confidence}%]: Transmitting Fixed $1 Stake...`, 'info');
                 derivSocketRef.current.send(JSON.stringify({
                   buy: 1,
@@ -316,14 +327,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           addLog("Strategy Feed: Market Neutral. No signal emitted.", "info");
         }
       } catch (e: any) {
-        addLog(`AI PROCESSING EXCEPTION: ${e.message}`, 'error');
-        console.error("AI Logic Failure:", e);
+        if (botActiveRef.current) {
+          addLog(`AI PROCESSING EXCEPTION: ${e.message}`, 'error');
+          console.error("AI Logic Failure:", e);
+        }
       } finally {
         setIsAnalyzing(false);
       }
     }, 30000); 
 
-    return () => clearInterval(executionLoop);
+    return () => {
+      clearInterval(executionLoop);
+      addLog("STRATEGY AGENT DEACTIVATED", "warning");
+    };
   }, [botActive, derivActive, botStrategy, botAllocation, botRiskLevel, user, db, assets, marketData, addLog]);
 
   useEffect(() => {
@@ -402,14 +418,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, derivActive, derivBalance, isAnalyzing, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, generateNewWallet: async () => null, importPrivateKey: async () => {}, 
       updateBotSettings: (active, allocation, risk, strategy) => {
+        setBotActive(active); // IMMEDIATE LOCAL UPDATE for instant loop termination
         if (!user || !db) return;
         updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy });
       },
       updateStockBotSettings: (active, allocation, risk) => {
+        setStockBotActive(active);
         if (!user || !db) return;
         updateDoc(doc(db, 'users', user.uid), { stockBotActive: active, stockBotAllocation: allocation, stockBotRisk: risk });
       },
       updateDerivSettings: (active) => {
+        setDerivActive(active);
         if (!user || !db) return;
         updateDoc(doc(db, 'users', user.uid), { derivActive: active });
       },
