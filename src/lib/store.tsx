@@ -98,13 +98,13 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 /**
- * PRODUCTION AUTHORIZED CREDENTIALS
+ * INSTITUTIONAL AUTHORIZED CREDENTIALS
  */
-const DERIV_APP_ID = '1089'; 
+const DERIV_APP_ID = '34ZL7gE0vCSMJZRVIazHV'; 
 const DERIV_PAT = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // CRITICAL FIX: Hoist state and callbacks to the top level of the component scope
+  // CRITICAL FIX: Hoist state and callbacks to the top level of the provider scope
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -153,7 +153,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       let pingInterval: any;
 
       socket.onopen = () => {
-        addLog('Authenticating via Multi-Scope Token...', 'info');
+        addLog('Authenticating via Account & Trade Token...', 'info');
         socket.send(JSON.stringify({ authorize: DERIV_PAT }));
         pingInterval = setInterval(() => {
           if (socket.readyState === WebSocket.OPEN) {
@@ -172,17 +172,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (data.msg_type === 'authorize') {
           const accounts = data.authorize.account_list || [];
-          addLog(`Token Authorized. Detecting active funds in ${accounts.length} linked accounts...`, 'info');
+          addLog(`Protocol Authorized. Scanning ${accounts.length} linked endpoints for real funds...`, 'info');
           
           // SEARCH & LOCK: Prioritize Real CR accounts for balance sync
-          const realAccount = accounts.find((a: any) => !a.is_virtual && a.currency === 'USD') || accounts.find((a: any) => !a.is_virtual);
+          const realAccount = accounts.find((a: any) => !a.is_virtual && (a.currency === 'USD' || a.account_type === 'real'));
           
           if (realAccount) {
-            addLog(`SECURE LINK ESTABLISHED: ${realAccount.loginid}`, 'success');
+            addLog(`REAL ACCOUNT SECURED: ${realAccount.loginid}`, 'success');
             // Request live balance immediately with subscription
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
           } else {
-            addLog(`Account Sync Error: No non-virtual accounts detected.`, 'warning');
+            addLog(`ACCOUNT SYNC ERROR: Real Balance $0.00. Fund your CR account via Deriv.`, 'warning');
           }
         }
 
@@ -195,7 +195,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       };
 
       socket.onerror = () => {
-        addLog('Network Protocol Interrupted. Check Internet or App Registration.', 'error');
+        addLog('Network Protocol Interrupted. Verify App Registration.', 'error');
       };
 
       socket.onclose = () => { 
