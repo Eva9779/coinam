@@ -9,8 +9,7 @@ import {
   setDoc, 
   onSnapshot, 
   updateDoc,
-  increment,
-  serverTimestamp
+  increment
 } from 'firebase/firestore';
 import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
 import { toast } from '@/hooks/use-toast';
@@ -101,7 +100,6 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // --- HOISTED LOGGING UTILITIES (CRITICAL FIX FOR REFERENCEERROR) ---
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -138,7 +136,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
 
-  // --- LIVE DERIV PRODUCTION BRIDGE (WEB-BASED ID: 34ZS1m5vhyr6iy1U4CCU0) ---
   useEffect(() => {
     if (derivActive && user && db) {
       const appId = '34ZS1m5vhyr6iy1U4CCU0'; 
@@ -194,7 +191,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         };
 
         socket.onerror = (err) => {
-          addLog('Socket Error: Connection failed. Verify Domain Whitelisting.', 'error');
+          addLog('Socket Error: Connection failed. Ensure your domain is whitelisted in Deriv Dashboard.', 'error');
         };
 
         socket.onclose = () => {
@@ -214,7 +211,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [derivActive, user, db, addLog]);
 
-  // --- LIVE PRODUCTION EXECUTION ENGINE ---
   useEffect(() => {
     if (!botActive || !derivActive || !user || !db) return;
 
@@ -265,7 +261,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(executionLoop);
   }, [botActive, derivActive, botStrategy, botAllocation, botRiskLevel, user, db, assets, marketData, addLog]);
 
-  // --- FIRESTORE SYNC ---
   useEffect(() => {
     if (!db || !user) return;
     
