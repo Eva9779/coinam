@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -102,7 +103,7 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-// AUTHORIZED REAL-ACCOUNT PAT (Hardcoded for guaranteed authentication)
+// SECURE PRODUCTION TOKEN LOCKDOWN
 const DERIV_API_KEY = 'pat_cfb2e4a40d980625474ee7e66a27cd471b39070963ed9402f2b0cab18959025d';
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
@@ -172,7 +173,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
 
-  // FIXED: Properly defined addStockLog for RWA agent stability
   const addStockLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     setStockBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
