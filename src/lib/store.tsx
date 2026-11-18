@@ -101,7 +101,7 @@ interface WalletContextType {
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // --- HOISTED LOGGING UTILITIES (FIXES REFERENCEERROR) ---
+  // --- PRODUCTION HOISTED LOGGING UTILITIES (FIXES REFERENCEERROR) ---
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -141,7 +141,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   // --- LIVE DERIV PRODUCTION BRIDGE (ALPHANUMERIC APP ID) ---
   useEffect(() => {
     if (derivActive && user && db) {
-      const appId = '34ZL7gE0vCSMJZRVIazHV'; 
+      const appId = '34ZRxvOFBnNAdQsr1T3bF'; 
       const pat = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
       
       addLog(`Initializing Secure Bridge [AppID: ${appId}]...`, 'info');
@@ -168,7 +168,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const data = JSON.parse(msg.data);
           
           if (data.error) {
-            addLog(`Production Bridge Error: ${data.error.message}`, 'error');
+            addLog(`Production Bridge Rejection: ${data.error.message}. Check Redirect URL.`, 'error');
             return;
           }
 
@@ -195,7 +195,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         socket.onclose = () => {
           if (pingInterval) clearInterval(pingInterval);
-          addLog(`Production Bridge Offline. Check Redirect URL.`, 'warning');
+          addLog(`Production Bridge Offline. Verify App Settings.`, 'warning');
         };
 
         derivSocketRef.current = socket;
@@ -252,6 +252,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } catch (e) {
+        addLog(`Execution Error: ${e.message}`, 'error');
       } finally {
         setIsAnalyzing(false);
       }
@@ -324,6 +325,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [db, user, assets]);
 
+  const liquidateEarnings = async () => { 
+    if (totalBotEarnings <= 0 || !user || !db) return;
+    await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: 0 }); 
+    updateBalance('USDC', totalBotEarnings, 1); 
+  };
+
   return (
     <WalletContext.Provider value={{ 
       assets, stockAssets, transactions, initialized, isSyncing, isProvisioning: false, user,
@@ -339,11 +346,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       updateDerivSettings: (active) => updateDoc(doc(db, 'users', user.uid), { derivActive: active }),
       submitKYC: async () => { await updateDoc(doc(db, 'users', user.uid), { kycStatus: 'verified' }); },
       clearBotLogs: () => setBotLogs([]), clearStockBotLogs: () => setStockBotLogs([]), 
-      liquidateEarnings: async () => { 
-        if (totalBotEarnings <= 0) return;
-        await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: 0 }); 
-        updateBalance('USDC', totalBotEarnings, 1); 
-      }, 
+      liquidateEarnings, 
       syncOnChainBalance: async () => null, addLog, addStockLog
     }}>
       {children}
