@@ -135,6 +135,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const db = useFirestore();
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
+  
+  // Circuit Breaker State
+  const [consecutiveLosses, setConsecutiveLosses] = useState(0);
+  const [sessionStartingBalance, setSessionStartingBalance] = useState<number | null>(null);
 
   useEffect(() => {
     if (derivActive && user && db) {
@@ -191,7 +195,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           socket.onopen = () => {
             addLog('REAL Handshake secure. Initializing Live Subscriptions...', 'success');
-            // Deriv Options WebSocket expects flat JSON top-level keys
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           };
@@ -205,13 +208,29 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             if (data.msg_type === 'tick') {
               const price = data.tick.quote;
               tickStreamRef.current = [...tickStreamRef.current.slice(-19), price];
+              // Telemetry: Log tick collection progress periodically
+              if (tickStreamRef.current.length % 5 === 0 || tickStreamRef.current.length === 20) {
+                addLog(`Collecting ticks: ${tickStreamRef.current.length}/20`, 'info');
+              }
             }
             if (data.msg_type === 'balance') {
-              setDerivBalance(parseFloat(data.balance.balance));
+              const currentBal = parseFloat(data.balance.balance);
+              setDerivBalance(currentBal);
+              
+              if (sessionStartingBalance === null) {
+                setSessionStartingBalance(currentBal);
+              } else {
+                const sessionPnL = currentBal - sessionStartingBalance;
+                // Safety Breaker: Drop of $3 USD
+                if (sessionPnL <= -3) {
+                  addLog(`CIRCUIT BREAKER: Session loss threshold ($3) reached. Pausing...`, 'error');
+                  updateDoc(doc(db, 'users', user.uid), { botActive: false });
+                }
+              }
             }
             if (data.msg_type === 'buy') {
-              addLog(`REAL TRADE SUCCESS: Order Confirmed [ID: ${data.buy.contract_id}]`, 'success');
-              toast({ title: "Real Trade Executed", description: `Order ${data.buy.contract_id} transmitted to Deriv.` });
+              addLog(`REAL ORDER TRANSMITTED: [ID: ${data.buy.contract_id}]`, 'success');
+              toast({ title: "Order Transmitted", description: `Order ${data.buy.contract_id} broadcast to Deriv.` });
             }
           };
 
@@ -232,23 +251,24 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!botActive || !derivActive || !user || !db) return;
 
     const executionLoop = setInterval(async () => {
-      if (derivSocketRef.current?.readyState !== WebSocket.OPEN) return;
-      
-      if (tickStreamRef.current.length < 5) {
-        addLog("Awaiting sufficient tick stream data...", "info");
-        return;
-      }
-
-      setIsAnalyzing(true);
-      
+      // 1. Tick-to-AI Trigger with Try/Catch
       try {
+        if (derivSocketRef.current?.readyState !== WebSocket.OPEN) return;
+        
+        if (tickStreamRef.current.length < 20) {
+          addLog(`Enclave: Awaiting tick saturation (${tickStreamRef.current.length}/20)...`, "info");
+          return;
+        }
+
+        setIsAnalyzing(true);
+        
         const contextData = marketData.map((item: any) => ({
           currency: item.currency || item.symbol || '???',
           price: item.price ?? item.currentPriceUSD ?? item.current_price ?? 0,
           change24h: item.change24h ?? item.dailyChangePercent ?? item.price_change_percentage_24h ?? 0
         }));
 
-        addLog("AI Neural Link: Analyzing R_100 Tick Momentum...", "info");
+        addLog("AI Neural Link: Analyzing R_100 Momentum Pattern...", "info");
 
         const result = await analyzeMarketAndTrade({
           userId: user.uid,
@@ -262,22 +282,23 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (result.actions && result.actions.length > 0) {
           let signalFound = false;
-          // CALIBRATED FOR ACTION: Lower thresholds to ensure the bot actually trades
+          // Action Thresholds: 60/50/40 for immediate execution
           const threshold = botRiskLevel === 'low' ? 60 : botRiskLevel === 'medium' ? 50 : 40;
           
           for (const action of result.actions) {
             if (action.type === 'buy' && action.contractType && botStrategy === 'deriv_indices') {
               signalFound = true;
               if (action.confidence >= threshold) {
-                addLog(`ALPHA SIGNAL: Transmitting REAL Order [${action.contractType}]...`, 'info');
+                // SAFETY: Stake fixed at $1 USD per trade (No Martingale)
+                addLog(`ALPHA SIGNAL [${action.confidence}%]: Transmitting Fixed $1 Stake...`, 'info');
                 derivSocketRef.current.send(JSON.stringify({
                   buy: 1,
-                  price: botAllocation,
+                  price: 1,
                   parameters: {
-                    amount: botAllocation,
+                    amount: 1,
                     basis: 'stake',
                     contract_type: action.contractType,
-                    underlying_symbol: 'R_100', // Renamed from symbol per Deriv breaking changes
+                    underlying_symbol: 'R_100',
                     currency: 'USD',
                     duration: 5,
                     duration_unit: 't'
@@ -289,13 +310,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             }
           }
           if (!signalFound) {
-            addLog("Market Vision: Scanning for high-quality breakouts...", "info");
+            addLog("Scanning for high-conviction breakout...", "info");
           }
         } else {
-          addLog("Strategy Ledger: Neutral market detected.", "info");
+          addLog("Strategy Feed: Market Neutral. No signal emitted.", "info");
         }
       } catch (e: any) {
-        addLog(`Analysis Error: ${e.message}`, 'error');
+        addLog(`AI PROCESSING EXCEPTION: ${e.message}`, 'error');
+        console.error("AI Logic Failure:", e);
       } finally {
         setIsAnalyzing(false);
       }
