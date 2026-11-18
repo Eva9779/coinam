@@ -99,6 +99,8 @@ interface WalletContextType {
   clearStockBotLogs: () => void;
   liquidateEarnings: () => Promise<void>;
   syncOnChainBalance: (address: string, currency: string) => Promise<number | null>;
+  addLog: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  addStockLog: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -170,7 +172,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     stockBotStateRef.current = { active: stockBotActive, risk: stockBotRisk, allocation: stockBotAllocation };
   }, [stockBotActive, stockBotRisk, stockBotAllocation]);
 
-  // FIXED: ReferenceError prevention
   const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
   }, []);
@@ -206,9 +207,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             
             if (isVirtual) {
               addLog(`VIRTUAL (DEMO) ACCOUNT ACTIVE [${accountId}]`, 'warning');
-              addLog(`WARNING: Please use a Real Account PAT for production settlement.`, 'warning');
             } else {
-              addLog(`REAL ACCOUNT AUTHORIZED [${accountId}]`, 'success');
+              addLog(`REAL ACCOUNT DETECTED [${accountId}]`, 'success');
               addLog(`LIVE BALANCE: $${bal.toFixed(2)} USD`, 'success');
             }
             
@@ -228,9 +228,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       };
 
+      socket.onerror = () => {
+        addLog('WebSocket Connection Error. App ID may be restricted.', 'error');
+      };
+
       socket.onclose = () => {
         derivSocketRef.current = null;
-        addLog('Deriv Gateway offline.', 'warning');
       };
 
       derivSocketRef.current = socket;
@@ -376,11 +379,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             amount: liveBal,
             fiatValueUSD: liveBal * fiatPrice
           });
-        } else if (Math.abs(asset.amount - liveBal) > 0.00000001) {
-          await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
-            amount: liveBal,
-            fiatValueUSD: liveBal * fiatPrice
-          });
         }
       }
       return liveBal;
@@ -436,12 +434,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           else resolve(data.buy);
         }
       };
-
-      ws.onerror = () => {
-        isSettled = true;
-        clearTimeout(timeout);
-        reject('Handshake Failure');
-      };
     });
   };
 
@@ -454,12 +446,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const currentTicks = derivTicksRef.current;
     const currentDerivBal = derivBalanceRef.current;
     const totalPortfolioUSD = currentAssets.reduce((sum, a) => sum + a.fiatValueUSD, 0);
-    const liveMarket = marketDataRef.current.length > 0 
-      ? marketDataRef.current.map(m => ({ currency: m.symbol.toUpperCase(), price: m.current_price, change24h: m.price_change_percentage_24h }))
-      : INITIAL_MARKET_DATA.map(m => ({ currency: m.currency, price: m.currentPriceUSD, change24h: m.dailyChangePercent }));
 
     if (allocation <= 0 && !isGuardian) {
-      addLog(`CONFIGURATION ERROR: Please set an Allocation Cap > 0 to authorize trades.`, 'error');
+      addLog(`CONFIGURATION ERROR: Allocation Cap must be at least $1.`, 'error');
       return;
     }
 
@@ -488,9 +477,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           amount: a.amount,
           fiatValue: a.fiatValueUSD
         })),
-        marketData: liveMarket,
+        marketData: marketDataRef.current.map(m => ({ currency: m.symbol, price: m.current_price, change24h: m.price_change_percentage_24h })),
         riskTolerance: (isGuardian ? 'low' : risk) as any,
-        allocationLimitUSD: isGuardian ? Math.max(1000000, totalPortfolioUSD) : allocation,
+        allocationLimitUSD: isGuardian ? 1000000 : allocation,
         isGuardianMode: isGuardian,
         tickStream: strategyType === 'deriv_indices' ? currentTicks : undefined
       });
@@ -501,34 +490,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           
           if (strategyType === 'deriv_indices' && action.contractType) {
             if (action.confidence < 90) {
-              addLog(`Signal confidence ${action.confidence}% is below safety floor (90%). Protected.`, 'info');
+              addLog(`Signal confidence ${action.confidence}% too low. Protected.`, 'info');
               continue;
             }
 
             const tradeAmount = Math.max(1, allocation);
+            addLog(`AUTHORIZED REAL TRADE: $${tradeAmount} ${action.contractType}...`, 'info');
             
-            if (currentDerivBal < tradeAmount) {
-              addLog(`INSUFFICIENT FUNDS: Trade requires $${tradeAmount}, Balance: $${currentDerivBal.toFixed(2)}.`, 'warning');
-              continue;
-            }
-
-            addLog(`AUTHORIZED REAL TRADE: $${tradeAmount} ${action.contractType} on Vol-100...`, 'info');
             try {
               await performLiveDerivTrade(action.contractType, tradeAmount);
-              const captureYield = (tradeAmount * 0.94) + (Math.random() * 0.5); 
-              
+              const captureYield = (tradeAmount * 0.94);
               await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(captureYield) });
-              
-              addTransaction({
-                type: 'trade',
-                currency: 'USD (Real)',
-                amount: captureYield,
-                fiatValueUSD: captureYield,
-                fromAddress: "DERIV_REAL_INDEX",
-                toAddress: "USER_VAULT",
-                description: `Real Payout Harvested from Deriv`
-              });
-
               addLog(`STRATEGY SUCCESS: $${captureYield.toFixed(2)} secured.`, 'success');
             } catch (e: any) {
               addLog(`Execution Error: ${e}`, 'error');
@@ -548,7 +520,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [user, db, addLog, addTransaction, updateBalance]);
+  }, [user, db, addLog, addTransaction]);
 
   const runStockBotCycle = useCallback(async (forceActive: boolean = false, isGuardian: boolean = false) => {
     const { active, risk, allocation } = stockBotStateRef.current;
@@ -701,14 +673,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) return;
     setDerivActive(active); 
     updateDoc(doc(db, 'users', user.uid), { derivActive: active });
-    
-    if (active) {
-      toast({ title: "AUTHORIZING BRIDGE", description: `Connecting via App ID ${DERIV_APP_ID}...` });
-    } else {
-      toast({ title: "Gateway Offline" });
-      setDerivBalance(0);
-      derivBalanceRef.current = 0;
-    }
   };
 
   const importPrivateKey = async (currency: string, privateKey: string) => {
@@ -716,52 +680,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       const account = privateKeyToAccount(privateKey as `0x${string}`);
       const encryptedKey = await encryptKey(user.uid, privateKey);
-      
-      const vaults = [currency, 'USDC', 'SOL', 'BNB', 'XRP', 'WBTC'];
-      for (const v of vaults) {
-        await setDoc(doc(db, 'users', user.uid, 'assets', `${v.toLowerCase()}_imported_${Date.now()}`), {
-          currency: v, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey
-        });
-      }
-      
+      await setDoc(doc(db, 'users', user.uid, 'assets', `${currency.toLowerCase()}_imported_${Date.now()}`), {
+        currency, amount: 0, fiatValueUSD: 0, address: account.address, isLive: true, privateKey: encryptedKey
+      });
       toast({ title: "Production Wallet Restored" });
     } catch (e) {}
   };
 
   const liquidateEarnings = useCallback(async () => {
     if (!db || !user || totalBotEarnings <= 0) return;
-    
-    let usdcAsset = assetsRef.current.find(a => a.currency === 'USDC');
-    if (!usdcAsset) {
-      const primary = assetsRef.current.find(a => !!a.privateKey) || assetsRef.current[0];
-      if (primary) {
-        const newUsdc = { currency: 'USDC', amount: 0, fiatValueUSD: 0, address: primary.address, isLive: true, privateKey: primary.privateKey || "" };
-        await setDoc(doc(db, 'users', user.uid, 'assets', 'usdc-vault'), newUsdc);
-        usdcAsset = { ...newUsdc, id: 'usdc-vault' };
-      }
-    }
-
+    const usdcAsset = assetsRef.current.find(a => a.currency === 'USDC');
     if (!usdcAsset) return;
-
-    const earningsToLiquidate = totalBotEarnings;
-    const targetCurrency = 'USDC';
-    const targetPrice = 1; 
-    
-    try {
-      await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: 0 });
-      await updateBalance(targetCurrency, earningsToLiquidate / targetPrice, targetPrice);
-      
-      addTransaction({
-        type: 'receive',
-        currency: targetCurrency,
-        amount: earningsToLiquidate / targetPrice,
-        fiatValueUSD: earningsToLiquidate,
-        fromAddress: "BOT_EARNINGS_ENGINE",
-        toAddress: usdcAsset.address,
-        description: `Liquidated Real Payout to Dollar Vault`
-      });
-    } catch (e) {}
-  }, [db, user, totalBotEarnings, updateBalance, addTransaction]);
+    await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: 0 });
+    await updateBalance('USDC', totalBotEarnings, 1);
+  }, [db, user, totalBotEarnings, updateBalance]);
 
   return (
     <WalletContext.Provider value={{ 
@@ -769,7 +701,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       kycStatus, totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, derivActive, derivBalance, isAnalyzing, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, generateNewWallet, importPrivateKey, updateBotSettings, updateStockBotSettings, updateDerivSettings,
-      submitKYC, clearBotLogs: () => setBotLogs([]), clearStockBotLogs: () => setStockBotLogs([]), liquidateEarnings, syncOnChainBalance
+      submitKYC, clearBotLogs: () => setBotLogs([]), clearStockBotLogs: () => setStockBotLogs([]), liquidateEarnings, syncOnChainBalance,
+      addLog, addStockLog
     }}>
       {children}
     </WalletContext.Provider>

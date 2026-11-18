@@ -31,7 +31,8 @@ import {
   Rocket,
   Coins,
   Cpu,
-  Wallet
+  Wallet,
+  AlertCircle
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -116,6 +117,7 @@ export default function TradingBotPage() {
     setLocalRisk(botRiskLevel);
     setLocalStrategy(botStrategy);
     if (botStrategy === 'deriv_indices') setChartSymbol("DERIV");
+    else setChartSymbol(botStrategy === 'bitcoin_multiplier' ? 'BTC' : botStrategy.split('_')[0].toUpperCase());
   }, [botAllocation, botRiskLevel, botStrategy]);
 
   const handleToggleBot = () => {
@@ -123,7 +125,7 @@ export default function TradingBotPage() {
     if (isNaN(allocationNum) || allocationNum <= 0) {
       toast({
         title: "Configuration Error",
-        description: "Please specify a valid trading allocation amount.",
+        description: "Please specify an Allocation Cap of at least $1 USD.",
         variant: "destructive"
       });
       return;
@@ -170,6 +172,13 @@ export default function TradingBotPage() {
           </Button>
         </div>
       </div>
+
+      {localAllocation === "0" && !botActive && (
+        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-600">
+          <AlertCircle className="h-5 w-5 shrink-0" />
+          <p className="text-sm font-bold uppercase tracking-tight">Warning: Allocation Cap is set to $0. Set a limit of at least $1 to enable trading.</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
@@ -315,7 +324,7 @@ export default function TradingBotPage() {
                   Execution Protection
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  Autonomous agents provide institutional rebalancing signals. If the AI link is restricted, the bot uses the high-performance local quantitative enclave to protect your principal.
+                  Autonomous agents provide institutional rebalancing signals. Trades are authorized starting from $1 USD. Ensure your Real Balance is funded via Deriv.
                 </p>
               </div>
 
