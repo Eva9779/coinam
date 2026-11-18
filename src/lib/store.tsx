@@ -99,13 +99,12 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 /**
  * PRODUCTION AUTHORIZED CREDENTIALS
- * 1089 is the official universal App ID that bypasses domain registration blocks.
  */
 const DERIV_APP_ID = '1089'; 
 const DERIV_PAT = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  // CRITICAL: Hoisted log functions to the top of the provider to fix ReferenceError
+  // CRITICAL FIX: Hoist state and callbacks to the top level of the component scope
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
 
@@ -180,10 +179,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           
           if (realAccount) {
             addLog(`SECURE LINK ESTABLISHED: ${realAccount.loginid}`, 'success');
-            // Request live balance immediately
+            // Request live balance immediately with subscription
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-            // Subscribe to market ticks for Volatility 100
-            socket.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
           } else {
             addLog(`Account Sync Error: No non-virtual accounts detected.`, 'warning');
           }
