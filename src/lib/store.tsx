@@ -199,6 +199,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           socket.onopen = () => {
             addLog('REAL Handshake secure. Initializing Live Subscriptions...', 'success');
+            // USE FLAT PAYLOADS REQUIRED BY DERIV OPTIONS WS
             socket?.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket?.send(JSON.stringify({ ticks: 'R_100', subscribe: 1 }));
             
@@ -274,7 +275,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           userId: user.uid,
           strategyType: botStrategy,
           assets: assets.map(a => ({ currency: a.currency, amount: a.amount, fiatValue: a.fiatValueUSD })),
-          // CRITICAL: Schema mapping to align with Genkit flow requirements
+          // CRITICAL: Map to price/change24h for Genkit schema compliance
           marketData: marketData.map((item: any) => ({
             currency: item.currency || item.symbol || '???',
             price: item.price ?? item.currentPriceUSD ?? item.current_price ?? 0,
@@ -287,10 +288,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (result.actions && result.actions.length > 0) {
           let signalFound = false;
+          // Dynamic threshold based on user risk level
+          const threshold = botRiskLevel === 'low' ? 90 : botRiskLevel === 'medium' ? 80 : 70;
+          
           for (const action of result.actions) {
             if (action.type === 'buy' && action.contractType && botStrategy === 'deriv_indices') {
               signalFound = true;
-              if (action.confidence > 90) {
+              if (action.confidence >= threshold) {
                 addLog(`ALPHA SIGNAL: Transmitting REAL Order [${action.contractType}]...`, 'info');
                 derivSocketRef.current.send(JSON.stringify({
                   buy: 1,
@@ -306,7 +310,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                   }
                 }));
               } else {
-                addLog(`Signal Filtered: Confidence (${action.confidence}%) below threshold (90%).`, "warning");
+                addLog(`Signal Filtered: Confidence (${action.confidence}%) below threshold (${threshold}%).`, "warning");
               }
             }
           }
