@@ -166,20 +166,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const isAnalyzingRef = useRef(false);
   const lastAnalysisTimeRef = useRef(0);
   const botActiveRef = useRef(false);
-  const marketDataRef = useRef(marketData);
-  const assetsRef = useRef(assets);
-  const botStrategyRef = useRef(botStrategy);
-  const botRiskLevelRef = useRef(botRiskLevel);
-  const botAllocationRef = useRef(botAllocation);
-  const derivBalanceRef = useRef(derivBalance);
+  const derivBalanceRef = useRef(0);
   const [sessionStartingBalance, setSessionStartingBalance] = useState<number | null>(null);
 
   useEffect(() => { botActiveRef.current = botActive; }, [botActive]);
-  useEffect(() => { marketDataRef.current = marketData; }, [marketData]);
-  useEffect(() => { assetsRef.current = assets; }, [assets]);
-  useEffect(() => { botStrategyRef.current = botStrategy; }, [botStrategy]);
-  useEffect(() => { botRiskLevelRef.current = botRiskLevel; }, [botRiskLevel]);
-  useEffect(() => { botAllocationRef.current = botAllocation; }, [botAllocation]);
   useEffect(() => { derivBalanceRef.current = derivBalance; }, [derivBalance]);
 
   const triggerMathematicalAnalysis = useCallback(async () => {
@@ -206,18 +196,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       let action: 'CALL' | 'PUT' | null = null;
       let reason = '';
 
-      if (ema9 > ema21 && rsi >= 55 && rsi <= 70) {
+      // Widened RSI zones as requested: CALL (52-75), PUT (25-48)
+      if (ema9 > ema21 && rsi >= 52 && rsi <= 75) {
         action = 'CALL';
-        reason = `Bullish Crossover: EMA9 (${ema9.toFixed(2)}) > EMA21 (${ema21.toFixed(2)}) | RSI: ${rsi.toFixed(2)}`;
-      } else if (ema9 < ema21 && rsi >= 30 && rsi <= 45) {
+        reason = `Bullish Momentum: EMA9 (${ema9.toFixed(2)}) > EMA21 (${ema21.toFixed(2)}) | RSI: ${rsi.toFixed(2)}`;
+      } else if (ema9 < ema21 && rsi >= 25 && rsi <= 48) {
         action = 'PUT';
-        reason = `Bearish Crossover: EMA9 (${ema9.toFixed(2)}) < EMA21 (${ema21.toFixed(2)}) | RSI: ${rsi.toFixed(2)}`;
+        reason = `Bearish Momentum: EMA9 (${ema9.toFixed(2)}) < EMA21 (${ema21.toFixed(2)}) | RSI: ${rsi.toFixed(2)}`;
       } else {
-        reason = `Indecisive: EMA Diff: ${(ema9-ema21).toFixed(2)}, RSI: ${rsi.toFixed(2)}`;
+        reason = `Waiting for Trend: EMA Diff: ${(ema9-ema21).toFixed(3)}, RSI: ${rsi.toFixed(2)}`;
       }
 
       if (action && derivSocketRef.current?.readyState === WebSocket.OPEN) {
-        addLog(`MATHEMATICAL SIGNAL: ${action} - ${reason}`, 'success');
+        addLog(`STRATEGY SIGNAL: ${action} - ${reason}`, 'success');
         derivSocketRef.current.send(JSON.stringify({
           buy: 1,
           price: 1,
@@ -235,7 +226,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         addLog(`Market Indecisive: ${reason}`, 'info');
       }
     } catch (e: any) {
-      addLog(`Math Analysis Exception: ${e.message}`, 'error');
+      addLog(`Analysis Exception: ${e.message}`, 'error');
     } finally {
       isAnalyzingRef.current = false;
       setIsAnalyzing(false);
@@ -248,7 +239,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const token = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
       
       const connectBridge = async () => {
-        addLog(`Initializing Production Bridge [AppID: ${appId}]...`, 'info');
+        addLog(`Initializing Institutional Bridge...`, 'info');
         
         try {
           const accountsRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
@@ -257,17 +248,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           const getJson = await accountsRes.json();
           const accountsArray = getJson.data || [];
-          // Force select Real account for production balance
           const realAcc = accountsArray.find((a: any) => a.account_type === 'real');
           
           let accountId = realAcc?.id || realAcc?.account_id;
 
           if (!accountId) {
-            addLog('Critical: REAL production account not found. Ensure token is authorized.', 'error');
+            addLog('Error: REAL account not found. Verify production token.', 'error');
             return;
           }
 
-          addLog(`Requesting Production Secure Link...`, 'info');
           const otpResponse = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
@@ -276,13 +265,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const otpData = await otpResponse.json();
           const wsUrl = otpData.data?.url || otpData.url;
 
-          if (!wsUrl) throw new Error('Security Protocol Error: No WebSocket URL returned.');
+          if (!wsUrl) throw new Error('Secure handshake failed.');
 
-          addLog(`Establishing Mainnet Hardware Handshake...`, 'success');
           const socket = new WebSocket(wsUrl);
 
           socket.onopen = () => {
-            addLog('Mainnet Handshake secure. Subscribing to Gold (XAU/USD)...', 'success');
+            addLog('Mainnet Handshake Secure. Monitoring frxXAUUSD...', 'success');
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket.send(JSON.stringify({ ticks: 'frxXAUUSD', subscribe: 1 }));
           };
@@ -290,43 +278,58 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           socket.onmessage = (msg) => {
             const data = JSON.parse(msg.data);
             if (data.error) {
-              addLog(`Bridge Protocol Error: ${JSON.stringify(data.error)}`, 'error');
+              addLog(`Bridge Protocol Error: ${data.error.message}`, 'error');
               return;
             }
             if (data.msg_type === 'tick') {
               const price = data.tick.quote;
               tickStreamRef.current = [...tickStreamRef.current.slice(-49), price];
-              
-              if (botActiveRef.current) {
-                triggerMathematicalAnalysis();
-              }
+              if (botActiveRef.current) triggerMathematicalAnalysis();
             }
             if (data.msg_type === 'balance') {
               const currentBal = parseFloat(data.balance.balance);
               setDerivBalance(currentBal);
-              
-              if (sessionStartingBalance === null) {
-                setSessionStartingBalance(currentBal);
-              } else {
+              if (sessionStartingBalance === null) setSessionStartingBalance(currentBal);
+              else {
                 const sessionPnL = currentBal - sessionStartingBalance;
                 if (sessionPnL <= -3) {
-                  addLog(`CIRCUIT BREAKER: Session loss limit reached.`, 'error');
+                  addLog(`CIRCUIT BREAKER: Session loss limit reached ($3.00).`, 'error');
                   setBotActive(false);
                   updateDoc(doc(db, 'users', user.uid), { botActive: false });
                 }
               }
             }
             if (data.msg_type === 'buy') {
-              addLog(`PRODUCTION ORDER BROADCAST: [ID: ${data.buy.contract_id || 'REJECTED'}]`, data.buy.contract_id ? 'success' : 'error');
-              if (data.buy.contract_id) {
-                toast({ title: "Production Order Accepted", description: `Contract ID: ${data.buy.contract_id}` });
+              const contractId = data.buy.contract_id;
+              if (contractId) {
+                addLog(`PRODUCTION ORDER ACCEPTED: [ID: ${contractId}]`, 'success');
+                // Subscribe to contract details for result logging
+                socket.send(JSON.stringify({
+                  proposal_open_contract: 1,
+                  contract_id: contractId,
+                  subscribe: 1
+                }));
+              }
+            }
+            if (data.msg_type === 'proposal_open_contract') {
+              const contract = data.proposal_open_contract;
+              if (contract.is_sold) {
+                const status = contract.status.toUpperCase();
+                const profit = contract.profit;
+                if (status === 'WON') {
+                  addLog(`CONTRACT SETTLED: WON (+$${profit.toFixed(2)})`, 'success');
+                } else {
+                  addLog(`CONTRACT SETTLED: LOST (-$1.00)`, 'error');
+                }
+                // Stop monitoring this specific contract
+                socket.send(JSON.stringify({ forget: data.subscription.id }));
               }
             }
           };
 
           derivSocketRef.current = socket;
         } catch (err: any) {
-          addLog(`Bridge Provisioning Interrupted: ${err.message}`, 'error');
+          addLog(`Bridge Connection Failed: ${err.message}`, 'error');
         }
       };
 
@@ -373,10 +376,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => { 
-      unsubProfile(); 
-      unsubAssets(); 
-      unsubTx(); 
-      unsubStocks(); 
+      unsubProfile(); unsubAssets(); unsubTx(); unsubStocks(); 
     };
   }, [db, user]);
 
@@ -384,10 +384,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}`;
     setDoc(doc(db, 'users', user.uid, 'transactions', txId), {
-      ...tx, 
-      id: txId, 
-      timestamp: new Date().toISOString(), 
-      status: 'completed'
+      ...tx, id: txId, timestamp: new Date().toISOString(), status: 'completed'
     });
   }, [db, user]);
 
@@ -435,8 +432,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         await updateDoc(doc(db, 'users', user.uid), { kycStatus: 'verified' }); 
       },
       clearBotLogs: () => setBotLogs([]), clearStockBotLogs: () => setStockBotLogs([]), 
-      liquidateEarnings, 
-      syncOnChainBalance: async () => null, addLog, addStockLog
+      liquidateEarnings, syncOnChainBalance: async () => null, addLog, addStockLog
     }}>
       {children}
     </WalletContext.Provider>
