@@ -192,23 +192,32 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const ema9 = calculateEMA(prices, 9);
       const ema21 = calculateEMA(prices, 21);
       const rsi = calculateRSI(prices, 14);
+      const currentPrice = prices[prices.length - 1];
+      
+      // Trend Exhaustion Shield
+      const maxPrice = Math.max(...prices.slice(-50));
+      const minPrice = Math.min(...prices.slice(-50));
+      const isAtPeak = currentPrice >= maxPrice;
+      const isAtValley = currentPrice <= minPrice;
 
       let action: 'CALL' | 'PUT' | null = null;
       let reason = '';
 
-      // Widened RSI zones as requested: CALL (52-75), PUT (25-48)
-      if (ema9 > ema21 && rsi >= 52 && rsi <= 75) {
+      // Tighter RSI Zones for Gold: CALL (50-65), PUT (35-50) to avoid "buying the top"
+      if (ema9 > ema21 && rsi >= 50 && rsi <= 65 && !isAtPeak) {
         action = 'CALL';
-        reason = `Bullish Momentum: EMA9 (${ema9.toFixed(2)}) > EMA21 (${ema21.toFixed(2)}) | RSI: ${rsi.toFixed(2)}`;
-      } else if (ema9 < ema21 && rsi >= 25 && rsi <= 48) {
+        reason = `Bullish Momentum: EMA9 Cross + RSI Pullback (${rsi.toFixed(2)}). Shielding from Peak.`;
+      } else if (ema9 < ema21 && rsi >= 35 && rsi <= 50 && !isAtValley) {
         action = 'PUT';
-        reason = `Bearish Momentum: EMA9 (${ema9.toFixed(2)}) < EMA21 (${ema21.toFixed(2)}) | RSI: ${rsi.toFixed(2)}`;
+        reason = `Bearish Momentum: EMA9 Cross + RSI Pullback (${rsi.toFixed(2)}). Shielding from Valley.`;
+      } else if (isAtPeak || isAtValley) {
+        reason = `Trend Exhaustion Shield Active: Price is at a ${isAtPeak ? 'Peak' : 'Valley'}. Waiting for pullback.`;
       } else {
-        reason = `Waiting for Trend: EMA Diff: ${(ema9-ema21).toFixed(3)}, RSI: ${rsi.toFixed(2)}`;
+        reason = `Market Indecisive: RSI ${rsi.toFixed(2)} | EMA Diff: ${(ema9 - ema21).toFixed(3)}`;
       }
 
       if (action && derivSocketRef.current?.readyState === WebSocket.OPEN) {
-        addLog(`STRATEGY SIGNAL: ${action} - ${reason}`, 'success');
+        addLog(`PRODUCTION ORDER BROADCAST: ${action} - ${reason}`, 'success');
         derivSocketRef.current.send(JSON.stringify({
           buy: 1,
           price: 1,
@@ -223,7 +232,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
         }));
       } else {
-        addLog(`Market Indecisive: ${reason}`, 'info');
+        addLog(`Analysis result: ${reason}`, 'info');
       }
     } catch (e: any) {
       addLog(`Analysis Exception: ${e.message}`, 'error');
@@ -240,7 +249,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       let pingInterval: NodeJS.Timeout;
       
       const connectBridge = async () => {
-        addLog(`Initializing Institutional Bridge...`, 'info');
+        addLog(`Initializing Mainnet Bridge (Production)...`, 'info');
         
         try {
           const accountsRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
@@ -254,7 +263,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           let accountId = realAcc?.id || realAcc?.account_id;
 
           if (!accountId) {
-            addLog('Error: REAL account not found. Verify production token.', 'error');
+            addLog('Error: Institutional Account not found. Verify production token.', 'error');
             return;
           }
 
@@ -275,7 +284,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket.send(JSON.stringify({ ticks: 'frxXAUUSD', subscribe: 1 }));
             
-            // Task 1: Keep-alive ping every 30s
             pingInterval = setInterval(() => {
               if (socket.readyState === WebSocket.OPEN) {
                 socket.send(JSON.stringify({ ping: 1 }));
@@ -296,7 +304,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             }
             if (data.msg_type === 'tick') {
               const price = data.tick.quote;
-              tickStreamRef.current = [...tickStreamRef.current.slice(-49), price];
+              tickStreamRef.current = [...tickStreamRef.current.slice(-99), price];
               if (botActiveRef.current) triggerMathematicalAnalysis();
             }
             if (data.msg_type === 'balance') {
@@ -316,7 +324,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               const contractId = data.buy.contract_id;
               if (contractId) {
                 addLog(`PRODUCTION ORDER ACCEPTED: [ID: ${contractId}]`, 'success');
-                // Task 3: Subscribe to settlement result
                 socket.send(JSON.stringify({
                   proposal_open_contract: 1,
                   contract_id: contractId,
@@ -326,7 +333,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             }
             if (data.msg_type === 'proposal_open_contract') {
               const contract = data.proposal_open_contract;
-              // Check Task 3: is_sold === 1
               if (contract.is_sold) {
                 const status = contract.status.toUpperCase();
                 const profit = contract.profit;
@@ -335,7 +341,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 } else {
                   addLog(`CONTRACT SETTLED: LOST (-$1.00)`, 'error');
                 }
-                // Stop monitoring this specific contract
                 socket.send(JSON.stringify({ forget: data.subscription.id }));
               }
             }
