@@ -237,6 +237,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (derivActive && user && db) {
       const appId = '34ZRxvOFBnNAdQsr1T3bF';
       const token = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
+      let pingInterval: NodeJS.Timeout;
       
       const connectBridge = async () => {
         addLog(`Initializing Institutional Bridge...`, 'info');
@@ -273,6 +274,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             addLog('Mainnet Handshake Secure. Monitoring frxXAUUSD...', 'success');
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket.send(JSON.stringify({ ticks: 'frxXAUUSD', subscribe: 1 }));
+            
+            // Task 1: Keep-alive ping every 30s
+            pingInterval = setInterval(() => {
+              if (socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ ping: 1 }));
+              }
+            }, 30000);
+          };
+
+          socket.onclose = () => {
+            addLog('WebSocket Disconnected', 'warning');
+            clearInterval(pingInterval);
           };
 
           socket.onmessage = (msg) => {
@@ -303,7 +316,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               const contractId = data.buy.contract_id;
               if (contractId) {
                 addLog(`PRODUCTION ORDER ACCEPTED: [ID: ${contractId}]`, 'success');
-                // Subscribe to contract details for result logging
+                // Task 3: Subscribe to settlement result
                 socket.send(JSON.stringify({
                   proposal_open_contract: 1,
                   contract_id: contractId,
@@ -313,6 +326,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             }
             if (data.msg_type === 'proposal_open_contract') {
               const contract = data.proposal_open_contract;
+              // Check Task 3: is_sold === 1
               if (contract.is_sold) {
                 const status = contract.status.toUpperCase();
                 const profit = contract.profit;
@@ -335,6 +349,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
       connectBridge();
       return () => {
+        clearInterval(pingInterval);
         if (derivSocketRef.current && derivSocketRef.current.readyState === WebSocket.OPEN) {
           derivSocketRef.current.close();
         }
