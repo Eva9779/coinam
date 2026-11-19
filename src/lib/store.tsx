@@ -160,25 +160,28 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   
   const { user } = useUserHook();
   const db = useFirestore();
+  
+  // Ref Enclave for Stability
   const derivSocketRef = useRef<WebSocket | null>(null);
   const tickStreamRef = useRef<number[]>([]);
   const isAnalyzingRef = useRef(false);
   const lastAnalysisTimeRef = useRef(0);
   const botActiveRef = useRef(false);
   const sessionStartingBalanceRef = useRef<number | null>(null);
+  const derivBalanceRef = useRef(0);
 
   useEffect(() => { botActiveRef.current = botActive; }, [botActive]);
+  useEffect(() => { derivBalanceRef.current = derivBalance; }, [derivBalance]);
 
   const triggerMathematicalAnalysis = useCallback(async () => {
     if (!botActiveRef.current || isAnalyzingRef.current) return;
 
-    // Strict 15-second cooldown to avoid over-trading
     const now = Date.now();
     if (now - lastAnalysisTimeRef.current < 15000) return;
 
     // Circuit Breaker: Session Loss Check ($3.00 Limit)
     if (sessionStartingBalanceRef.current !== null) {
-      const sessionPnL = derivBalance - sessionStartingBalanceRef.current;
+      const sessionPnL = derivBalanceRef.current - sessionStartingBalanceRef.current;
       if (sessionPnL <= -3) {
         addLog(`CIRCUIT BREAKER: Session loss limit reached (-$${Math.abs(sessionPnL).toFixed(2)}). Shutdown initiated.`, 'error');
         setBotActive(false);
@@ -187,7 +190,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Wait for sufficient data buffer (100 ticks) for EMA/RSI accuracy
     if (tickStreamRef.current.length < 100) {
       if (tickStreamRef.current.length % 20 === 0) {
         addLog(`Collecting ticks: ${tickStreamRef.current.length}/100 for indicators...`, 'info');
@@ -206,14 +208,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const rsi = calculateRSI(prices, 14);
       const currentPrice = prices[prices.length - 1];
       
-      // Trend Exhaustion Shield: Track 50-tick extremes
       const window50 = prices.slice(-50);
       const max50 = Math.max(...window50);
       const min50 = Math.min(...window50);
       const isAtPeak = currentPrice >= max50;
       const isAtValley = currentPrice <= min50;
 
-      // Momentum Slope: Ensure EMAs are actually widening (accelerating trend)
       const prevEma9 = calculateEMA(prices.slice(0, -1), 9);
       const prevEma21 = calculateEMA(prices.slice(0, -1), 21);
       const currentDiff = Math.abs(ema9 - ema21);
@@ -223,7 +223,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       let action: 'CALL' | 'PUT' | null = null;
       let reason = '';
 
-      // ULTRA-CONSERVATIVE PULLBACK STRATEGY (GOLD)
       if (ema9 > ema21 && isWidening && rsi >= 52 && rsi <= 65 && !isAtPeak) {
         action = 'CALL';
         reason = `HIGH PROBABILITY: Bullish Acceleration + RSI Pullback (${rsi.toFixed(2)}).`;
@@ -231,9 +230,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         action = 'PUT';
         reason = `HIGH PROBABILITY: Bearish Acceleration + RSI Pullback (${rsi.toFixed(2)}).`;
       } else if (isAtPeak || isAtValley) {
-        reason = `EXHAUSTION SHIELD: Price at recent extreme. Waiting for mean reversion.`;
+        reason = `EXHAUSTION SHIELD: Price at extreme limit. Avoiding top/bottom entry.`;
       } else if (!isWidening) {
-        reason = `WEAK MOMENTUM: Spread narrowing. Analysis skipped.`;
+        reason = `WEAK MOMENTUM: EMA spread narrowing. Analysis skipped.`;
       } else {
         reason = `MARKET INDECISIVE: RSI ${rsi.toFixed(2)} | EMA Diff: ${currentDiff.toFixed(3)}`;
       }
@@ -255,9 +254,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             duration_unit: 'm'
           }
         }));
-      } else {
-        // Log skip reason periodically
-        if (now % 60000 < 2000) addLog(`Pulse Check: ${reason}`, 'info');
       }
     } catch (e: any) {
       addLog(`Execution Exception: ${e.message}`, 'error');
@@ -265,7 +261,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       isAnalyzingRef.current = false;
       setIsAnalyzing(false);
     }
-  }, [addLog, derivBalance, user, db]);
+  }, [addLog, user, db]);
 
   useEffect(() => {
     if (derivActive && user && db) {
@@ -277,7 +273,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         addLog(`Initializing Institutional Bridge (Production)...`, 'info');
         
         try {
-          // Discover Real Account
           const accountsRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
             headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
           });
@@ -290,7 +285,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             return;
           }
 
-          // OTP Handshake
           const otpResponse = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
@@ -307,7 +301,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
             socket.send(JSON.stringify({ ticks: 'frxXAUUSD', subscribe: 1 }));
             
-            // Keep-alive heartbeat
             pingInterval = setInterval(() => {
               if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ ping: 1 }));
             }, 30000);
@@ -373,7 +366,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       };
     }
-  }, [derivActive, user, db, addLog, triggerMathematicalAnalysis]);
+  }, [derivActive, user?.uid, db, addLog, triggerMathematicalAnalysis]);
 
   useEffect(() => {
     if (!db || !user) return;
