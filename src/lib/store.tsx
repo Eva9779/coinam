@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -119,7 +120,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [cryptoPositions, setCryptoPositions] = useState<any[]>([]);
   const [equityPositions, setEquityPositions] = useState<any[]>([]);
 
-  // LIVE MARKET FETCH LOOP
   useEffect(() => {
     const fetchLivePrices = async () => {
       try {
@@ -152,7 +152,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     };
 
     fetchLivePrices();
-    const interval = setInterval(fetchLivePrices, 60000); // 1 minute updates
+    const interval = setInterval(fetchLivePrices, 60000);
     return () => clearInterval(interval);
   }, []);
 
@@ -163,37 +163,29 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       addBotLog("ENCLAVE SCAN: Analyzing market momentum...", "info");
       
       let response;
-      try {
-        response = await analyzeMarketAndTrade({
-          userId: user.uid,
-          strategyType: botStrategy as any,
-          assets: assets.map(a => ({ currency: a.currency, amount: a.amount, fiatValue: a.fiatValueUSD })),
-          marketData: marketData.map(m => ({ currency: m.currency, price: m.currentPriceUSD, change24h: m.dailyChangePercent })),
-          riskTolerance: botRiskLevel,
-          allocationLimitUSD: botAllocation
-        });
-      } catch (apiError: any) {
-        const profitTarget = 1.021;
-        const harvestable = cryptoPositions.find(p => {
-            const liveAsset = marketData.find(m => m.currency === p.currency);
-            const livePrice = liveAsset ? liveAsset.currentPriceUSD : p.entryPrice;
-            return livePrice >= p.entryPrice * profitTarget;
-        });
+      const profitTarget = 1.021;
+      
+      // Check for Harvestable positions FIRST
+      const harvestable = cryptoPositions.find(p => {
+          const liveAsset = marketData.find(m => m.currency === p.currency);
+          const livePrice = liveAsset ? liveAsset.currentPriceUSD : p.entryPrice;
+          return livePrice >= p.entryPrice * profitTarget;
+      });
 
-        if (harvestable) {
-            response = {
-                actions: [{ type: 'sell', fromAsset: harvestable.currency, amountUSD: harvestable.cost, reasoning: `Profit target hit (+2.1%) in ${harvestable.currency}.` }]
-            };
-        } else {
-            const dipAsset = marketData.find(m => m.dailyChangePercent < -0.3);
-            if (dipAsset && botAllocation >= 5.0 && cryptoPositions.length < 4) {
-                response = {
-                    actions: [{ type: 'buy', toAsset: dipAsset.currency, amountUSD: 5.0, reasoning: `Dip detected in ${dipAsset.currency}. Executing Spot entry.` }]
-                };
-            } else {
-                response = { actions: [{ type: 'hold', reasoning: "Scanning mainnet liquidity... Target: +2.1%." }] };
-            }
-        }
+      if (harvestable) {
+          response = {
+              actions: [{ type: 'sell', fromAsset: harvestable.currency, amountUSD: harvestable.cost, reasoning: `Profit target hit (+2.1%) in ${harvestable.currency}.` }]
+          };
+      } else {
+          // If no profit hits, check for new dip entries
+          const dipAsset = marketData.find(m => m.dailyChangePercent < -0.1 && !cryptoPositions.some(p => p.currency === m.currency));
+          if (dipAsset && botAllocation >= 5.0 && cryptoPositions.length < 5) {
+              response = {
+                  actions: [{ type: 'buy', toAsset: dipAsset.currency, amountUSD: 5.0, reasoning: `Dip detected in ${dipAsset.currency}. Executing Spot entry.` }]
+              };
+          } else {
+              response = { actions: [{ type: 'hold', reasoning: "Monitoring liquidity... Awaiting +2.1% target or new dip." }] };
+          }
       }
 
       if (response && response.actions) {
@@ -202,28 +194,39 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             const cost = 5.0; 
             if (botAllocation < cost) continue;
             const liveAsset = marketData.find(m => m.currency === action.toAsset);
-            addBotLog(`SIGNAL: Dip buy executed for ${action.toAsset}. Target set to +2.1%.`, 'success');
+            const entryPrice = liveAsset?.currentPriceUSD || 100;
+            const newPos = { currency: action.toAsset, cost, entryPrice, id: Date.now() };
+            
+            addBotLog(`SIGNAL: Dip buy for ${action.toAsset} @ $${entryPrice.toLocaleString()}. Target: +2.1%.`, 'success');
             toast({
               title: "Strategy: Dip Buy",
-              description: `Acquired $${cost.toFixed(2)} of ${action.toAsset} via Enclave.`,
+              description: `Acquired $${cost.toFixed(2)} of ${action.toAsset} @ $${entryPrice.toLocaleString()}.`,
             });
-            await updateDoc(doc(db, 'users', user.uid), { botAllocation: increment(-cost) });
-            setCryptoPositions(prev => [...prev, { currency: action.toAsset, cost, entryPrice: liveAsset?.currentPriceUSD || 100, id: Date.now() }]);
+            
+            const updatedPositions = [...cryptoPositions, newPos];
+            await updateDoc(doc(db, 'users', user.uid), { 
+              botAllocation: increment(-cost),
+              cryptoPositions: updatedPositions
+            });
+            setCryptoPositions(updatedPositions);
           } else if (action.type === 'sell') {
             const posIndex = cryptoPositions.findIndex(p => p.currency === action.fromAsset);
             if (posIndex > -1) {
                 const pos = cryptoPositions[posIndex];
                 const profit = pos.cost * 0.021;
-                addBotLog(`HARVEST: +2.1% Profit target reached for ${action.fromAsset}. Yield settled.`, 'success');
+                addBotLog(`HARVEST: +2.1% target reached for ${action.fromAsset}. Yield settled.`, 'success');
                 toast({
                   title: "Strategy: +2.1% Harvest",
-                  description: `Harvested $${profit.toFixed(4)} profit from ${action.fromAsset} trade.`,
+                  description: `Captured $${profit.toFixed(4)} profit from ${action.fromAsset} peak.`,
                 });
+                
+                const updatedPositions = cryptoPositions.filter((_, i) => i !== posIndex);
                 await updateDoc(doc(db, 'users', user.uid), { 
                   botAllocation: increment(pos.cost),
-                  totalBotEarnings: increment(profit)
+                  totalBotEarnings: increment(profit),
+                  cryptoPositions: updatedPositions
                 });
-                setCryptoPositions(prev => prev.filter((_, i) => i !== posIndex));
+                setCryptoPositions(updatedPositions);
             }
           } else {
             addBotLog(`SCAN: ${action.reasoning}`, "info");
@@ -246,36 +249,26 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       addStockLog("VISION SCAN: Identifying institutional equity dips...", "info");
       
       let response;
-      try {
-        response = await analyzeEquityMarket({
-          userId: user.uid,
-          riskTolerance: stockBotRisk,
-          currentHoldings: equityPositions.map(p => ({ symbol: p.symbol, shares: p.cost / 500, value: p.cost })),
-          marketData: marketData.map(m => ({ symbol: m.currency, name: m.currency, price: m.currentPriceUSD, changePercent: m.dailyChangePercent, type: 'stock' })),
-          allocationLimitUSD: stockBotAllocation
-        });
-      } catch (apiError: any) {
-        const profitTarget = 1.021;
-        const harvestable = equityPositions.find(p => {
-            const liveAsset = marketData.find(m => m.currency === p.symbol);
-            const livePrice = liveAsset ? liveAsset.currentPriceUSD : p.entryPrice;
-            return livePrice >= p.entryPrice * profitTarget;
-        });
+      const profitTarget = 1.021;
+      const harvestable = equityPositions.find(p => {
+          const liveAsset = marketData.find(m => m.currency === p.symbol);
+          const livePrice = liveAsset ? liveAsset.currentPriceUSD : p.entryPrice;
+          return livePrice >= p.entryPrice * profitTarget;
+      });
 
-        if (harvestable) {
-            response = {
-                actions: [{ type: 'sell', asset: harvestable.symbol, reasoning: "+2.1% target achieved." }]
-            };
-        } else {
-            const techDip = marketData.find(m => ['NVDA', 'TQQQ', 'SOXL'].includes(m.currency) && m.dailyChangePercent < 0);
-            if (techDip && stockBotAllocation >= 5.0 && equityPositions.length < 4) {
-                response = {
-                    actions: [{ type: 'buy', asset: techDip.currency, amount: 5.0, reasoning: "Mainnet tech dip detected. Allocating capital." }]
-                };
-            } else {
-                response = { actions: [{ type: 'hold', reasoning: "Awaiting entry signal... monitoring +2.1% targets." }] };
-            }
-        }
+      if (harvestable) {
+          response = {
+              actions: [{ type: 'sell', asset: harvestable.symbol, reasoning: "+2.1% target achieved." }]
+          };
+      } else {
+          const techDip = marketData.find(m => ['NVDA', 'TQQQ', 'SOXL', 'NVD', 'SOX'].includes(m.currency) && m.dailyChangePercent < 0 && !equityPositions.some(p => p.symbol === m.currency));
+          if (techDip && stockBotAllocation >= 5.0 && equityPositions.length < 5) {
+              response = {
+                  actions: [{ type: 'buy', asset: techDip.currency, amount: 5.0, reasoning: "Mainnet tech dip detected. Allocating capital." }]
+              };
+          } else {
+              response = { actions: [{ type: 'hold', reasoning: "Awaiting entry signal... monitoring +2.1% targets." }] };
+          }
       }
 
       if (response && response.actions) {
@@ -284,13 +277,21 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             const cost = 5.0;
             if (stockBotAllocation < cost) continue;
             const liveAsset = marketData.find(m => m.currency === action.asset);
-            addStockLog(`DIP BUY: Acquiring $${cost.toFixed(2)} of ${action.asset}. Target: +2.1%.`, 'success');
+            const entryPrice = liveAsset?.currentPriceUSD || 100;
+            const newPos = { symbol: action.asset, cost, entryPrice, id: Date.now() };
+
+            addStockLog(`DIP BUY: Acquiring $${cost.toFixed(2)} of ${action.asset} @ $${entryPrice.toLocaleString()}.`, 'success');
             toast({
               title: "Equity: Tech Dip Buy",
               description: `Allocated $${cost.toFixed(2)} to ${action.asset} via Enclave.`,
             });
-            setEquityPositions(prev => [...prev, { symbol: action.asset, cost, entryPrice: liveAsset?.currentPriceUSD || 100, id: Date.now() }]);
-            await updateDoc(doc(db, 'users', user.uid), { stockBotAllocation: increment(-cost) });
+            
+            const updatedPositions = [...equityPositions, newPos];
+            await updateDoc(doc(db, 'users', user.uid), { 
+              stockBotAllocation: increment(-cost),
+              equityPositions: updatedPositions
+            });
+            setEquityPositions(updatedPositions);
           } else if (action.type === 'sell') {
             const posIndex = equityPositions.findIndex(p => p.symbol === action.asset);
             if (posIndex > -1) {
@@ -301,11 +302,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 title: "Equity: +2.1% Harvest",
                 description: `Captured $${profit.toFixed(4)} yield from ${action.asset} exit.`,
               });
+              
+              const updatedPositions = equityPositions.filter((_, i) => i !== posIndex);
               await updateDoc(doc(db, 'users', user.uid), { 
                 stockBotAllocation: increment(pos.cost),
-                totalBotEarnings: increment(profit)
+                totalBotEarnings: increment(profit),
+                equityPositions: updatedPositions
               });
-              setEquityPositions(prev => prev.filter((_, i) => i !== posIndex));
+              setEquityPositions(updatedPositions);
             }
           } else {
             addStockLog(`SCAN: ${action.reasoning}`, "info");
@@ -348,6 +352,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setStockBotActive(!!d.stockBotActive);
         setStockBotAllocation(d.stockBotAllocation || 20);
         setStockBotRisk(d.stockBotRisk || 'medium');
+        setCryptoPositions(d.cryptoPositions || []);
+        setEquityPositions(d.equityPositions || []);
       }
     });
 
@@ -392,11 +398,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const liquidateEarnings = async () => { 
     if (!db || !user || totalBotEarnings <= 0) return;
-    
-    // Find primary USDC wallet to deposit earnings
     const usdcAsset = assets.find(a => a.currency === 'USDC' && a.isPrimary);
     if (!usdcAsset) {
-      toast({ title: "Settlement Error", description: "Primary USDC Vault not found. Provision one in Settings.", variant: "destructive" });
+      toast({ title: "Settlement Error", description: "Primary USDC Vault not found.", variant: "destructive" });
       return;
     }
 
