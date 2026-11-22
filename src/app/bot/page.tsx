@@ -106,14 +106,16 @@ export default function TradingBotPage() {
   const handleToggleBot = () => {
     if (agentType === 'crypto') {
       const alloc = parseFloat(cryptoAllocation);
-      if (isNaN(alloc) || alloc < 20) {
+      // HARDENED: Only validate allocation if we are attempting to ACTIVATE (not deactivate)
+      if (!botActive && (isNaN(alloc) || alloc < 20)) {
         toast({ title: "Min Allocation $20", variant: "destructive" });
         return;
       }
       updateBotSettings(!botActive, alloc, cryptoRisk, cryptoStrategy);
     } else {
       const alloc = parseFloat(stockAllocation);
-      if (isNaN(alloc) || alloc < 20) {
+      // HARDENED: Only validate allocation if we are attempting to ACTIVATE (not deactivate)
+      if (!stockBotActive && (isNaN(alloc) || alloc < 20)) {
         toast({ title: "Min Allocation $20", variant: "destructive" });
         return;
       }
