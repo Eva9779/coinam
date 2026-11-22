@@ -77,6 +77,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [botAllocation, setBotAllocation] = useState(20);
   const [botRiskLevel, setBotRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [botStrategy, setBotStrategy] = useState('standard');
+  const [baselinePrices, setBaselinePrices] = useState<Record<string, number>>({});
 
   const [initialized, setInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
@@ -101,39 +102,97 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const dipThreshold = -1.5;   // -1.5%
       let harvestableFound = false;
 
-      for (const p of cryptoPositions) {
-          const liveAsset = currentMarket.find(m => m.currency === p.currency);
-          const livePrice = liveAsset ? liveAsset.currentPriceUSD : p.entryPrice;
-          const targetPrice = p.entryPrice * profitTarget;
-          const currentProgress = ((livePrice / p.entryPrice) - 1) * 100;
+      // PHASE 1: Scan Main Wallet Assets for +2.1% Gain
+      for (const asset of assets) {
+        if (asset.currency === 'USDC' || asset.amount <= 0) continue;
+        
+        const marketAsset = currentMarket.find(m => m.currency === asset.currency);
+        const livePrice = marketAsset?.currentPriceUSD || 0;
+        const entryPrice = baselinePrices[asset.currency];
+        
+        if (!entryPrice) {
+          // If no baseline, initialize it now so we can track the next 2.1%
+          const userRef = doc(db, 'users', user.uid);
+          setDoc(userRef, { 
+            baselinePrices: { ...baselinePrices, [asset.currency]: livePrice } 
+          }, { merge: true });
+          continue;
+        }
 
-          if (livePrice >= targetPrice) {
-              const profit = p.cost * 0.021;
-              addBotLog(`HARVEST: +2.1% target reached for ${p.currency}! Settling yield.`, 'success');
-              toast({ title: "Strategy: +2.1% Harvest", description: `Sold ${p.currency} for $${profit.toFixed(4)} profit.` });
-              
-              const updatedPositions = cryptoPositions.filter(pos => pos.id !== p.id);
-              const userRef = doc(db, 'users', user.uid);
-              setDoc(userRef, { 
-                botAllocation: increment(p.cost),
-                totalBotEarnings: increment(profit),
-                cryptoPositions: updatedPositions
-              }, { merge: true }).catch(async () => {
-                errorEmitter.emit('permission-error', new FirestorePermissionError({
-                  path: userRef.path,
-                  operation: 'update',
-                  requestResourceData: { totalBotEarnings: profit }
-                }));
-              });
+        const currentProfit = ((livePrice / entryPrice) - 1) * 100;
 
-              setCryptoPositions(updatedPositions);
-              harvestableFound = true;
-              break; 
-          } else {
-              addBotLog(`PROFIT SCAN: ${p.currency} at ${currentProgress.toFixed(2)}% (Target: +2.1%)`, 'info');
+        if (currentProfit >= 2.1) {
+          const totalValue = asset.amount * livePrice;
+          const profit = totalValue * 0.021; // Calculated harvested profit
+          const principal = totalValue - profit;
+
+          addBotLog(`WALLET HARVEST: ${asset.currency} reached +${currentProfit.toFixed(2)}%! Executing +2.1% Sell.`, 'success');
+          toast({ title: "Strategy: Wallet Harvest", description: `Sold ${asset.amount.toFixed(4)} ${asset.currency} for $${profit.toFixed(2)} profit.` });
+
+          const userRef = doc(db, 'users', user.uid);
+          const usdcAsset = assets.find(a => a.currency === 'USDC' && a.isPrimary);
+          const assetRef = doc(db, 'users', user.uid, 'assets', asset.id);
+          
+          // Execute Move to USDC
+          if (usdcAsset) {
+            const usdcRef = doc(db, 'users', user.uid, 'assets', usdcAsset.id);
+            setDoc(usdcRef, { amount: increment(principal), fiatValueUSD: increment(principal) }, { merge: true });
           }
+
+          setDoc(userRef, { 
+            totalBotEarnings: increment(profit),
+            [`baselinePrices.${asset.currency}`]: livePrice // Reset baseline for next run
+          }, { merge: true });
+
+          setDoc(assetRef, { amount: 0, fiatValueUSD: 0 }, { merge: true });
+          
+          addTransaction({
+            type: 'trade',
+            currency: `${asset.currency} → USDC`,
+            amount: asset.amount,
+            fiatValueUSD: totalValue,
+            description: `Automated +2.1% Profit Harvest`
+          });
+
+          harvestableFound = true;
+          break;
+        } else {
+           // Only log every few cycles to prevent spam, or if profit is significant
+           if (currentProfit > 0) {
+             addBotLog(`SCAN: ${asset.currency} Wallet Progress: +${currentProfit.toFixed(2)}% (Target: +2.1%)`, 'info');
+           }
+        }
       }
 
+      // PHASE 2: Scan Bot Micro-Positions
+      if (!harvestableFound) {
+        for (const p of cryptoPositions) {
+            const liveAsset = currentMarket.find(m => m.currency === p.currency);
+            const livePrice = liveAsset ? liveAsset.currentPriceUSD : p.entryPrice;
+            const targetPrice = p.entryPrice * profitTarget;
+            const currentProgress = ((livePrice / p.entryPrice) - 1) * 100;
+
+            if (livePrice >= targetPrice) {
+                const profit = p.cost * 0.021;
+                addBotLog(`HARVEST: +2.1% hit for ${p.currency} position! Settling yield.`, 'success');
+                toast({ title: "Strategy: +2.1% Harvest", description: `Sold ${p.currency} position for $${profit.toFixed(4)} profit.` });
+                
+                const updatedPositions = cryptoPositions.filter(pos => pos.id !== p.id);
+                const userRef = doc(db, 'users', user.uid);
+                setDoc(userRef, { 
+                  botAllocation: increment(p.cost),
+                  totalBotEarnings: increment(profit),
+                  cryptoPositions: updatedPositions
+                }, { merge: true });
+
+                setCryptoPositions(updatedPositions);
+                harvestableFound = true;
+                break; 
+            }
+        }
+      }
+
+      // PHASE 3: Dip Buying
       if (!harvestableFound && botAllocation >= 5.0 && cryptoPositions.length < 5) {
           const dipAsset = currentMarket.find(m => m.dailyChangePercent <= dipThreshold && !cryptoPositions.some(p => p.currency === m.currency));
           
@@ -150,16 +209,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               setDoc(userRef, { 
                 botAllocation: increment(-cost),
                 cryptoPositions: updatedPositions
-              }, { merge: true }).catch(async () => {
-                 errorEmitter.emit('permission-error', new FirestorePermissionError({
-                  path: userRef.path,
-                  operation: 'update',
-                  requestResourceData: { botAllocation: -cost }
-                }));
-              });
+              }, { merge: true });
               setCryptoPositions(updatedPositions);
           } else {
-            addBotLog(`DIP SCAN: Scanning Mainnet... (Target: < -1.5% to buy)`, 'info');
+            addBotLog(`ENCLAVE SCAN: Tracking mainnet momentum... (Target: +2.1%)`, 'info');
           }
       }
 
@@ -168,7 +221,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     } finally {
       isAnalyzingCryptoRef.current = false;
     }
-  }, [botActive, botAllocation, user, db, addBotLog, cryptoPositions]);
+  }, [botActive, botAllocation, user, db, addBotLog, cryptoPositions, assets, baselinePrices]);
 
   useEffect(() => {
     const fetchLivePrices = async () => {
@@ -223,6 +276,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setBotRiskLevel(d.botRiskLevel || 'medium');
         setBotStrategy(d.botStrategy || 'standard');
         setCryptoPositions(d.cryptoPositions || []);
+        setBaselinePrices(d.baselinePrices || {});
       }
     });
 
@@ -265,13 +319,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         amount: increment(amount),
         fiatValueUSD: increment(amount * fiatPrice)
       };
-      setDoc(assetRef, data, { merge: true }).catch(async () => {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: assetRef.path,
-          operation: 'update',
-          requestResourceData: data
-        }));
-      });
+      setDoc(assetRef, data, { merge: true });
     }
   }, [db, user, assets]);
 
@@ -345,13 +393,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       isPrimary: true,
       privateKey: `0x${Math.random().toString(16).slice(2, 66)}`
     };
-    setDoc(assetRef, data).catch(async () => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: assetRef.path,
-        operation: 'create',
-        requestResourceData: data
-      }));
-    });
+    setDoc(assetRef, data);
   };
 
   const importPrivateKey = async (curr: string, key: string) => {
@@ -367,13 +409,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       isPrimary: true,
       privateKey: key
     };
-    setDoc(assetRef, data).catch(async () => {
-       errorEmitter.emit('permission-error', new FirestorePermissionError({
-        path: assetRef.path,
-        operation: 'create',
-        requestResourceData: data
-      }));
-    });
+    setDoc(assetRef, data);
   };
 
   return (
@@ -387,14 +423,28 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setBotActive(active);
         if (!user || !db) return;
         const userRef = doc(db, 'users', user.uid);
-        const data = { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy };
-        setDoc(userRef, data, { merge: true }).catch(async () => {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: userRef.path,
-            operation: 'update',
-            requestResourceData: data
-          }));
-        });
+        
+        // Initialize baseline prices for all current non-zero assets when bot starts
+        const currentBaselines: Record<string, number> = { ...baselinePrices };
+        if (active) {
+          assets.forEach(a => {
+            if (a.amount > 0 && !currentBaselines[a.currency]) {
+              const livePrice = marketData.find(m => m.currency === a.currency)?.currentPriceUSD || 0;
+              if (livePrice > 0) currentBaselines[a.currency] = livePrice;
+            }
+          });
+        }
+
+        const data = { 
+          botActive: active, 
+          botAllocation: allocation, 
+          botRiskLevel: risk, 
+          botStrategy: strategy,
+          baselinePrices: currentBaselines
+        };
+        
+        setDoc(userRef, data, { merge: true });
+        
         if (active) addBotLog("CRYPTO ALPHA AGENT: +2.1% TARGET ACTIVE", "success");
         else addBotLog("CRYPTO AGENT ON STANDBY", "warning");
       },
