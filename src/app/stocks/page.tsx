@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo } from 'react';
@@ -223,9 +222,25 @@ export default function StocksPage() {
             <div className="flex items-center justify-between px-2">
               <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-secondary" />
-                Equity Vision: {chartSymbol}
+                Equity Vision: {chartSymbol.split(':')[1] || chartSymbol}
               </h3>
-              <Badge variant="outline" className="bg-secondary/10 text-secondary border-none animate-pulse">LIVE REAL-WORLD FEED</Badge>
+              <div className="flex items-center gap-3">
+                <Select value={chartSymbol} onValueChange={setChartSymbol}>
+                  <SelectTrigger className="w-40 h-10 rounded-xl font-bold bg-card border-none shadow-sm">
+                    <SelectValue placeholder="Select Asset" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl">
+                    <SelectItem value="NASDAQ:NVDA">NVIDIA (NVDA)</SelectItem>
+                    <SelectItem value="NASDAQ:AAPL">Apple (AAPL)</SelectItem>
+                    <SelectItem value="NASDAQ:TSLA">Tesla (TSLA)</SelectItem>
+                    <SelectItem value="NASDAQ:META">Meta (META)</SelectItem>
+                    <SelectItem value="NASDAQ:TQQQ">TQQQ (3X Leveraged)</SelectItem>
+                    <SelectItem value="NASDAQ:SOXL">SOXL (3X Semi)</SelectItem>
+                    <SelectItem value="AMEX:BND">Total Bond (BND)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Badge variant="outline" className="bg-secondary/10 text-secondary border-none animate-pulse hidden sm:flex">LIVE FEED</Badge>
+              </div>
             </div>
             <EquityChart symbol={chartSymbol} />
           </div>
