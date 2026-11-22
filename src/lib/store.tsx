@@ -119,7 +119,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const isAnalyzingCryptoRef = useRef(false);
   const marketDataRef = useRef(marketData);
 
-  // Keep Ref updated to avoid stale closures in effects
   useEffect(() => {
     marketDataRef.current = marketData;
   }, [marketData]);
@@ -131,21 +130,21 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!botActive || isAnalyzingCryptoRef.current || !user || !db) return;
     isAnalyzingCryptoRef.current = true;
     try {
-      addBotLog("MAINNET SCAN: Checking profit targets (+2.1%)...", "info");
-      
-      const profitTarget = 1.021;
+      const profitTarget = 1.021; // +2.1%
+      const dipThreshold = -1.5;   // -1.5%
       let harvestableFound = false;
 
+      // 1. PROFIT SCAN (The Sell Side)
       for (const p of cryptoPositions) {
           const liveAsset = currentMarket.find(m => m.currency === p.currency);
           const livePrice = liveAsset ? liveAsset.currentPriceUSD : p.entryPrice;
           const targetPrice = p.entryPrice * profitTarget;
-          const progress = ((livePrice / p.entryPrice) - 1) * 100;
+          const currentProgress = ((livePrice / p.entryPrice) - 1) * 100;
 
           if (livePrice >= targetPrice) {
               const profit = p.cost * 0.021;
-              addBotLog(`HARVEST: +2.1% hit for ${p.currency}! Settling profit.`, 'success');
-              toast({ title: "Strategy: +2.1% Harvest", description: `Captured $${profit.toFixed(4)} from ${p.currency}.` });
+              addBotLog(`HARVEST: +2.1% hit for ${p.currency}! Settling yield.`, 'success');
+              toast({ title: "Strategy: +2.1% Harvest", description: `Sold ${p.currency} for $${profit.toFixed(4)} profit.` });
               
               const updatedPositions = cryptoPositions.filter(pos => pos.id !== p.id);
               const userRef = doc(db, 'users', user.uid);
@@ -165,18 +164,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               harvestableFound = true;
               break; 
           } else {
-              addBotLog(`MONITOR: ${p.currency} at ${progress.toFixed(2)}% progress. Target: +2.1%`, 'info');
+              addBotLog(`PROFIT SCAN: ${p.currency} at ${currentProgress.toFixed(2)}% (Target: +2.1%)`, 'info');
           }
       }
 
+      // 2. DIP SCAN (The Buy Side)
       if (!harvestableFound && botAllocation >= 5.0 && cryptoPositions.length < 5) {
-          const dipAsset = currentMarket.find(m => m.dailyChangePercent < -0.1 && !cryptoPositions.some(p => p.currency === m.currency));
+          const dipAsset = currentMarket.find(m => m.dailyChangePercent <= dipThreshold && !cryptoPositions.some(p => p.currency === m.currency));
+          
           if (dipAsset) {
               const cost = 5.0;
               const entryPrice = dipAsset.currentPriceUSD;
               const newPos = { currency: dipAsset.currency, cost, entryPrice, id: Date.now() };
               
-              addBotLog(`SIGNAL: Buying dip for ${dipAsset.currency} @ $${entryPrice.toLocaleString()}.`, 'success');
+              addBotLog(`DIP BUY: ${dipAsset.currency} dropped ${dipAsset.dailyChangePercent.toFixed(2)}%. Buying dip @ $${entryPrice.toLocaleString()}.`, 'success');
               toast({ title: "Strategy: Dip Buy", description: `Acquired $5.00 of ${dipAsset.currency} @ $${entryPrice.toLocaleString()}.` });
               
               const updatedPositions = [...cryptoPositions, newPos];
@@ -192,6 +193,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 }));
               });
               setCryptoPositions(updatedPositions);
+          } else {
+            // Log that we are looking for a dip but haven't found a deep enough one yet
+            addBotLog(`DIP SCAN: Scanning Mainnet... (Target: < -1.5% to buy)`, 'info');
           }
       }
 
@@ -208,19 +212,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setIsAnalyzingStocks(true);
 
     try {
-      addStockLog("VISION SCAN: Scanning equity yields (+2.1%)...", "info");
-      
-      const profitTarget = 1.021;
+      const profitTarget = 1.021; // +2.1%
+      const dipThreshold = -1.5;   // -1.5%
       let harvestableFound = false;
 
+      // 1. EQUITY PROFIT SCAN
       for (const p of equityPositions) {
           const liveAsset = currentMarket.find(m => m.currency === p.symbol);
           const livePrice = liveAsset ? liveAsset.currentPriceUSD : p.entryPrice;
           const targetPrice = p.entryPrice * profitTarget;
+          const currentProgress = ((livePrice / p.entryPrice) - 1) * 100;
 
           if (livePrice >= targetPrice) {
               const profit = p.cost * 0.021;
-              addStockLog(`HARVEST: +2.1% reached for ${p.symbol}.`, 'success');
+              addStockLog(`HARVEST: +2.1% hit for ${p.symbol}. Liquidating profit.`, 'success');
               toast({ title: "Equity: +2.1% Harvest", description: `Captured $${profit.toFixed(4)} from ${p.symbol}.` });
               
               const updatedPositions = equityPositions.filter(pos => pos.id !== p.id);
@@ -239,18 +244,26 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               setEquityPositions(updatedPositions);
               harvestableFound = true;
               break;
+          } else {
+              addStockLog(`EQUITY SCAN: ${p.symbol} at ${currentProgress.toFixed(2)}% (Target: +2.1%)`, 'info');
           }
       }
 
+      // 2. EQUITY DIP SCAN
       if (!harvestableFound && stockBotAllocation >= 5.0 && equityPositions.length < 5) {
-          const techDip = currentMarket.find(m => ['NVDA', 'TQQQ', 'SOXL', 'NVD', 'SOX'].includes(m.currency) && m.dailyChangePercent < 0 && !equityPositions.some(p => p.symbol === m.currency));
+          const techDip = currentMarket.find(m => 
+            ['NVDA', 'TQQQ', 'SOXL', 'NVD', 'SOX'].includes(m.currency) && 
+            m.dailyChangePercent <= dipThreshold && 
+            !equityPositions.some(p => p.symbol === m.currency)
+          );
+          
           if (techDip) {
               const cost = 5.0;
               const entryPrice = techDip.currentPriceUSD;
               const newPos = { symbol: techDip.currency, cost, entryPrice, id: Date.now() };
 
-              addStockLog(`DIP BUY: Allocated $5.00 to ${techDip.currency} @ $${entryPrice.toLocaleString()}.`, 'success');
-              toast({ title: "Equity: Tech Dip Buy", description: `Acquired ${techDip.currency} via Enclave.` });
+              addStockLog(`DIP BUY: ${techDip.currency} down ${techDip.dailyChangePercent.toFixed(2)}%. Buying dip @ $${entryPrice.toLocaleString()}.`, 'success');
+              toast({ title: "Equity: Tech Dip Buy", description: `Allocated $5.00 to ${techDip.currency} via Enclave.` });
               
               const updatedPositions = [...equityPositions, newPos];
               const userRef = doc(db, 'users', user.uid);
@@ -265,6 +278,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                 }));
               });
               setEquityPositions(updatedPositions);
+          } else {
+            addStockLog(`DIP SCAN: Scanning RWA Yields... (Target: < -1.5% to buy)`, 'info');
           }
       }
     } catch (e: any) {
@@ -275,7 +290,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [stockBotActive, stockBotAllocation, user, db, addStockLog, equityPositions]);
 
-  // Main Live Fetch Cycle - Purely updates state
   useEffect(() => {
     const fetchLivePrices = async () => {
       try {
@@ -311,7 +325,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(interval);
   }, []);
 
-  // Analysis Side-Effects - Triggers AFTER market data state is stable
   useEffect(() => {
     if (botActive && marketData.length > 0) {
       triggerCryptoAnalysis(marketData);
