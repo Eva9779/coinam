@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -115,7 +116,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const isAnalyzingStocksRef = useRef(false);
   const isAnalyzingCryptoRef = useRef(false);
 
-  // REAL-WORLD Position state (Transient Enclave Storage)
+  // REAL-WORLD Position state (Transient Enclave Storage - Memory Only to avoid DB clutter)
   const [cryptoPositions, setCryptoPositions] = useState<any[]>([]);
   const [equityPositions, setEquityPositions] = useState<any[]>([]);
 
@@ -130,7 +131,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         response = await analyzeMarketAndTrade({
           userId: user.uid,
           strategyType: botStrategy as any,
-          assets: assets.filter(a => a.isPrimary).map(a => ({ currency: a.currency, amount: a.amount, fiatValue: a.fiatValueUSD })),
+          assets: assets.map(a => ({ currency: a.currency, amount: a.amount, fiatValue: a.fiatValueUSD })),
           marketData: INITIAL_MARKET_DATA.map(m => ({ currency: m.currency, price: m.currentPriceUSD, change24h: m.dailyChangePercent })),
           riskTolerance: botRiskLevel,
           allocationLimitUSD: botAllocation
@@ -142,7 +143,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const harvestable = cryptoPositions.find(p => {
             const liveAsset = INITIAL_MARKET_DATA.find(m => m.currency === p.currency);
             const livePrice = liveAsset ? liveAsset.currentPriceUSD : p.entryPrice;
-            // Mathematical target: Current Live Price vs Entry
             return livePrice >= p.entryPrice * profitTarget;
         });
 
@@ -154,10 +154,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             const dipAsset = INITIAL_MARKET_DATA.find(m => m.dailyChangePercent < -0.3);
             if (dipAsset && botAllocation >= 5.0 && cryptoPositions.length < 4) {
                 response = {
-                    actions: [{ type: 'buy', toAsset: dipAsset.currency, amountUSD: 5.0, reasoning: `Mainnet dip detected in ${dipAsset.currency}. Acquiring ownership.` }]
+                    actions: [{ type: 'buy', toAsset: dipAsset.currency, amountUSD: 5.0, reasoning: `Dip detected in ${dipAsset.currency}. Executing Spot entry.` }]
                 };
             } else {
-                response = { actions: [{ type: 'hold', reasoning: "Market scanning... assets held securely in vault." }] };
+                response = { actions: [{ type: 'hold', reasoning: "Scanning mainnet liquidity... positions held securely." }] };
             }
         }
       }
@@ -168,7 +168,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             const cost = 5.0; 
             if (botAllocation < cost) continue;
             const liveAsset = INITIAL_MARKET_DATA.find(m => m.currency === action.toAsset);
-            addBotLog(`SIGNAL: Dip buy executed for ${action.toAsset}. Ownership locked in vault.`, 'success');
+            addBotLog(`SIGNAL: Dip buy executed for ${action.toAsset}. Principal locked in vault.`, 'success');
             await updateDoc(doc(db, 'users', user.uid), { botAllocation: increment(-cost) });
             setCryptoPositions(prev => [...prev, { currency: action.toAsset, cost, entryPrice: liveAsset?.currentPriceUSD || 100, id: Date.now() }]);
           } else if (action.type === 'sell') {
@@ -233,7 +233,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                     actions: [{ type: 'buy', asset: techDip.currency, amount: 5.0, reasoning: "Mainnet tech dip detected. Allocating capital." }]
                 };
             } else {
-                response = { actions: [{ type: 'hold', reasoning: "Awaiting market entry signal... capital held securely." }] };
+                response = { actions: [{ type: 'hold', reasoning: "Awaiting market entry signal... principal held securely." }] };
             }
         }
       }
@@ -332,7 +332,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const updateBalance = useCallback(async (currency: string, amount: number, fiatPrice: number) => {
     if (!db || !user) return;
-    const asset = assets.find(a => a.currency === currency && a.isPrimary);
+    const asset = assets.find(a => a.currency === currency);
     if (asset) {
       await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
         amount: increment(amount),

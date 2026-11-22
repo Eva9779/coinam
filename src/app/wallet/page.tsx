@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState } from "react";
@@ -32,9 +33,10 @@ export default function WalletPage() {
   const [search, setSearch] = useState("");
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
 
-  // Filter out any trade-generated artifacts and only show Primary institutional wallets
+  // RESTORED: Removed the isPrimary filter so real wallets with funds are always visible.
   const filteredAssets = assets.filter(a => 
-    a.isPrimary && a.currency.toLowerCase().includes(search.toLowerCase())
+    a.currency.toLowerCase().includes(search.toLowerCase()) || 
+    a.address.toLowerCase().includes(search.toLowerCase())
   );
 
   const handleSyncBalance = async (address: string, currency: string) => {
@@ -52,7 +54,7 @@ export default function WalletPage() {
     } catch (e) {
       toast({ 
         title: "Sync failed", 
-        description: "Could not establish a stable connection with Mainnet peers. Retrying background sync.",
+        description: "Could not establish a stable connection with Mainnet peers.",
         variant: "destructive" 
       });
     } finally {
@@ -207,7 +209,7 @@ export default function WalletPage() {
                         <Loader2 className="h-12 w-12 animate-spin text-primary" />
                         <div className="space-y-2">
                           <h4 className="text-lg font-black uppercase tracking-tight">Provisioning Secure Key</h4>
-                          <p className="text-xs text-muted-foreground max-w-xs mx-auto">Initializing hardware-isolated cryptographic endpoints. Do not refresh.</p>
+                          <p className="text-xs text-muted-foreground max-w-xs mx-auto">Initializing hardware-isolated cryptographic endpoints.</p>
                         </div>
                       </>
                     ) : (
@@ -216,8 +218,8 @@ export default function WalletPage() {
                           <Key className="h-10 w-10 text-primary opacity-40" />
                         </div>
                         <div className="space-y-2 px-4">
-                          <h4 className="text-xl font-black uppercase tracking-tight">Wallet Not Initialized</h4>
-                          <p className="text-sm text-muted-foreground max-w-xs mx-auto">To begin securing your digital legacy, you must first provision a unique cryptographic identity.</p>
+                          <h4 className="text-xl font-black uppercase tracking-tight">Vault Protocol Standby</h4>
+                          <p className="text-sm text-muted-foreground max-w-xs mx-auto">No wallets detected. Click below to provision a new endpoint or import an existing key in Settings.</p>
                         </div>
                         <Button 
                           size="lg" 
