@@ -16,7 +16,7 @@ import { analyzeEquityMarket } from '@/ai/flows/stock-bot-flow';
 import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
 import { toast } from '@/hooks/use-toast';
 import { INITIAL_MARKET_DATA } from './data';
-import { getLiveBalance } from './blockchain';
+import { getLiveBalance, TOKENS } from './blockchain';
 
 export interface WalletAsset {
   id: string;
@@ -120,6 +120,127 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [cryptoPositions, setCryptoPositions] = useState<any[]>([]);
   const [equityPositions, setEquityPositions] = useState<any[]>([]);
 
+  const triggerCryptoAnalysis = useCallback(async (currentMarket: any[]) => {
+    if (!botActive || isAnalyzingCryptoRef.current || !user || !db) return;
+    isAnalyzingCryptoRef.current = true;
+    try {
+      addBotLog("MAINNET SCAN: Checking profit targets (+2.1%)...", "info");
+      
+      const profitTarget = 1.021;
+      let harvestableFound = false;
+
+      // 1. Check existing Bot-Opened Positions
+      for (const p of cryptoPositions) {
+          const liveAsset = currentMarket.find(m => m.currency === p.currency);
+          const livePrice = liveAsset ? liveAsset.currentPriceUSD : p.entryPrice;
+          const targetPrice = p.entryPrice * profitTarget;
+          const progress = ((livePrice / p.entryPrice) - 1) * 100;
+
+          if (livePrice >= targetPrice) {
+              const profit = p.cost * 0.021;
+              addBotLog(`HARVEST: +2.1% hit for ${p.currency}! Settling profit.`, 'success');
+              toast({ title: "Strategy: +2.1% Harvest", description: `Captured $${profit.toFixed(4)} from ${p.currency}.` });
+              
+              const updatedPositions = cryptoPositions.filter(pos => pos.id !== p.id);
+              await updateDoc(doc(db, 'users', user.uid), { 
+                botAllocation: increment(p.cost),
+                totalBotEarnings: increment(profit),
+                cryptoPositions: updatedPositions
+              });
+              setCryptoPositions(updatedPositions);
+              harvestableFound = true;
+              break; 
+          } else {
+              addBotLog(`MONITOR: ${p.currency} at ${progress.toFixed(2)}% progress. Need: $${targetPrice.toLocaleString()}.`, 'info');
+          }
+      }
+
+      // 2. If no harvest, look for Dip Entries (only if allocation allows)
+      if (!harvestableFound && botAllocation >= 5.0 && cryptoPositions.length < 5) {
+          const dipAsset = currentMarket.find(m => m.dailyChangePercent < -0.1 && !cryptoPositions.some(p => p.currency === m.currency));
+          if (dipAsset) {
+              const cost = 5.0;
+              const entryPrice = dipAsset.currentPriceUSD;
+              const newPos = { currency: dipAsset.currency, cost, entryPrice, id: Date.now() };
+              
+              addBotLog(`SIGNAL: Buying dip for ${dipAsset.currency} @ $${entryPrice.toLocaleString()}.`, 'success');
+              toast({ title: "Strategy: Dip Buy", description: `Acquired $5.00 of ${dipAsset.currency} @ $${entryPrice.toLocaleString()}.` });
+              
+              const updatedPositions = [...cryptoPositions, newPos];
+              await updateDoc(doc(db, 'users', user.uid), { 
+                botAllocation: increment(-cost),
+                cryptoPositions: updatedPositions
+              });
+              setCryptoPositions(updatedPositions);
+          }
+      }
+
+    } catch (e: any) {
+      addBotLog(`ERROR: ${e.message}`, 'error');
+    } finally {
+      isAnalyzingCryptoRef.current = false;
+    }
+  }, [botActive, botAllocation, user, db, addBotLog, cryptoPositions]);
+
+  const triggerEquityHarvestingAnalysis = useCallback(async (currentMarket: any[]) => {
+    if (!stockBotActive || isAnalyzingStocksRef.current || !user || !db) return;
+    isAnalyzingStocksRef.current = true;
+    setIsAnalyzingStocks(true);
+
+    try {
+      addStockLog("VISION SCAN: Scanning equity yields (+2.1%)...", "info");
+      
+      const profitTarget = 1.021;
+      let harvestableFound = false;
+
+      for (const p of equityPositions) {
+          const liveAsset = currentMarket.find(m => m.currency === p.symbol);
+          const livePrice = liveAsset ? liveAsset.currentPriceUSD : p.entryPrice;
+          const targetPrice = p.entryPrice * profitTarget;
+
+          if (livePrice >= targetPrice) {
+              const profit = p.cost * 0.021;
+              addStockLog(`HARVEST: +2.1% reached for ${p.symbol}.`, 'success');
+              toast({ title: "Equity: +2.1% Harvest", description: `Captured $${profit.toFixed(4)} from ${p.symbol}.` });
+              
+              const updatedPositions = equityPositions.filter(pos => pos.id !== p.id);
+              await updateDoc(doc(db, 'users', user.uid), { 
+                stockBotAllocation: increment(p.cost),
+                totalBotEarnings: increment(profit),
+                equityPositions: updatedPositions
+              });
+              setEquityPositions(updatedPositions);
+              harvestableFound = true;
+              break;
+          }
+      }
+
+      if (!harvestableFound && stockBotAllocation >= 5.0 && equityPositions.length < 5) {
+          const techDip = currentMarket.find(m => ['NVDA', 'TQQQ', 'SOXL', 'NVD', 'SOX'].includes(m.currency) && m.dailyChangePercent < 0 && !equityPositions.some(p => p.symbol === m.currency));
+          if (techDip) {
+              const cost = 5.0;
+              const entryPrice = techDip.currentPriceUSD;
+              const newPos = { symbol: techDip.currency, cost, entryPrice, id: Date.now() };
+
+              addStockLog(`DIP BUY: Allocated $5.00 to ${techDip.currency} @ $${entryPrice.toLocaleString()}.`, 'success');
+              toast({ title: "Equity: Tech Dip Buy", description: `Acquired ${techDip.currency} via Enclave.` });
+              
+              const updatedPositions = [...equityPositions, newPos];
+              await updateDoc(doc(db, 'users', user.uid), { 
+                stockBotAllocation: increment(-cost),
+                equityPositions: updatedPositions
+              });
+              setEquityPositions(updatedPositions);
+          }
+      }
+    } catch (e: any) {
+      addStockLog(`ERROR: ${e.message}`, 'error');
+    } finally {
+      isAnalyzingStocksRef.current = false;
+      setIsAnalyzingStocks(false);
+    }
+  }, [stockBotActive, stockBotAllocation, user, db, addStockLog, equityPositions]);
+
   useEffect(() => {
     const fetchLivePrices = async () => {
       try {
@@ -135,17 +256,25 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           'ripple': 'XRP'
         };
 
-        setMarketData(prev => prev.map(m => {
-          const coinId = Object.keys(mapping).find(key => mapping[key] === m.currency);
-          if (coinId && data[coinId]) {
-            return {
-              ...m,
-              currentPriceUSD: data[coinId].usd,
-              dailyChangePercent: data[coinId].usd_24h_change || 0
-            };
-          }
-          return m;
-        }));
+        setMarketData(prev => {
+          const updated = prev.map(m => {
+            const coinId = Object.keys(mapping).find(key => mapping[key] === m.currency);
+            if (coinId && data[coinId]) {
+              return {
+                ...m,
+                currentPriceUSD: data[coinId].usd,
+                dailyChangePercent: data[coinId].usd_24h_change || 0
+              };
+            }
+            return m;
+          });
+          
+          // Trigger bot analysis IMMEDIATELY after price update
+          if (botActive) triggerCryptoAnalysis(updated);
+          if (stockBotActive) triggerEquityHarvestingAnalysis(updated);
+          
+          return updated;
+        });
       } catch (e) {
         console.warn("Mainnet RPC limited. Retrying in 60s.");
       }
@@ -154,189 +283,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     fetchLivePrices();
     const interval = setInterval(fetchLivePrices, 60000);
     return () => clearInterval(interval);
-  }, []);
-
-  const triggerCryptoAnalysis = useCallback(async () => {
-    if (!botActive || isAnalyzingCryptoRef.current || !user || !db) return;
-    isAnalyzingCryptoRef.current = true;
-    try {
-      addBotLog("ENCLAVE SCAN: Analyzing market momentum...", "info");
-      
-      let response;
-      const profitTarget = 1.021;
-      
-      // Check for Harvestable positions FIRST
-      const harvestable = cryptoPositions.find(p => {
-          const liveAsset = marketData.find(m => m.currency === p.currency);
-          const livePrice = liveAsset ? liveAsset.currentPriceUSD : p.entryPrice;
-          return livePrice >= p.entryPrice * profitTarget;
-      });
-
-      if (harvestable) {
-          response = {
-              actions: [{ type: 'sell', fromAsset: harvestable.currency, amountUSD: harvestable.cost, reasoning: `Profit target hit (+2.1%) in ${harvestable.currency}.` }]
-          };
-      } else {
-          // If no profit hits, check for new dip entries
-          const dipAsset = marketData.find(m => m.dailyChangePercent < -0.1 && !cryptoPositions.some(p => p.currency === m.currency));
-          if (dipAsset && botAllocation >= 5.0 && cryptoPositions.length < 5) {
-              response = {
-                  actions: [{ type: 'buy', toAsset: dipAsset.currency, amountUSD: 5.0, reasoning: `Dip detected in ${dipAsset.currency}. Executing Spot entry.` }]
-              };
-          } else {
-              response = { actions: [{ type: 'hold', reasoning: "Monitoring liquidity... Awaiting +2.1% target or new dip." }] };
-          }
-      }
-
-      if (response && response.actions) {
-        for (const action of (response.actions as any[])) {
-          if (action.type === 'buy') {
-            const cost = 5.0; 
-            if (botAllocation < cost) continue;
-            const liveAsset = marketData.find(m => m.currency === action.toAsset);
-            const entryPrice = liveAsset?.currentPriceUSD || 100;
-            const newPos = { currency: action.toAsset, cost, entryPrice, id: Date.now() };
-            
-            addBotLog(`SIGNAL: Dip buy for ${action.toAsset} @ $${entryPrice.toLocaleString()}. Target: +2.1%.`, 'success');
-            toast({
-              title: "Strategy: Dip Buy",
-              description: `Acquired $${cost.toFixed(2)} of ${action.toAsset} @ $${entryPrice.toLocaleString()}.`,
-            });
-            
-            const updatedPositions = [...cryptoPositions, newPos];
-            await updateDoc(doc(db, 'users', user.uid), { 
-              botAllocation: increment(-cost),
-              cryptoPositions: updatedPositions
-            });
-            setCryptoPositions(updatedPositions);
-          } else if (action.type === 'sell') {
-            const posIndex = cryptoPositions.findIndex(p => p.currency === action.fromAsset);
-            if (posIndex > -1) {
-                const pos = cryptoPositions[posIndex];
-                const profit = pos.cost * 0.021;
-                addBotLog(`HARVEST: +2.1% target reached for ${action.fromAsset}. Yield settled.`, 'success');
-                toast({
-                  title: "Strategy: +2.1% Harvest",
-                  description: `Captured $${profit.toFixed(4)} profit from ${action.fromAsset} peak.`,
-                });
-                
-                const updatedPositions = cryptoPositions.filter((_, i) => i !== posIndex);
-                await updateDoc(doc(db, 'users', user.uid), { 
-                  botAllocation: increment(pos.cost),
-                  totalBotEarnings: increment(profit),
-                  cryptoPositions: updatedPositions
-                });
-                setCryptoPositions(updatedPositions);
-            }
-          } else {
-            addBotLog(`SCAN: ${action.reasoning}`, "info");
-          }
-        }
-      }
-    } catch (e: any) {
-      addBotLog(`ERROR: ${e.message}`, 'error');
-    } finally {
-      isAnalyzingCryptoRef.current = false;
-    }
-  }, [botActive, botStrategy, botRiskLevel, botAllocation, assets, user, db, addBotLog, cryptoPositions, marketData]);
-
-  const triggerEquityHarvestingAnalysis = useCallback(async () => {
-    if (!stockBotActive || isAnalyzingStocksRef.current || !user || !db) return;
-    isAnalyzingStocksRef.current = true;
-    setIsAnalyzingStocks(true);
-
-    try {
-      addStockLog("VISION SCAN: Identifying institutional equity dips...", "info");
-      
-      let response;
-      const profitTarget = 1.021;
-      const harvestable = equityPositions.find(p => {
-          const liveAsset = marketData.find(m => m.currency === p.symbol);
-          const livePrice = liveAsset ? liveAsset.currentPriceUSD : p.entryPrice;
-          return livePrice >= p.entryPrice * profitTarget;
-      });
-
-      if (harvestable) {
-          response = {
-              actions: [{ type: 'sell', asset: harvestable.symbol, reasoning: "+2.1% target achieved." }]
-          };
-      } else {
-          const techDip = marketData.find(m => ['NVDA', 'TQQQ', 'SOXL', 'NVD', 'SOX'].includes(m.currency) && m.dailyChangePercent < 0 && !equityPositions.some(p => p.symbol === m.currency));
-          if (techDip && stockBotAllocation >= 5.0 && equityPositions.length < 5) {
-              response = {
-                  actions: [{ type: 'buy', asset: techDip.currency, amount: 5.0, reasoning: "Mainnet tech dip detected. Allocating capital." }]
-              };
-          } else {
-              response = { actions: [{ type: 'hold', reasoning: "Awaiting entry signal... monitoring +2.1% targets." }] };
-          }
-      }
-
-      if (response && response.actions) {
-        for (const action of (response.actions as any[])) {
-          if (action.type === 'buy') {
-            const cost = 5.0;
-            if (stockBotAllocation < cost) continue;
-            const liveAsset = marketData.find(m => m.currency === action.asset);
-            const entryPrice = liveAsset?.currentPriceUSD || 100;
-            const newPos = { symbol: action.asset, cost, entryPrice, id: Date.now() };
-
-            addStockLog(`DIP BUY: Acquiring $${cost.toFixed(2)} of ${action.asset} @ $${entryPrice.toLocaleString()}.`, 'success');
-            toast({
-              title: "Equity: Tech Dip Buy",
-              description: `Allocated $${cost.toFixed(2)} to ${action.asset} via Enclave.`,
-            });
-            
-            const updatedPositions = [...equityPositions, newPos];
-            await updateDoc(doc(db, 'users', user.uid), { 
-              stockBotAllocation: increment(-cost),
-              equityPositions: updatedPositions
-            });
-            setEquityPositions(updatedPositions);
-          } else if (action.type === 'sell') {
-            const posIndex = equityPositions.findIndex(p => p.symbol === action.asset);
-            if (posIndex > -1) {
-              const pos = equityPositions[posIndex];
-              const profit = pos.cost * 0.021;
-              addStockLog(`HARVEST: +2.1% reached for ${action.asset}. Settling yield.`, 'success');
-              toast({
-                title: "Equity: +2.1% Harvest",
-                description: `Captured $${profit.toFixed(4)} yield from ${action.asset} exit.`,
-              });
-              
-              const updatedPositions = equityPositions.filter((_, i) => i !== posIndex);
-              await updateDoc(doc(db, 'users', user.uid), { 
-                stockBotAllocation: increment(pos.cost),
-                totalBotEarnings: increment(profit),
-                equityPositions: updatedPositions
-              });
-              setEquityPositions(updatedPositions);
-            }
-          } else {
-            addStockLog(`SCAN: ${action.reasoning}`, "info");
-          }
-        }
-      }
-    } catch (e: any) {
-      addStockLog(`ERROR: ${e.message}`, 'error');
-    } finally {
-      isAnalyzingStocksRef.current = false;
-      setIsAnalyzingStocks(false);
-    }
-  }, [stockBotActive, stockBotRisk, stockBotAllocation, user, db, addStockLog, equityPositions, marketData]);
-
-  useEffect(() => {
-    if (botActive) {
-      const interval = setInterval(triggerCryptoAnalysis, 30000); 
-      return () => clearInterval(interval);
-    }
-  }, [botActive, triggerCryptoAnalysis]);
-
-  useEffect(() => {
-    if (stockBotActive) {
-      const interval = setInterval(triggerEquityHarvestingAnalysis, 30000); 
-      return () => clearInterval(interval);
-    }
-  }, [stockBotActive, triggerEquityHarvestingAnalysis]);
+  }, [botActive, stockBotActive, triggerCryptoAnalysis, triggerEquityHarvestingAnalysis]);
 
   useEffect(() => {
     if (!db || !user) return;
