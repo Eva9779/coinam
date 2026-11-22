@@ -76,7 +76,7 @@ function getLocalAlerts(input: SmartAlertsInput): SmartAlertsOutput {
 
 const smartAlertsPrompt = ai.definePrompt({
   name: 'smartAlertsPrompt',
-  model: 'googleai/gemini-1.5-flash',
+  model: 'googleai/gemini-2.0-flash',
   input: { schema: SmartAlertsInputSchema },
   output: { schema: SmartAlertsOutputSchema },
   prompt: `You are an expert financial analyst for Coin A,M.

@@ -46,7 +46,7 @@ export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
 const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
-  model: 'googleai/gemini-1.5-flash',
+  model: 'googleai/gemini-2.0-flash',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
   prompt: `You are the Senior Quantitative Crypto Strategist for Coin A,M. 
