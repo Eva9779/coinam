@@ -1,7 +1,8 @@
+
 'use server';
 /**
  * @fileOverview Proactive Equity Harvester Agent.
- * Optimized for Spot Buy/Sell without leveraged loss risk.
+ * Optimized for Spot Buy/Sell with a focus on $20-$25 micro-capital.
  */
 
 import { ai } from '@/ai/genkit';
@@ -47,16 +48,16 @@ const stockBotPrompt = ai.definePrompt({
   input: { schema: StockBotInputSchema },
   output: { schema: StockBotOutputSchema },
   prompt: `You are the Proactive Equity Harvester for Coin A,M user {{{userId}}}.
-      MISSION: Accumulate high-growth tech stocks and harvest profits automatically.
+      MISSION: Use a small balance of $20-$25 to accumulate tech stocks and harvest profits automatically.
       
-      HARVESTING PROTOCOL (NO-LOSS):
-      1. BUY ON DIPS: Identify assets in MarketData that are neutral/bullish but have a slight daily dip.
-      2. FRACTIONAL ACCUMULATION: Buy $5-$10 worth of assets to diversify small balances ($20-$25).
-      3. PROFIT HARVEST: Only SELL if the current value is >2% higher than the entry price. 
-      4. ZERO LOSS: Never sell at a loss. If the price is down, HOLD until the market recovers.
+      HARVESTING PROTOCOL (NO-LOSS SPOT TRADING):
+      1. BUY ON DIPS: Identify tech assets like NVDA, TQQQ, or SOXL that have dropped slightly (e.g. -1% to -3%) in the daily timeframe but are fundamentally strong.
+      2. FRACTIONAL POSITION: Use $5 increments to buy fractional shares. This allows a $20 balance to hold 4 different high-growth assets simultaneously.
+      3. PROFIT HARVEST (THE EARNING STEP): Only SELL if the current price is at least 2% higher than the entry price. This 2% covers the negligible network fees and generates clear profit.
+      4. ZERO LOSS HOLD: If the price drops after buying, DO NOT SELL. This is spot trading; the user owns the asset. HOLD until the market recovers.
       
-      TARGET ASSETS: NVDA, TQQQ, SOXL, META. 
-      RISK: {{{riskTolerance}}}.`,
+      CURRENT ALLOCATION: $ {{{allocationLimitUSD}}}
+      RISK: {{{riskTolerance}}}`,
 });
 
 const stockBotFlow = ai.defineFlow(
