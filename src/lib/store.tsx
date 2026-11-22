@@ -117,6 +117,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   
   const isAnalyzingStocksRef = useRef(false);
   const isAnalyzingCryptoRef = useRef(false);
+  const marketDataRef = useRef(marketData);
+
+  // Keep Ref updated to avoid stale closures in effects
+  useEffect(() => {
+    marketDataRef.current = marketData;
+  }, [marketData]);
 
   const [cryptoPositions, setCryptoPositions] = useState<any[]>([]);
   const [equityPositions, setEquityPositions] = useState<any[]>([]);
@@ -130,7 +136,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const profitTarget = 1.021;
       let harvestableFound = false;
 
-      // 1. Check existing Bot-Opened Positions
       for (const p of cryptoPositions) {
           const liveAsset = currentMarket.find(m => m.currency === p.currency);
           const livePrice = liveAsset ? liveAsset.currentPriceUSD : p.entryPrice;
@@ -164,7 +169,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
       }
 
-      // 2. If no harvest, look for Dip Entries (only if allocation allows)
       if (!harvestableFound && botAllocation >= 5.0 && cryptoPositions.length < 5) {
           const dipAsset = currentMarket.find(m => m.dailyChangePercent < -0.1 && !cryptoPositions.some(p => p.currency === m.currency));
           if (dipAsset) {
@@ -271,6 +275,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [stockBotActive, stockBotAllocation, user, db, addStockLog, equityPositions]);
 
+  // Main Live Fetch Cycle - Purely updates state
   useEffect(() => {
     const fetchLivePrices = async () => {
       try {
@@ -279,11 +284,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const data = await response.json();
         
         const mapping: Record<string, string> = {
-          'bitcoin': 'BTC',
-          'ethereum': 'ETH',
-          'binancecoin': 'BNB',
-          'solana': 'SOL',
-          'ripple': 'XRP'
+          'bitcoin': 'BTC', 'ethereum': 'ETH', 'binancecoin': 'BNB', 'solana': 'SOL', 'ripple': 'XRP'
         };
 
         setMarketData(prev => {
@@ -298,10 +299,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             }
             return m;
           });
-          
-          if (botActive) triggerCryptoAnalysis(updated);
-          if (stockBotActive) triggerEquityHarvestingAnalysis(updated);
-          
           return updated;
         });
       } catch (e) {
@@ -312,7 +309,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     fetchLivePrices();
     const interval = setInterval(fetchLivePrices, 60000);
     return () => clearInterval(interval);
-  }, [botActive, stockBotActive, triggerCryptoAnalysis, triggerEquityHarvestingAnalysis]);
+  }, []);
+
+  // Analysis Side-Effects - Triggers AFTER market data state is stable
+  useEffect(() => {
+    if (botActive && marketData.length > 0) {
+      triggerCryptoAnalysis(marketData);
+    }
+  }, [marketData, botActive, triggerCryptoAnalysis]);
+
+  useEffect(() => {
+    if (stockBotActive && marketData.length > 0) {
+      triggerEquityHarvestingAnalysis(marketData);
+    }
+  }, [marketData, stockBotActive, triggerEquityHarvestingAnalysis]);
 
   useEffect(() => {
     if (!db || !user) return;

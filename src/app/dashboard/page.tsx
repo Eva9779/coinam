@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -28,26 +27,32 @@ import { Switch } from "@/components/ui/switch";
 
 const CustomPulseMarquee = ({ items }: { items: any[] }) => {
   return (
-    <div className="w-full overflow-hidden bg-slate-950 border-y border-white/5 py-4 relative group rounded-2xl shadow-inner">
+    <div className="w-full overflow-hidden bg-slate-900 border-y border-white/5 py-4 relative group rounded-2xl shadow-inner">
       <div className="flex animate-[marquee_40s_linear_infinite] hover:[animation-play-state:paused] gap-16 px-6">
-        {[...items, ...items, ...items].map((item, idx) => (
-          <div key={idx} className="flex flex-col items-start min-w-[110px] shrink-0 transition-transform hover:scale-105">
-            <span className="text-[10px] font-black text-secondary uppercase tracking-widest mb-1">{item.currency}</span>
-            <span className="text-base font-black text-white leading-tight">
-              ${item.currentPriceUSD.toLocaleString(undefined, { 
-                minimumFractionDigits: item.currentPriceUSD < 1 ? 4 : 1,
-                maximumFractionDigits: item.currentPriceUSD < 1 ? 4 : 2 
-              })}
-            </span>
-            <span className={cn(
-              "text-[11px] font-black leading-tight flex items-center gap-0.5 mt-0.5",
-              item.dailyChangePercent >= 0 ? "text-green-400" : "text-red-400"
-            )}>
-              {item.dailyChangePercent >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-              {item.dailyChangePercent >= 0 ? '+' : ''}{item.dailyChangePercent.toFixed(2)}%
-            </span>
-          </div>
-        ))}
+        {[...items, ...items, ...items].map((item, idx) => {
+          // SAFE FORMATTING: Ensure maximumFractionDigits is always >= minimumFractionDigits
+          const minDecimals = item.currentPriceUSD < 1 ? 4 : 2;
+          const maxDecimals = Math.max(minDecimals, 4);
+
+          return (
+            <div key={idx} className="flex flex-col items-start min-w-[120px] shrink-0 transition-transform hover:scale-105">
+              <span className="text-[10px] font-black text-secondary uppercase tracking-widest mb-1">{item.currency}</span>
+              <span className="text-base font-black text-white leading-tight">
+                ${item.currentPriceUSD.toLocaleString(undefined, { 
+                  minimumFractionDigits: minDecimals,
+                  maximumFractionDigits: maxDecimals 
+                })}
+              </span>
+              <span className={cn(
+                "text-[11px] font-black leading-tight flex items-center gap-0.5 mt-0.5",
+                item.dailyChangePercent >= 0 ? "text-green-400" : "text-red-400"
+              )}>
+                {item.dailyChangePercent >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                {item.dailyChangePercent >= 0 ? '+' : ''}{item.dailyChangePercent.toFixed(2)}%
+              </span>
+            </div>
+          );
+        })}
       </div>
       <style jsx>{`
         @keyframes marquee {
@@ -89,7 +94,7 @@ export default function Dashboard() {
   [marketData]);
 
   const stockMarketData = useMemo(() => 
-    marketData.filter(m => ['NVD', 'SOX', 'TQQQ'].includes(m.currency)), 
+    marketData.filter(m => ['NVD', 'SOX', 'TQQQ', 'NVDA', 'AAPL'].includes(m.currency)), 
   [marketData]);
 
   if (!initialized || !mounted) {
@@ -144,7 +149,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden">
+        <Card className="lg:col-span-3 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden min-h-[140px]">
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Landmark className="h-3 w-3 text-secondary" />
@@ -190,7 +195,7 @@ export default function Dashboard() {
             </div>
          </Card>
 
-         <Card className="lg:col-span-2 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden">
+         <Card className="lg:col-span-2 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden min-h-[140px]">
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Zap className="h-3 w-3 text-secondary" />
