@@ -32,8 +32,9 @@ export default function WalletPage() {
   const [search, setSearch] = useState("");
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
 
+  // Filter out any trade-generated artifacts and only show Primary institutional wallets
   const filteredAssets = assets.filter(a => 
-    a.currency.toLowerCase().includes(search.toLowerCase())
+    a.isPrimary && a.currency.toLowerCase().includes(search.toLowerCase())
   );
 
   const handleSyncBalance = async (address: string, currency: string) => {
@@ -140,7 +141,7 @@ export default function WalletPage() {
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4">
-                {assets.length > 0 ? filteredAssets.map((asset, idx) => (
+                {filteredAssets.length > 0 ? filteredAssets.map((asset, idx) => (
                   <div key={idx} className="flex flex-col p-6 border-2 rounded-3xl hover:bg-muted/10 transition-all border-primary/5 hover:border-secondary/30 bg-background/30">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-5">

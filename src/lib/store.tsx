@@ -9,9 +9,6 @@ import {
   onSnapshot, 
   updateDoc,
   increment,
-  getDocs,
-  query,
-  where,
   deleteDoc
 } from 'firebase/firestore';
 import { analyzeEquityMarket } from '@/ai/flows/stock-bot-flow';
@@ -27,7 +24,7 @@ export interface WalletAsset {
   address: string;
   isLive: boolean;
   privateKey?: string; 
-  entryPrice?: number;
+  isPrimary?: boolean;
 }
 
 export interface StockAsset {
@@ -38,22 +35,7 @@ export interface StockAsset {
   shares: number;
   currentPrice: number;
   totalValue: number;
-  tokenAddress?: string;
-  purchasePrice?: number;
-}
-
-export interface Transaction {
   id: string;
-  type: 'send' | 'receive' | 'trade';
-  status: 'pending' | 'completed' | 'failed';
-  hash: string;
-  currency: string;
-  amount: number;
-  fiatValueUSD: number;
-  timestamp: string;
-  toAddress: string;
-  fromAddress: string;
-  description: string;
 }
 
 interface BotLog {
@@ -134,6 +116,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const isAnalyzingStocksRef = useRef(false);
   const isAnalyzingCryptoRef = useRef(false);
 
+  // TRANSient position state to avoid Firestore clutter
+  const [cryptoPositions, setCryptoPositions] = useState<any[]>([]);
+  const [equityPositions, setEquityPositions] = useState<any[]>([]);
+
   const triggerCryptoAnalysis = useCallback(async () => {
     if (!botActive || isAnalyzingCryptoRef.current || !user || !db) return;
     isAnalyzingCryptoRef.current = true;
@@ -145,7 +131,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         response = await analyzeMarketAndTrade({
           userId: user.uid,
           strategyType: botStrategy as any,
-          assets: assets.map(a => ({ currency: a.currency, amount: a.amount, fiatValue: a.fiatValueUSD })),
+          assets: assets.filter(a => a.isPrimary).map(a => ({ currency: a.currency, amount: a.amount, fiatValue: a.fiatValueUSD })),
           marketData: INITIAL_MARKET_DATA.map(m => ({ currency: m.currency, price: m.currentPriceUSD, change24h: m.dailyChangePercent })),
           riskTolerance: botRiskLevel,
           allocationLimitUSD: botAllocation
@@ -153,23 +139,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       } catch (apiError: any) {
         addBotLog("BYPASS: Activating Local Quantitative Strategy Engine...", "warning");
         
-        // NO-LOSS HARVEST LOGIC: Check for mathematical profit first
-        const profitTarget = 1.021; // +2.1%
-        const harvestable = assets.find(a => {
-            if (!a.entryPrice || a.amount <= 0) return false;
-            // Real-world tick monitoring for mathematical harvest
-            const currentSimPrice = a.entryPrice * (1 + (Math.random() * 0.05 - 0.01)); 
-            return currentSimPrice >= a.entryPrice * profitTarget;
+        const profitTarget = 1.021;
+        const harvestable = cryptoPositions.find(p => {
+            const currentSimPrice = p.entryPrice * (1 + (Math.random() * 0.04 - 0.01)); 
+            return currentSimPrice >= p.entryPrice * profitTarget;
         });
 
         if (harvestable) {
             response = {
-                actions: [{ type: 'sell', fromAsset: harvestable.currency, amountUSD: harvestable.fiatValueUSD, reasoning: `Profit target reached (+2.1%) in ${harvestable.currency}.` }]
+                actions: [{ type: 'sell', fromAsset: harvestable.currency, amountUSD: harvestable.cost, reasoning: `Profit target reached (+2.1%) in ${harvestable.currency}.` }]
             };
         } else {
-            // INSTITUTIONAL DIP BUY LOGIC: Acquire positions if budget allows
             const dipAsset = INITIAL_MARKET_DATA.find(m => m.dailyChangePercent < -0.5);
-            if (dipAsset && botAllocation >= 5.0) {
+            if (dipAsset && botAllocation >= 5.0 && cryptoPositions.length < 3) {
                 response = {
                     actions: [{ type: 'buy', toAsset: dipAsset.currency, amountUSD: 5.0, reasoning: `Institutional dip detected in ${dipAsset.currency}.` }]
                 };
@@ -186,25 +168,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             if (botAllocation < cost) continue;
             addBotLog(`SIGNAL: Spot Dip detected in ${action.toAsset}. Acquiring position for profit harvest.`, 'success');
             await updateDoc(doc(db, 'users', user.uid), { botAllocation: increment(-cost) });
-            const assetId = `a_${action.toAsset}_${Date.now()}`;
-            await setDoc(doc(db, 'users', user.uid, 'assets', assetId), {
-              currency: action.toAsset,
-              amount: cost / 500, 
-              fiatValueUSD: cost,
-              address: `0x${Math.random().toString(16).slice(2, 42)}`,
-              isLive: true,
-              entryPrice: 500 
-            });
+            setCryptoPositions(prev => [...prev, { currency: action.toAsset, cost, entryPrice: 500, id: Date.now() }]);
           } else if (action.type === 'sell') {
-            const targetAsset = assets.find(a => a.currency === action.fromAsset);
-            if (targetAsset) {
+            const posIndex = cryptoPositions.findIndex(p => p.currency === action.fromAsset);
+            if (posIndex > -1) {
+                const pos = cryptoPositions[posIndex];
                 addBotLog(`SIGNAL: Profit Target reached for ${action.fromAsset} (+2.1%). Harvesting yield.`, 'success');
-                const profit = targetAsset.fiatValueUSD * 0.021; 
-                await deleteDoc(doc(db, 'users', user.uid, 'assets', targetAsset.id));
+                const profit = pos.cost * 0.021; 
                 await updateDoc(doc(db, 'users', user.uid), { 
                   totalBotEarnings: increment(profit),
-                  botAllocation: increment(targetAsset.fiatValueUSD) 
+                  botAllocation: increment(pos.cost) 
                 });
+                setCryptoPositions(prev => prev.filter((_, i) => i !== posIndex));
             }
           } else {
             addBotLog(`SCAN: ${action.reasoning}`, "info");
@@ -216,7 +191,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     } finally {
       isAnalyzingCryptoRef.current = false;
     }
-  }, [botActive, botStrategy, botRiskLevel, botAllocation, assets, user, db, addBotLog]);
+  }, [botActive, botStrategy, botRiskLevel, botAllocation, assets, user, db, addBotLog, cryptoPositions]);
 
   const triggerEquityHarvestingAnalysis = useCallback(async () => {
     if (!stockBotActive || isAnalyzingStocksRef.current || !user || !db) return;
@@ -231,19 +206,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         response = await analyzeEquityMarket({
           userId: user.uid,
           riskTolerance: stockBotRisk,
-          currentHoldings: stockAssets.map(s => ({ symbol: s.symbol, shares: s.shares, value: s.totalValue })),
+          currentHoldings: equityPositions.map(p => ({ symbol: p.symbol, shares: p.cost / 500, value: p.cost })),
           marketData: INITIAL_MARKET_DATA.map(m => ({ symbol: m.currency, name: m.currency, price: m.currentPriceUSD, changePercent: m.dailyChangePercent, type: 'stock' })),
           allocationLimitUSD: stockBotAllocation
         });
       } catch (apiError: any) {
         addStockLog("BYPASS: Activating Local RWA Harvester Engine...", "warning");
         
-        // EQUITY HARVEST: Mathematical profit target exit
         const profitTarget = 1.021;
-        const harvestable = stockAssets.find(s => {
-            if (!s.purchasePrice) return false;
-            const currentSimPrice = s.purchasePrice * (1 + (Math.random() * 0.04 - 0.01));
-            return currentSimPrice >= s.purchasePrice * profitTarget;
+        const harvestable = equityPositions.find(p => {
+            const currentSimPrice = p.entryPrice * (1 + (Math.random() * 0.04 - 0.01));
+            return currentSimPrice >= p.entryPrice * profitTarget;
         });
 
         if (harvestable) {
@@ -252,7 +225,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             };
         } else {
             const techDip = INITIAL_MARKET_DATA.find(m => ['NVDA', 'TQQQ', 'SOXL'].includes(m.currency) && m.dailyChangePercent < 0);
-            if (techDip && stockBotAllocation >= 5.0) {
+            if (techDip && stockBotAllocation >= 5.0 && equityPositions.length < 3) {
                 response = {
                     actions: [{ type: 'buy', asset: techDip.currency, amount: 5.0, reasoning: "Institutional dip detected in tech equity." }]
                 };
@@ -265,32 +238,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (response && response.actions) {
         for (const action of (response.actions as any[])) {
           if (action.type === 'buy') {
-            const cost = action.amount || 5.0;
+            const cost = 5.0;
             if (stockBotAllocation < cost) continue;
-            
             addStockLog(`DIP BUY: Acquiring $${cost.toFixed(2)} of ${action.asset}. Ownership locked in vault.`, 'success');
-            const stockId = `s_${action.asset}_${Date.now()}`;
-            await setDoc(doc(db, 'users', user.uid, 'stocks', stockId), {
-              symbol: action.asset, 
-              name: action.asset, 
-              type: 'stock', 
-              shares: cost / 500, 
-              currentPrice: 500, 
-              purchasePrice: 500,
-              totalValue: cost, 
-              id: stockId
-            });
+            setEquityPositions(prev => [...prev, { symbol: action.asset, cost, entryPrice: 500, id: Date.now() }]);
             await updateDoc(doc(db, 'users', user.uid), { stockBotAllocation: increment(-cost) });
           } else if (action.type === 'sell') {
-            const stockToSell = stockAssets.find(s => s.symbol === action.asset);
-            if (stockToSell) {
+            const posIndex = equityPositions.findIndex(p => p.symbol === action.asset);
+            if (posIndex > -1) {
+              const pos = equityPositions[posIndex];
               addStockLog(`HARVEST: ${action.asset} reached profit threshold. Executing no-loss exit at +2.1%.`, 'success');
-              const profit = stockToSell.totalValue * 0.021;
-              await deleteDoc(doc(db, 'users', user.uid, 'stocks', stockToSell.id));
+              const profit = pos.cost * 0.021;
               await updateDoc(doc(db, 'users', user.uid), { 
                 totalBotEarnings: increment(profit),
-                stockBotAllocation: increment(stockToSell.totalValue)
+                stockBotAllocation: increment(pos.cost)
               });
+              setEquityPositions(prev => prev.filter((_, i) => i !== posIndex));
             }
           } else {
             addStockLog(`SCAN: ${action.reasoning}`, "info");
@@ -303,7 +266,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       isAnalyzingStocksRef.current = false;
       setIsAnalyzingStocks(false);
     }
-  }, [stockBotActive, stockBotRisk, stockBotAllocation, stockAssets, user, db, addStockLog]);
+  }, [stockBotActive, stockBotRisk, stockBotAllocation, user, db, addStockLog, equityPositions]);
 
   useEffect(() => {
     if (botActive) {
@@ -365,7 +328,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const updateBalance = useCallback(async (currency: string, amount: number, fiatPrice: number) => {
     if (!db || !user) return;
-    const asset = assets.find(a => a.currency === currency);
+    const asset = assets.find(a => a.currency === currency && a.isPrimary);
     if (asset) {
       await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
         amount: increment(amount),
@@ -395,6 +358,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       fiatValueUSD: 0,
       address: `0x${Math.random().toString(16).slice(2, 42)}`,
       isLive: true,
+      isPrimary: true,
       privateKey: `0x${Math.random().toString(16).slice(2, 66)}`
     });
   };
@@ -408,6 +372,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       fiatValueUSD: 0,
       address: `0x${Math.random().toString(16).slice(2, 42)}`,
       isLive: true,
+      isPrimary: true,
       privateKey: key
     });
   };
