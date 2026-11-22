@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -27,15 +28,15 @@ import { Switch } from "@/components/ui/switch";
 
 const CustomPulseMarquee = ({ items }: { items: any[] }) => {
   return (
-    <div className="w-full overflow-hidden bg-slate-900 border-y border-white/5 py-4 relative group rounded-2xl shadow-inner">
+    <div className="w-full overflow-hidden bg-slate-950 border-y border-white/5 py-4 relative group rounded-2xl shadow-inner">
       <div className="flex animate-[marquee_40s_linear_infinite] hover:[animation-play-state:paused] gap-16 px-6">
         {[...items, ...items, ...items].map((item, idx) => (
           <div key={idx} className="flex flex-col items-start min-w-[110px] shrink-0 transition-transform hover:scale-105">
-            <span className="text-[10px] font-black text-blue-400/80 uppercase tracking-widest mb-1">{item.currency}</span>
+            <span className="text-[10px] font-black text-secondary uppercase tracking-widest mb-1">{item.currency}</span>
             <span className="text-base font-black text-white leading-tight">
               ${item.currentPriceUSD.toLocaleString(undefined, { 
                 minimumFractionDigits: item.currentPriceUSD < 1 ? 4 : 1,
-                maximumFractionDigits: 2 
+                maximumFractionDigits: item.currentPriceUSD < 1 ? 4 : 2 
               })}
             </span>
             <span className={cn(
