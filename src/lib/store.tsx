@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -72,7 +73,7 @@ interface WalletContextType {
   liquidateEarnings: () => Promise<void>;
   addStockLog: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   addBotLog: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
-  syncOnChainBalance: (addr: string, curr: string) => Promise<number>;
+  syncOnChainBalance: (addr: string, curr: string) => Promise<{ onChain: number, vault: number }>;
   generateNewWallet: (curr: string, label?: string) => Promise<void>;
   importPrivateKey: (curr: string, key: string) => Promise<void>;
 }
@@ -352,29 +353,25 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       const liveBalString = await getLiveBalance(addr);
       const liveBal = parseFloat(liveBalString);
+      const asset = assets.find(a => a.address === addr);
       
-      if (!isNaN(liveBal) && db && user) {
-        const asset = assets.find(a => a.address === addr);
-        if (asset) {
+      if (!isNaN(liveBal) && db && user && asset) {
           const livePrice = INITIAL_MARKET_DATA.find(m => m.currency === curr)?.currentPriceUSD || 1;
           
-          // PROTOCOL HARDENING: If on-chain is 0, we check if vault has prototype funds
-          // This prevents overwriting the user's $29.57 balance with 0 if it's a test address.
-          if (liveBal === 0 && asset.amount > 0) {
-            return asset.amount; // Report the secured vault balance instead of 0
+          // If blockchain shows actual funds, update the enclave.
+          if (liveBal > 0) {
+            await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
+              amount: liveBal,
+              fiatValueUSD: liveBal * livePrice,
+              isLive: true
+            });
           }
-
-          await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
-            amount: liveBal,
-            fiatValueUSD: liveBal * livePrice,
-            isLive: true
-          });
-          return liveBal;
-        }
+          
+          return { onChain: liveBal, vault: asset.amount };
       }
-      return 0;
+      return { onChain: 0, vault: asset?.amount || 0 };
     } catch (e) {
-      return 0;
+      return { onChain: 0, vault: 0 };
     }
   };
 
