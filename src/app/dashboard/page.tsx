@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -10,6 +9,7 @@ import {
   Sparkles,
   Terminal,
   TrendingUp,
+  TrendingDown,
   Briefcase,
   History,
   ArrowUpRight,
@@ -27,18 +27,22 @@ import { Switch } from "@/components/ui/switch";
 
 const CustomPulseMarquee = ({ items }: { items: any[] }) => {
   return (
-    <div className="w-full overflow-hidden whitespace-nowrap bg-slate-950/40 rounded-2xl border border-white/5 py-3 relative group">
-      <div className="flex animate-[marquee_30s_linear_infinite] hover:[animation-play-state:paused] gap-12 px-6">
-        {[...items, ...items].map((item, idx) => (
-          <div key={idx} className="inline-flex flex-col items-start gap-0.5">
-            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{item.currency}</span>
-            <span className="text-sm font-black text-white leading-none">
-              ${item.currentPriceUSD.toLocaleString(undefined, { minimumFractionDigits: item.currentPriceUSD < 1 ? 4 : 2 })}
+    <div className="w-full overflow-hidden bg-slate-900 border-y border-white/5 py-4 relative group rounded-2xl shadow-inner">
+      <div className="flex animate-[marquee_40s_linear_infinite] hover:[animation-play-state:paused] gap-16 px-6">
+        {[...items, ...items, ...items].map((item, idx) => (
+          <div key={idx} className="flex flex-col items-start min-w-[110px] shrink-0 transition-transform hover:scale-105">
+            <span className="text-[10px] font-black text-blue-400/80 uppercase tracking-widest mb-1">{item.currency}</span>
+            <span className="text-base font-black text-white leading-tight">
+              ${item.currentPriceUSD.toLocaleString(undefined, { 
+                minimumFractionDigits: item.currentPriceUSD < 1 ? 4 : 1,
+                maximumFractionDigits: 2 
+              })}
             </span>
             <span className={cn(
-              "text-[10px] font-bold leading-none",
+              "text-[11px] font-black leading-tight flex items-center gap-0.5 mt-0.5",
               item.dailyChangePercent >= 0 ? "text-green-400" : "text-red-400"
             )}>
+              {item.dailyChangePercent >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
               {item.dailyChangePercent >= 0 ? '+' : ''}{item.dailyChangePercent.toFixed(2)}%
             </span>
           </div>
@@ -47,7 +51,7 @@ const CustomPulseMarquee = ({ items }: { items: any[] }) => {
       <style jsx>{`
         @keyframes marquee {
           0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
+          100% { transform: translateX(-33.33%); }
         }
       `}</style>
     </div>
@@ -139,11 +143,11 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden flex flex-col justify-center">
+        <Card className="lg:col-span-3 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden">
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Landmark className="h-3 w-3 text-secondary" />
-                Live Equity & Bond Pulse (Real-World)
+                REAL-TIME EQUITY PULSE (MAINNET)
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
@@ -185,11 +189,11 @@ export default function Dashboard() {
             </div>
          </Card>
 
-         <Card className="lg:col-span-2 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden flex flex-col justify-center">
+         <Card className="lg:col-span-2 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden">
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Zap className="h-3 w-3 text-secondary" />
-                Live Cryptographic Pulse (Real-World)
+                REAL-TIME CRYPTOGRAPHIC PULSE (MAINNET)
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
