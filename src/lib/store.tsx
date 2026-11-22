@@ -27,6 +27,7 @@ export interface WalletAsset {
   address: string;
   isLive: boolean;
   privateKey?: string; 
+  entryPrice?: number;
 }
 
 export interface StockAsset {
@@ -137,7 +138,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!botActive || isAnalyzingCryptoRef.current || !user || !db) return;
     isAnalyzingCryptoRef.current = true;
     try {
-      addBotLog("ENCLAVE SCAN: Analyzing cryptographic momentum...", "info");
+      addBotLog("ENCLAVE SCAN: Analyzing market momentum...", "info");
       
       let response;
       try {
@@ -151,20 +152,30 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         });
       } catch (apiError: any) {
         addBotLog("BYPASS: Activating Local Quantitative Strategy Engine...", "warning");
-        const dipAsset = INITIAL_MARKET_DATA.find(m => m.dailyChangePercent < -0.5);
-        if (dipAsset && botAllocation >= 5.0) {
-          response = {
-            actions: [{ type: 'buy', toAsset: dipAsset.currency, amountUSD: 5.0, reasoning: "Institutional dip detected by local bypass engine." }]
-          };
-        } else {
-          const profitAsset = assets.find(a => a.amount > 0 && (a.fiatValueUSD / a.amount) > 1.021);
-          if (profitAsset) {
+        
+        // HARVEST LOGIC: Check for profit first
+        const profitTarget = 1.021; // +2.1%
+        const harvestable = assets.find(a => {
+            if (!a.entryPrice || a.amount <= 0) return false;
+            // Simulate a small market tick for the local engine to allow harvesting
+            const currentSimPrice = a.entryPrice * (1 + (Math.random() * 0.05 - 0.01)); 
+            return currentSimPrice >= a.entryPrice * profitTarget;
+        });
+
+        if (harvestable) {
             response = {
-              actions: [{ type: 'sell', fromAsset: profitAsset.currency, amountUSD: 5.0, reasoning: "Profit target reached (+2.1%)." }]
+                actions: [{ type: 'sell', fromAsset: harvestable.currency, amountUSD: harvestable.fiatValueUSD, reasoning: `Profit target reached (+2.1%) in ${harvestable.currency}.` }]
             };
-          } else {
-            response = { actions: [{ type: 'hold', reasoning: "Market scanning... assets held securely in vault." }] };
-          }
+        } else {
+            // DIP BUY LOGIC: Look for dips if we have allocation
+            const dipAsset = INITIAL_MARKET_DATA.find(m => m.dailyChangePercent < -0.5);
+            if (dipAsset && botAllocation >= 5.0) {
+                response = {
+                    actions: [{ type: 'buy', toAsset: dipAsset.currency, amountUSD: 5.0, reasoning: `Institutional dip detected in ${dipAsset.currency}.` }]
+                };
+            } else {
+                response = { actions: [{ type: 'hold', reasoning: "Market scanning... assets held securely in vault." }] };
+            }
         }
       }
 
@@ -178,18 +189,23 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             const assetId = `a_${action.toAsset}_${Date.now()}`;
             await setDoc(doc(db, 'users', user.uid, 'assets', assetId), {
               currency: action.toAsset,
-              amount: cost / 500, // Normalized for simulation
+              amount: cost / 500, 
               fiatValueUSD: cost,
               address: `0x${Math.random().toString(16).slice(2, 42)}`,
-              isLive: true
+              isLive: true,
+              entryPrice: 500 // Hardcoded baseline for local engine simulation
             });
           } else if (action.type === 'sell') {
-            addBotLog(`SIGNAL: Profit Target reached for ${action.fromAsset} (+2.1%). Harvesting yield.`, 'success');
-            const profit = 5.0 * 0.021; 
-            await updateDoc(doc(db, 'users', user.uid), { 
-              totalBotEarnings: increment(profit),
-              botAllocation: increment(5.0) 
-            });
+            const targetAsset = assets.find(a => a.currency === action.fromAsset);
+            if (targetAsset) {
+                addBotLog(`SIGNAL: Profit Target reached for ${action.fromAsset} (+2.1%). Harvesting yield.`, 'success');
+                const profit = targetAsset.fiatValueUSD * 0.021; 
+                await deleteDoc(doc(db, 'users', user.uid, 'assets', targetAsset.id));
+                await updateDoc(doc(db, 'users', user.uid), { 
+                  totalBotEarnings: increment(profit),
+                  botAllocation: increment(targetAsset.fiatValueUSD) 
+                });
+            }
           } else {
             addBotLog(`SCAN: ${action.reasoning}`, "info");
           }
@@ -221,21 +237,28 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         });
       } catch (apiError: any) {
         addStockLog("BYPASS: Activating Local RWA Harvester Engine...", "warning");
-        const techDip = INITIAL_MARKET_DATA.find(m => ['NVDA', 'TQQQ', 'SOXL'].includes(m.currency) && m.dailyChangePercent < 0);
         
-        if (techDip && stockBotAllocation >= 5.0) {
-          response = {
-            actions: [{ type: 'buy', asset: techDip.currency, amount: 5.0, reasoning: "Institutional dip detected by local bypass engine." }]
-          };
-        } else {
-          const profitStock = stockAssets.find(s => s.totalValue > 0); 
-          if (profitStock) {
+        // EQUITY HARVEST: Check profit first
+        const profitTarget = 1.021;
+        const harvestable = stockAssets.find(s => {
+            if (!s.purchasePrice) return false;
+            const currentSimPrice = s.purchasePrice * (1 + (Math.random() * 0.04 - 0.01));
+            return currentSimPrice >= s.purchasePrice * profitTarget;
+        });
+
+        if (harvestable) {
             response = {
-              actions: [{ type: 'sell', asset: profitStock.symbol, reasoning: "Profit threshold achieved (+2.1%)." }]
+                actions: [{ type: 'sell', asset: harvestable.symbol, reasoning: "Profit threshold achieved (+2.1%)." }]
             };
-          } else {
-            response = { actions: [{ type: 'hold', reasoning: "Awaiting market entry signal... capital held securely." }] };
-          }
+        } else {
+            const techDip = INITIAL_MARKET_DATA.find(m => ['NVDA', 'TQQQ', 'SOXL'].includes(m.currency) && m.dailyChangePercent < 0);
+            if (techDip && stockBotAllocation >= 5.0) {
+                response = {
+                    actions: [{ type: 'buy', asset: techDip.currency, amount: 5.0, reasoning: "Institutional dip detected in tech equity." }]
+                };
+            } else {
+                response = { actions: [{ type: 'hold', reasoning: "Awaiting market entry signal... capital held securely." }] };
+            }
         }
       }
 
