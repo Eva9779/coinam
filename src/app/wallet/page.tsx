@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +22,8 @@ import {
   PlusCircle,
   ArrowUpRight,
   Trash2,
-  AlertTriangle
+  AlertTriangle,
+  Info
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
@@ -39,16 +40,18 @@ export default function WalletPage() {
   const db = useFirestore();
 
   // Filter assets based on search query
-  const filteredAssets = assets.filter(a => 
-    a.currency.toLowerCase().includes(search.toLowerCase()) || 
-    a.address.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredAssets = useMemo(() => {
+    return assets.filter(a => 
+      a.currency.toLowerCase().includes(search.toLowerCase()) || 
+      a.address.toLowerCase().includes(search.toLowerCase())
+    ).sort((a, b) => (b.fiatValueUSD || 0) - (a.fiatValueUSD || 0));
+  }, [assets, search]);
 
   const handleDeleteWallet = async (assetId: string, address: string) => {
     if (!user || !db) return;
     
     // Professional verification for purging an endpoint
-    const confirmed = window.confirm(`CAUTION: You are about to purge wallet ${address} from the secure enclave. This action is irreversible. Continue?`);
+    const confirmed = window.confirm(`CAUTION: You are about to purge record ${address} from the secure enclave. This action is irreversible. Continue?`);
     if (!confirmed) return;
     
     try {
@@ -56,13 +59,13 @@ export default function WalletPage() {
       await deleteDoc(assetRef);
       toast({ 
         title: "Ledger Updated", 
-        description: "Cryptographic endpoint purged successfully." 
+        description: "Cryptographic artifact purged successfully." 
       });
     } catch (e: any) {
       console.error("Purge Failed:", e);
       toast({ 
         title: "Purge Failed", 
-        description: "Identity verification required to modify ledger.",
+        description: "Authentication required to modify ledger records.",
         variant: "destructive" 
       });
     }
@@ -170,74 +173,99 @@ export default function WalletPage() {
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4">
-                {filteredAssets.length > 0 ? filteredAssets.map((asset) => (
-                  <div key={asset.id} className="flex flex-col p-6 border-2 rounded-3xl hover:bg-muted/10 transition-all border-primary/5 hover:border-secondary/30 bg-background/30">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-5">
-                        <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center font-bold text-lg text-primary shadow-lg border border-primary/10">
-                          {asset.currency}
-                        </div>
-                        <div className="space-y-1">
-                          <div className="font-bold text-xl flex items-center gap-2">
+                {filteredAssets.length > 0 ? filteredAssets.map((asset) => {
+                  const isArtifact = asset.fiatValueUSD === 5 || !asset.isPrimary;
+                  return (
+                    <div key={asset.id} className={cn(
+                      "flex flex-col p-6 border-2 rounded-3xl transition-all transition-colors",
+                      isArtifact ? "border-amber-500/10 bg-amber-500/[0.02]" : "border-primary/5 bg-background/30"
+                    )}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-5">
+                          <div className={cn(
+                            "h-14 w-14 rounded-2xl flex items-center justify-center font-bold text-lg shadow-lg border",
+                            isArtifact ? "bg-amber-500/10 text-amber-600 border-amber-500/10" : "bg-primary/10 text-primary border-primary/10"
+                          )}>
                             {asset.currency}
-                            <Badge variant="outline" className="text-[9px] h-4 font-black uppercase tracking-widest bg-green-500/10 text-green-600 border-green-500/20">
-                              MAINNET LIVE
-                            </Badge>
                           </div>
-                          <div className="text-[10px] text-muted-foreground font-mono font-bold flex items-center gap-2 opacity-80">
-                            {asset.address.slice(0, 16)}...
-                            <button 
-                              className="p-1 hover:bg-secondary/20 rounded transition-colors"
-                              onClick={() => copyToClipboard(asset.address, "Address")}
-                            >
-                              <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-secondary" />
-                            </button>
+                          <div className="space-y-1">
+                            <div className="font-bold text-xl flex items-center gap-2">
+                              {asset.currency}
+                              <Badge variant="outline" className={cn(
+                                "text-[9px] h-4 font-black uppercase tracking-widest",
+                                isArtifact ? "bg-amber-500/10 text-amber-600 border-amber-500/20" : "bg-green-500/10 text-green-600 border-green-500/20"
+                              )}>
+                                {isArtifact ? "BOT POSITION ARTIFACT" : "INSTITUTIONAL ENDPOINT"}
+                              </Badge>
+                            </div>
+                            <div className="text-[10px] text-muted-foreground font-mono font-bold flex items-center gap-2 opacity-80">
+                              {asset.address.slice(0, 16)}...
+                              <button 
+                                className="p-1 hover:bg-secondary/20 rounded transition-colors"
+                                onClick={() => copyToClipboard(asset.address, "Address")}
+                              >
+                                <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-secondary" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-black text-2xl tracking-tighter">{asset.amount.toFixed(4)} <span className="text-xs font-bold text-muted-foreground opacity-50">{asset.currency}</span></div>
+                          <div className={cn("text-xs font-bold opacity-80", isArtifact ? "text-amber-600" : "text-green-500")}>
+                            ${(asset.fiatValueUSD || 0).toLocaleString()}
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="font-black text-2xl tracking-tighter">{asset.amount.toFixed(4)} <span className="text-xs font-bold text-muted-foreground opacity-50">{asset.currency}</span></div>
-                        <div className="text-xs text-green-500 font-bold opacity-80">${asset.fiatValueUSD.toLocaleString()}</div>
+                      
+                      <div className="flex items-center justify-between pt-4 border-t border-primary/5 mt-4">
+                        <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-2">
+                          {isArtifact ? (
+                             <span className="flex items-center gap-1.5 text-amber-600">
+                               <Info className="h-3 w-3" />
+                               Tracking Position (Non-Capital)
+                             </span>
+                          ) : (
+                            <span className="flex items-center gap-1.5">
+                              <Zap className="h-3 w-3 text-secondary" />
+                              AES-256 Isolation Active
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          {!isArtifact && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-10 w-10 rounded-xl hover:bg-primary/10"
+                              asChild
+                            >
+                              <Link href={`/transactions?tab=send&currency=${asset.currency}`}>
+                                <ArrowUpRight className="h-4 w-4 text-primary" />
+                              </Link>
+                            </Button>
+                          )}
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-10 w-10 rounded-xl hover:bg-secondary/10"
+                            onClick={() => handleSyncBalance(asset.address, asset.currency)}
+                            disabled={syncingBalances[asset.address]}
+                          >
+                            <RefreshCw className={cn("h-4 w-4 text-secondary", syncingBalances[asset.address] && "animate-spin")} />
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-10 w-10 rounded-xl hover:bg-destructive/10 text-destructive"
+                            onClick={() => handleDeleteWallet(asset.id, asset.address)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                    
-                    <div className="flex items-center justify-between pt-4 border-t border-primary/5 mt-4">
-                      <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-2">
-                        <Zap className="h-3 w-3 text-secondary" />
-                        AES-256 Isolation Active
-                      </div>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-10 w-10 rounded-xl hover:bg-primary/10"
-                          asChild
-                        >
-                          <Link href={`/transactions?tab=send&currency=${asset.currency}`}>
-                            <ArrowUpRight className="h-4 w-4 text-primary" />
-                          </Link>
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-10 w-10 rounded-xl hover:bg-secondary/10"
-                          onClick={() => handleSyncBalance(asset.address, asset.currency)}
-                          disabled={syncingBalances[asset.address]}
-                        >
-                          <RefreshCw className={cn("h-4 w-4 text-secondary", syncingBalances[asset.address] && "animate-spin")} />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          className="h-10 w-10 rounded-xl hover:bg-destructive/10 text-destructive"
-                          onClick={() => handleDeleteWallet(asset.id, asset.address)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )) : (
+                  );
+                }) : (
                   <div className="py-24 text-center space-y-6 flex flex-col items-center border-2 border-dashed rounded-[2.5rem] bg-muted/5">
                     {isProvisioning ? (
                       <>
