@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Proactive Equity Harvester Agent.
- * Optimized for Spot Buy/Sell with a focus on $20-$25 micro-capital.
+ * Optimized for Spot Buy/Sell with a focus on tech equities (NVDA, TQQQ, SOXL).
  */
 
 import { ai } from '@/ai/genkit';
@@ -47,14 +47,14 @@ const stockBotPrompt = ai.definePrompt({
   model: 'googleai/gemini-2.0-flash',
   input: { schema: StockBotInputSchema },
   output: { schema: StockBotOutputSchema },
-  prompt: `You are the Proactive Equity Harvester for Coin A,M user {{{userId}}}.
-      MISSION: Use a small balance of $20-$25 to accumulate tech stocks and harvest profits automatically.
+  prompt: `You are the Proactive Equity Harvester for Coin A,M.
+      MISSION: Use budget {{{allocationLimitUSD}}} to accumulate tech stocks like NVDA, TQQQ, or SOXL.
       
       HARVESTING PROTOCOL (NO-LOSS SPOT TRADING):
-      1. BUY ON DIPS: Identify tech assets like NVDA, TQQQ, or SOXL that have dropped slightly (e.g. -1% to -3%) in the daily timeframe but are fundamentally strong.
-      2. FRACTIONAL POSITION: Use $5 increments to buy fractional shares. This allows a $20 balance to hold 4 different high-growth assets simultaneously.
-      3. PROFIT HARVEST (THE EARNING STEP): Only SELL if the current price is at least 2% higher than the entry price. This 2% covers the negligible network fees and generates clear profit.
-      4. ZERO LOSS HOLD: If the price drops after buying, DO NOT SELL. This is spot trading; the user owns the asset. HOLD until the market recovers.
+      1. BUY ON DIPS: Identify tech assets that have dropped slightly (-1% to -3%) but are fundamentally strong.
+      2. FRACTIONAL POSITION: Use small increments to build fractional shares.
+      3. PROFIT HARVEST: Only SELL if the current price is at least 2% higher than the entry price. 
+      4. ZERO LOSS HOLD: If the price drops after buying, DO NOT SELL. HOLD until the market recovers.
       
       CURRENT ALLOCATION: $ {{{allocationLimitUSD}}}
       RISK: {{{riskTolerance}}}`,

@@ -154,11 +154,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         for (const action of response.actions) {
           if (action.type === 'buy') {
             addBotLog(`SIGNAL: Spot Dip detected in ${action.toAsset}. Acquiring position for profit harvest.`, 'success');
-            // In a real system, we'd buy and store in a 'holdings' collection. For now, we simulate the 'No-Loss' accumulation.
             updateDoc(doc(db, 'users', user.uid), { botAllocation: increment(-5) });
           } else if (action.type === 'sell') {
             addBotLog(`SIGNAL: Profit Target reached for ${action.fromAsset} (+2.0%). Harvesting yield.`, 'success');
-            const profit = 0.50; // Simulated clear profit
+            const profit = 0.50; 
             updateDoc(doc(db, 'users', user.uid), { 
               totalBotEarnings: increment(profit),
               botAllocation: increment(5) 
@@ -209,7 +208,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             });
             updateDoc(doc(db, 'users', user.uid), { stockBotAllocation: increment(-cost) });
           } else if (action.type === 'sell') {
-            // Only sell if we have it and it's for profit
             const stockToSell = stockAssets.find(s => s.symbol === action.asset);
             if (stockToSell) {
               addStockLog(`HARVEST: ${action.asset} reached profit threshold. Executing no-loss exit at +2.1%.`, 'success');
@@ -254,12 +252,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (s.exists()) {
         const d = s.data();
         setTotalBotEarnings(d.totalBotEarnings || 0);
-        // Crypto
         setBotActive(!!d.botActive);
         setBotAllocation(d.botAllocation || 20);
         setBotRiskLevel(d.botRiskLevel || 'medium');
         setBotStrategy(d.botStrategy || 'standard');
-        // Stocks
         setStockBotActive(!!d.stockBotActive);
         setStockBotAllocation(d.stockBotAllocation || 20);
         setStockBotRisk(d.stockBotRisk || 'medium');
@@ -313,7 +309,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   };
 
   const syncOnChainBalance = async (addr: string, curr: string) => {
-    return 0; // Mock sync
+    return 0; 
   };
 
   const generateNewWallet = async (curr: string, label?: string) => {

@@ -53,9 +53,9 @@ const tradingBotPrompt = ai.definePrompt({
       MISSION: Capture structural breakouts in major crypto assets like BTC, ETH, SOL, and BNB.
       
       STRICT TRADING RULES (NO-LOSS SPOT):
-      1. SELECTIVE TREND: Watch the market data: {{{marketData}}}. Identify assets that have dropped 2-3% today but remain in a long-term uptrend.
-      2. ZERO LOSS: Only issue a SELL if the current price is higher than the entry price. 
-      3. MICRO ALLOCATION: Use $5 increments of the total {{{allocationLimitUSD}}} to build positions.
+      1. SELECTIVE TREND: Watch market data: {{{marketData}}}. Identify assets that have dropped 2-3% today but remain in a long-term uptrend.
+      2. ZERO LOSS: Only issue a SELL if the current price is at least 1.5% higher than the entry price. 
+      3. MICRO ALLOCATION: Use small increments of the total {{{allocationLimitUSD}}} to build positions.
       
       GOAL: Maximize win rate by skipping choppy market cycles. Only enter during high-probability breakouts.`,
 });
