@@ -1,7 +1,6 @@
-
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
@@ -32,17 +31,51 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 
+const RealWorldTicker = () => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    containerRef.current.innerHTML = ''; 
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
+    script.type = "text/javascript";
+    script.async = true;
+    
+    const config = {
+      "symbols": [
+        { "proName": "NASDAQ:NVDA", "title": "NVIDIA" },
+        { "proName": "NASDAQ:AAPL", "title": "Apple" },
+        { "proName": "NASDAQ:TSLA", "title": "Tesla" },
+        { "proName": "NASDAQ:TQQQ", "title": "TQQQ" },
+        { "proName": "NASDAQ:SOXL", "title": "SOXL" },
+        { "proName": "FX_IDC:XAUUSD", "title": "Gold" },
+        { "proName": "BITSTAMP:BTCUSD", "title": "Bitcoin" }
+      ],
+      "showSymbolLogo": true,
+      "colorTheme": "light",
+      "isTransparent": true,
+      "displayMode": "adaptive",
+      "locale": "en"
+    };
+
+    script.innerHTML = JSON.stringify(config);
+    containerRef.current.appendChild(script);
+  }, []);
+
+  return (
+    <div className="w-full h-full min-h-[50px] overflow-hidden" ref={containerRef} />
+  );
+};
+
 export default function Dashboard() {
   const { 
     assets, 
     stockAssets, 
     transactions, 
     initialized, 
-    botActive, 
     stockBotActive, 
-    derivActive,
-    derivBalance,
-    botLogs, 
     stockBotLogs,
     totalBotEarnings,
     marketData,
@@ -55,23 +88,11 @@ export default function Dashboard() {
     setMounted(true);
   }, []);
 
-  const liveTotalBalance = useMemo(() => {
-    if (!initialized || !marketData.length) return 0;
-    
-    const cryptoVal = assets.reduce((acc, asset) => {
-      const liveCoin = marketData.find(c => (c.symbol || c.currency || c.id)?.toUpperCase() === asset.currency?.toUpperCase());
-      const currentPrice = liveCoin?.current_price || liveCoin?.currentPriceUSD || (asset.fiatValueUSD / Math.max(asset.amount, 0.00001));
-      return acc + (asset.amount * currentPrice);
-    }, 0);
-
-    const stockVal = stockAssets.reduce((acc, s) => {
-      const liveStock = marketData.find(m => m.symbol === s.symbol || s.symbol?.includes(m.symbol));
-      const currentPrice = liveStock?.current_price || s.currentPrice;
-      return acc + (s.shares * currentPrice);
-    }, 0);
-
+  const totalBalance = useMemo(() => {
+    const cryptoVal = assets.reduce((acc, asset) => acc + asset.fiatValueUSD, 0);
+    const stockVal = stockAssets.reduce((acc, s) => acc + s.totalValue, 0);
     return cryptoVal + stockVal;
-  }, [assets, stockAssets, marketData, initialized]);
+  }, [assets, stockAssets]);
 
   if (!initialized || !mounted) {
     return (
@@ -90,13 +111,13 @@ export default function Dashboard() {
             <Sparkles className="h-8 w-8 text-secondary" />
             Institutional Ledger
           </h2>
-          <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Mainnet & Equity Protocol Active</p>
+          <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Original RWA Enclave Active</p>
         </div>
         <div className="flex items-center gap-3">
-          {(botActive || stockBotActive) && (
+          {stockBotActive && (
             <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px] animate-pulse">
               <BrainCircuit className="h-3.5 w-3.5" />
-              AI QUANTUM ACTIVE
+              ALPHA AGENT ACTIVE
             </Badge>
           )}
           <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
@@ -116,53 +137,24 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent className="relative z-10">
             <div className="text-4xl font-black tracking-tighter">
-              ${liveTotalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
-               <span className="text-[9px] font-bold uppercase opacity-60">Strategy Yield</span>
-               <span className="text-sm font-black text-secondary animate-in fade-in duration-1000">${totalBotEarnings.toFixed(2)}</span>
+               <span className="text-[9px] font-bold uppercase opacity-60">Harvested Earnings</span>
+               <span className="text-sm font-black text-secondary">${totalBotEarnings.toFixed(2)}</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden">
-          <CardHeader className="pb-4">
+        <Card className="lg:col-span-3 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden flex flex-col justify-center">
+          <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <TrendingUp className="h-3 w-3 text-secondary" />
                 Live Market Pulse (Real-World)
              </CardTitle>
           </CardHeader>
-          <CardContent className="flex items-center gap-12 overflow-x-auto no-scrollbar pb-2">
-            {marketData.length === 0 ? (
-              <div className="flex items-center gap-2 text-[10px] font-bold text-muted-foreground uppercase animate-pulse">
-                <RefreshCw className="h-3 w-3 animate-spin" /> Synchronizing...
-              </div>
-            ) : marketData.slice(0, 8).map((item, idx) => {
-              const symbol = item?.symbol || item?.currency || item?.id || '???';
-              const price = item?.current_price || item?.currentPriceUSD || 0;
-              const change = item?.price_change_percentage_24h || item?.dailyChangePercent || 0;
-              
-              return (
-                <div key={item?.id || idx} className="flex items-center gap-4 shrink-0 animate-in fade-in slide-in-from-left-2 duration-500">
-                  {item?.image && (
-                    <div className="h-10 w-10 rounded-full bg-muted border overflow-hidden">
-                      <img src={item.image} alt={String(symbol)} className="h-full w-full object-cover" />
-                    </div>
-                  )}
-                  {!item?.image && (
-                    <div className="h-10 w-10 rounded-full bg-secondary/10 border-2 border-secondary/20 flex items-center justify-center font-black text-[10px] text-secondary uppercase">
-                      { String(symbol).slice(0, 3) }
-                    </div>
-                  )}
-                  <div>
-                    <div className="text-sm font-black">${price.toLocaleString()}</div>
-                    <div className={cn("text-[10px] font-bold uppercase", change >= 0 ? "text-green-600" : "text-red-600")}>
-                      {change >= 0 ? '+' : ''}{change?.toFixed(2)}%
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          <CardContent className="pb-4">
+            <RealWorldTicker />
           </CardContent>
         </Card>
       </div>
@@ -211,16 +203,16 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                <div className="space-y-4">
                   <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                     <span>Mainnet Load</span>
-                     <span>28%</span>
+                     <span>System Load</span>
+                     <span>12%</span>
                   </div>
                   <div className="h-2 w-full bg-primary/5 rounded-full overflow-hidden">
-                     <div className="h-full bg-secondary w-[28%] animate-in slide-in-from-left duration-1000" />
+                     <div className="h-full bg-secondary w-[12%] animate-in slide-in-from-left duration-1000" />
                   </div>
                </div>
                <div className="space-y-4">
                   <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                     <span>Market Sync Integrity</span>
+                     <span>Data Integrity</span>
                      <span>100%</span>
                   </div>
                   <div className="h-2 w-full bg-primary/5 rounded-full overflow-hidden">

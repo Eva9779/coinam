@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -56,57 +55,34 @@ interface BotLog {
   timestamp: string;
 }
 
-export type BotStrategyType = 'standard' | 'bitcoin_multiplier' | 'sol_yield' | 'bnb_surge' | 'xrp_bridge' | 'deriv_indices';
-
 interface WalletContextType {
   assets: WalletAsset[];
   stockAssets: StockAsset[];
   transactions: Transaction[];
   initialized: boolean;
   isSyncing: boolean;
-  isProvisioning: boolean;
   user: any;
   kycStatus: 'unverified' | 'pending' | 'verified' | 'rejected';
   totalBotEarnings: number;
-  botActive: boolean;
-  botAllocation: number;
-  botRiskLevel: 'low' | 'medium' | 'high';
-  botStrategy: BotStrategyType;
-  botLogs: BotLog[];
   stockBotActive: boolean;
   stockBotRisk: 'low' | 'medium' | 'high';
   stockBotAllocation: number;
   stockBotLogs: BotLog[];
-  derivActive: boolean;
-  derivBalance: number;
-  isAnalyzing: boolean;
   isAnalyzingStocks: boolean;
   marketData: any[];
   addTransaction: (tx: any) => void;
   updateBalance: (currency: string, amount: number, fiatPrice: number) => Promise<void>;
-  generateNewWallet: (currency: string, label?: string) => Promise<string | null>;
-  importPrivateKey: (currency: string, privateKey: string) => Promise<void>;
-  updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: BotStrategyType) => void;
   updateStockBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => void;
-  updateDerivSettings: (active: boolean) => void;
   submitKYC: (data: any) => Promise<void>;
-  clearBotLogs: () => void;
   clearStockBotLogs: () => void;
   liquidateEarnings: () => Promise<void>;
-  syncOnChainBalance: (address: string, currency: string) => Promise<number | null>;
-  addLog: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
   addStockLog: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
-  const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
-
-  const addLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-    setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
-  }, []);
 
   const addStockLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     setStockBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
@@ -118,16 +94,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [marketData, setMarketData] = useState<any[]>(INITIAL_MARKET_DATA);
   const [kycStatus, setKycStatus] = useState<'unverified' | 'pending' | 'verified' | 'rejected'>('unverified');
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
-  const [botActive, setBotActive] = useState(false);
-  const [botAllocation, setBotAllocation] = useState(20); 
-  const [botRiskLevel, setBotRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
-  const [botStrategy, setBotStrategy] = useState<BotStrategyType>('standard');
   const [stockBotActive, setStockBotActive] = useState(false);
   const [stockBotAllocation, setStockBotAllocation] = useState(20); 
   const [stockBotRisk, setStockBotRisk] = useState<'low' | 'medium' | 'high'>('medium');
-  const [derivActive, setDerivActive] = useState(false);
-  const [derivBalance, setDerivBalance] = useState(0);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isAnalyzingStocks, setIsAnalyzingStocks] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
@@ -138,46 +107,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const isAnalyzingStocksRef = useRef(false);
   const lastStockAnalysisRef = useRef(0);
 
-  // 🌐 REAL-WORLD MARKET DATA SYNC (COINGECKO)
-  const fetchLiveMarketPrices = useCallback(async () => {
-    try {
-      const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,binancecoin,solana,ripple&order=market_cap_desc&per_page=10&page=1&sparkline=false');
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        const liveUpdates = data.map(coin => ({
-          id: coin.id,
-          symbol: coin.symbol.toUpperCase(),
-          name: coin.name,
-          current_price: coin.current_price,
-          price_change_percentage_24h: coin.price_change_percentage_24h,
-          image: coin.image
-        }));
-
-        setMarketData(prev => {
-          const merged = [...prev];
-          liveUpdates.forEach(update => {
-            const index = merged.findIndex(m => (m.symbol || m.currency)?.toUpperCase() === update.symbol);
-            if (index !== -1) {
-              merged[index] = { ...merged[index], ...update };
-            } else {
-              merged.push(update);
-            }
-          });
-          return merged;
-        });
-      }
-    } catch (e) {
-      console.warn("Real-world price sync delayed. Using institutional cache.");
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchLiveMarketPrices();
-    const interval = setInterval(fetchLiveMarketPrices, 45000); // Sync every 45s to avoid rate limits
-    return () => clearInterval(interval);
-  }, [fetchLiveMarketPrices]);
-
-  // 🛡️ NO-LOSS EQUITY HARVESTING PROTOCOL
+  // 🛡️ ORIGINAL EQUITY HARVESTING PROTOCOL
   const triggerEquityHarvestingAnalysis = useCallback(async () => {
     if (!stockBotActive || isAnalyzingStocksRef.current || !user) return;
 
@@ -197,11 +127,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           shares: s.shares,
           value: s.totalValue
         })),
-        marketData: marketData.map(m => ({
-          symbol: m.currency || m.symbol,
-          name: m.currency || m.name,
-          price: m.currentPriceUSD || m.current_price,
-          changePercent: m.dailyChangePercent || m.price_change_percentage_24h,
+        marketData: INITIAL_MARKET_DATA.map(m => ({
+          symbol: m.currency,
+          name: m.currency,
+          price: m.currentPriceUSD,
+          changePercent: m.dailyChangePercent,
           type: 'stock'
         })),
         allocationLimitUSD: stockBotAllocation
@@ -209,16 +139,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
       if (response && response.actions) {
         for (const action of response.actions) {
-          if (action.type === 'buy' && stockBotAllocation >= 20) {
+          if (action.type === 'buy') {
             addStockLog(`EQUITY ACQUISITION: Buying $${action.amount.toFixed(2)} of ${action.asset}.`, 'success');
             addStockLog(`Reasoning: ${action.reasoning}`, 'info');
           } else if (action.type === 'sell') {
             addStockLog(`PROFIT HARVEST: Liquidating ${action.asset} for gain.`, 'success');
-            addStockLog(`Strategy: ${action.reasoning}`, 'info');
           }
         }
       } else {
-        addStockLog(`Market Analysis: No high-probability equity setups. Holding vault position.`, 'info');
+        addStockLog(`Market Analysis: Holding current vault position.`, 'info');
       }
     } catch (e: any) {
       addStockLog(`Protocol Error: ${e.message}`, 'error');
@@ -226,7 +155,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       isAnalyzingStocksRef.current = false;
       setIsAnalyzingStocks(false);
     }
-  }, [stockBotActive, stockBotRisk, stockBotAllocation, stockAssets, marketData, user, addStockLog]);
+  }, [stockBotActive, stockBotRisk, stockBotAllocation, stockAssets, user, addStockLog]);
 
   useEffect(() => {
     if (stockBotActive) {
@@ -242,15 +171,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (s.exists()) {
         const d = s.data();
         setTotalBotEarnings(d.totalBotEarnings || 0);
-        setBotActive(!!d.botActive);
-        setBotAllocation(d.botAllocation || 20);
-        setBotRiskLevel(d.botRiskLevel || 'medium');
-        setBotStrategy(d.botStrategy || 'standard');
         setStockBotActive(!!d.stockBotActive);
         setStockBotAllocation(d.stockBotAllocation || 20);
         setStockBotRisk(d.stockBotRisk || 'medium');
         setKycStatus(d.kycStatus || 'unverified');
-        setDerivActive(!!d.derivActive);
       }
     });
 
@@ -300,15 +224,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <WalletContext.Provider value={{ 
-      assets, stockAssets, transactions, initialized, isSyncing, isProvisioning: false, user,
-      kycStatus, totalBotEarnings, botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
-      stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, derivActive, derivBalance, isAnalyzing, isAnalyzingStocks,
-      marketData, addTransaction, updateBalance, generateNewWallet: async () => null, importPrivateKey: async () => {}, 
-      updateBotSettings: (active, allocation, risk, strategy) => {
-        setBotActive(active); 
-        if (!user || !db) return;
-        updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy });
-      },
+      assets, stockAssets, transactions, initialized, isSyncing, user,
+      kycStatus, totalBotEarnings, 
+      stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzingStocks,
+      marketData, addTransaction, updateBalance, 
       updateStockBotSettings: (active, allocation, risk) => {
         setStockBotActive(active);
         if (!user || !db) return;
@@ -316,17 +235,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         if (active) addStockLog("EQUITY HARVESTER PROTOCOL INITIALIZED", "success");
         else addStockLog("EQUITY AGENT ON STANDBY", "warning");
       },
-      updateDerivSettings: (active) => {
-        setDerivActive(active);
-        if (!user || !db) return;
-        updateDoc(doc(db, 'users', user.uid), { derivActive: active });
-      },
       submitKYC: async () => { 
         if (!user || !db) return;
         await updateDoc(doc(db, 'users', user.uid), { kycStatus: 'verified' }); 
       },
-      clearBotLogs: () => setBotLogs([]), clearStockBotLogs: () => setStockBotLogs([]), 
-      liquidateEarnings, syncOnChainBalance: async () => null, addLog, addStockLog
+      clearStockBotLogs: () => setStockBotLogs([]), 
+      liquidateEarnings, addStockLog
     }}>
       {children}
     </WalletContext.Provider>
