@@ -116,13 +116,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [marketData, setMarketData] = useState<any[]>(INITIAL_MARKET_DATA);
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
   
-  // Crypto State
   const [botActive, setBotActive] = useState(false);
   const [botAllocation, setBotAllocation] = useState(20);
   const [botRiskLevel, setBotRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [botStrategy, setBotStrategy] = useState('standard');
 
-  // Stock State
   const [stockBotActive, setStockBotActive] = useState(false);
   const [stockBotAllocation, setStockBotAllocation] = useState(20); 
   const [stockBotRisk, setStockBotRisk] = useState<'low' | 'medium' | 'high'>('medium');
@@ -153,14 +151,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (response && response.actions) {
         for (const action of response.actions) {
           if (action.type === 'buy') {
+            const cost = action.amountUSD || 5;
+            if (botAllocation < cost) continue;
             addBotLog(`SIGNAL: Spot Dip detected in ${action.toAsset}. Acquiring position for profit harvest.`, 'success');
-            updateDoc(doc(db, 'users', user.uid), { botAllocation: increment(-5) });
+            updateDoc(doc(db, 'users', user.uid), { botAllocation: increment(-cost) });
           } else if (action.type === 'sell') {
             addBotLog(`SIGNAL: Profit Target reached for ${action.fromAsset} (+2.0%). Harvesting yield.`, 'success');
-            const profit = 0.50; 
+            const profit = (action.amountUSD || 5) * 0.021; 
             updateDoc(doc(db, 'users', user.uid), { 
               totalBotEarnings: increment(profit),
-              botAllocation: increment(5) 
+              botAllocation: increment(action.amountUSD || 5) 
             });
           } else {
             addBotLog(`SCAN: ${action.reasoning}. Holding assets securely.`, "info");

@@ -38,7 +38,6 @@ export type SmartAlertsOutput = z.infer<typeof SmartAlertsOutputSchema>;
 
 /**
  * Local Security Scanner
- * Scans for balance issues and transaction anomalies locally.
  */
 function getLocalAlerts(input: SmartAlertsInput): SmartAlertsOutput {
   const alerts: any[] = [];
@@ -52,20 +51,6 @@ function getLocalAlerts(input: SmartAlertsInput): SmartAlertsOutput {
         description: `Your ${asset.currency} balance is below institutional safety thresholds ($50).`,
         severity: 'medium',
         relatedAsset: asset.currency,
-        timestamp
-      });
-    }
-  });
-
-  input.recentTransactions.forEach(tx => {
-    if (tx.fiatValueUSD > (input.userHighValueThresholdUSD || 5000)) {
-      alerts.push({
-        type: 'large_transaction',
-        title: 'High Value Broadcast',
-        description: `A transaction of $${tx.fiatValueUSD.toLocaleString()} was detected. Enclave monitoring active.`,
-        severity: 'low',
-        relatedAsset: tx.currency,
-        transactionId: tx.id,
         timestamp
       });
     }
