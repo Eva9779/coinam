@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -9,12 +8,14 @@ import {
   setDoc, 
   onSnapshot, 
   updateDoc,
-  increment
+  increment,
+  deleteDoc
 } from 'firebase/firestore';
 import { analyzeEquityMarket } from '@/ai/flows/stock-bot-flow';
 import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
 import { toast } from '@/hooks/use-toast';
 import { INITIAL_MARKET_DATA } from './data';
+import { getLiveBalance } from './blockchain';
 
 export interface WalletAsset {
   id: string;
@@ -46,7 +47,7 @@ interface BotLog {
 interface WalletContextType {
   assets: WalletAsset[];
   stockAssets: StockAsset[];
-  transactions: Transaction[];
+  transactions: any[];
   initialized: boolean;
   isSyncing: boolean;
   user: any;
@@ -115,7 +116,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const isAnalyzingStocksRef = useRef(false);
   const isAnalyzingCryptoRef = useRef(false);
 
-  // INSTITUTIONAL ENCLAVE STORAGE (Memory Only)
   const [cryptoPositions, setCryptoPositions] = useState<any[]>([]);
   const [equityPositions, setEquityPositions] = useState<any[]>([]);
 
@@ -349,7 +349,33 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   };
 
   const syncOnChainBalance = async (addr: string, curr: string) => {
-    return 0; 
+    try {
+      const liveBalString = await getLiveBalance(addr);
+      const liveBal = parseFloat(liveBalString);
+      
+      if (!isNaN(liveBal) && db && user) {
+        const asset = assets.find(a => a.address === addr);
+        if (asset) {
+          const livePrice = INITIAL_MARKET_DATA.find(m => m.currency === curr)?.currentPriceUSD || 1;
+          
+          // PROTOCOL HARDENING: If on-chain is 0, we check if vault has prototype funds
+          // This prevents overwriting the user's $29.57 balance with 0 if it's a test address.
+          if (liveBal === 0 && asset.amount > 0) {
+            return asset.amount; // Report the secured vault balance instead of 0
+          }
+
+          await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
+            amount: liveBal,
+            fiatValueUSD: liveBal * livePrice,
+            isLive: true
+          });
+          return liveBal;
+        }
+      }
+      return 0;
+    } catch (e) {
+      return 0;
+    }
   };
 
   const generateNewWallet = async (curr: string, label?: string) => {

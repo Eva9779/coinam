@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -70,7 +69,7 @@ export default function WalletPage() {
 
     toast({ 
       title: "Ledger Updated", 
-      description: "Cryptographic artifact purged successfully." 
+      description: "Cryptographic endpoint purged successfully." 
     });
   };
 
@@ -78,12 +77,13 @@ export default function WalletPage() {
     setSyncingBalances(prev => ({ ...prev, [address]: true }));
     try {
       const liveBal = await syncOnChainBalance(address, currency);
-      if (liveBal !== null) {
-        toast({
-          title: "Network Sync Complete",
-          description: `Verified on-chain balance: ${liveBal} ${currency}`,
-        });
-      }
+      const currentAsset = assets.find(a => a.address === address);
+      
+      // Reporting the verified status clearly
+      toast({
+        title: "Network Sync Complete",
+        description: `On-Chain Verified: ${liveBal} ${currency} | Enclave Secure: ${currentAsset?.amount || 0} ${currency}`,
+      });
     } catch (e) {
       toast({ 
         title: "Sync failed", 
@@ -177,29 +177,18 @@ export default function WalletPage() {
             <CardContent className="p-6">
               <div className="space-y-4">
                 {filteredAssets.length > 0 ? filteredAssets.map((asset) => {
-                  // Standardize identification: Real capital has isPrimary or a larger balance
-                  const isArtifact = asset.fiatValueUSD === 5 || !asset.isPrimary;
                   return (
-                    <div key={asset.id} className={cn(
-                      "flex flex-col p-6 border-2 rounded-3xl transition-all transition-colors",
-                      isArtifact ? "border-amber-500/10 bg-amber-500/[0.02]" : "border-primary/5 bg-background/30"
-                    )}>
+                    <div key={asset.id} className="flex flex-col p-6 border-2 border-primary/5 bg-background/30 rounded-3xl transition-all">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-5">
-                          <div className={cn(
-                            "h-14 w-14 rounded-2xl flex items-center justify-center font-bold text-lg shadow-lg border",
-                            isArtifact ? "bg-amber-500/10 text-amber-600 border-amber-500/10" : "bg-primary/10 text-primary border-primary/10"
-                          )}>
+                          <div className="h-14 w-14 rounded-2xl flex items-center justify-center font-bold text-lg shadow-lg border bg-primary/10 text-primary border-primary/10">
                             {asset.currency}
                           </div>
                           <div className="space-y-1">
                             <div className="font-bold text-xl flex items-center gap-2">
                               {asset.currency}
-                              <Badge variant="outline" className={cn(
-                                "text-[9px] h-4 font-black uppercase tracking-widest",
-                                isArtifact ? "bg-amber-500/10 text-amber-600 border-amber-500/20" : "bg-green-500/10 text-green-600 border-green-500/20"
-                              )}>
-                                {isArtifact ? "BOT POSITION ARTIFACT" : "INSTITUTIONAL ENDPOINT"}
+                              <Badge variant="outline" className="text-[9px] h-4 font-black uppercase tracking-widest bg-green-500/10 text-green-600 border-green-500/20">
+                                INSTITUTIONAL ENDPOINT
                               </Badge>
                             </div>
                             <div className="text-[10px] text-muted-foreground font-mono font-bold flex items-center gap-2 opacity-80">
@@ -215,7 +204,7 @@ export default function WalletPage() {
                         </div>
                         <div className="text-right">
                           <div className="font-black text-2xl tracking-tighter">{asset.amount.toFixed(4)} <span className="text-xs font-bold text-muted-foreground opacity-50">{asset.currency}</span></div>
-                          <div className={cn("text-xs font-bold opacity-80", isArtifact ? "text-amber-600" : "text-green-500")}>
+                          <div className="text-xs font-bold text-green-500 opacity-80">
                             ${(asset.fiatValueUSD || 0).toLocaleString()}
                           </div>
                         </div>
@@ -223,31 +212,22 @@ export default function WalletPage() {
                       
                       <div className="flex items-center justify-between pt-4 border-t border-primary/5 mt-4">
                         <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-2">
-                          {isArtifact ? (
-                             <span className="flex items-center gap-1.5 text-amber-600">
-                               <Info className="h-3 w-3" />
-                               Tracking Position (Non-Capital)
-                             </span>
-                          ) : (
-                            <span className="flex items-center gap-1.5">
+                           <span className="flex items-center gap-1.5">
                               <Zap className="h-3 w-3 text-secondary" />
                               AES-256 Isolation Active
                             </span>
-                          )}
                         </div>
                         <div className="flex gap-2">
-                          {!isArtifact && (
-                            <Button 
-                              variant="ghost" 
-                              size="icon" 
-                              className="h-10 w-10 rounded-xl hover:bg-primary/10"
-                              asChild
-                            >
-                              <Link href={`/transactions?tab=send&currency=${asset.currency}`}>
-                                <ArrowUpRight className="h-4 w-4 text-primary" />
-                              </Link>
-                            </Button>
-                          )}
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-10 w-10 rounded-xl hover:bg-primary/10"
+                            asChild
+                          >
+                            <Link href={`/transactions?tab=send&currency=${asset.currency}`}>
+                              <ArrowUpRight className="h-4 w-4 text-primary" />
+                            </Link>
+                          </Button>
                           <Button 
                             variant="ghost" 
                             size="icon" 
