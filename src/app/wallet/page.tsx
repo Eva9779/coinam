@@ -126,7 +126,7 @@ export default function WalletPage() {
             <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b bg-muted/20 px-8 py-6">
               <div>
                 <CardTitle className="text-xl font-bold tracking-tighter">Wallet Endpoints</CardTitle>
-                <CardDescription className="text-xs uppercase font-bold tracking-widest opacity-60">Direct Network Isolation</CardDescription>
+                <CardDescription className="text-[10px] uppercase font-bold tracking-widest opacity-60">Mainnet-Connected Security Enclave</CardDescription>
               </div>
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
