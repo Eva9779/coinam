@@ -31,7 +31,8 @@ import {
   Coins,
   Cpu,
   Wallet,
-  AlertCircle
+  AlertCircle,
+  Landmark
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -51,7 +52,7 @@ const BotTradingChart = memo(({ symbol }: { symbol: string }) => {
     
     const config = {
       autosize: true,
-      symbol: symbol === 'DERIV' ? 'INDEX:VOL100' : `BINANCE:${symbol}USDT`,
+      symbol: symbol === 'DERIV' ? 'INDEX:VOL100' : `NASDAQ:${symbol}`,
       interval: "1",
       timezone: "Etc/UTC",
       theme: "dark",
@@ -89,50 +90,41 @@ export default function TradingBotPage() {
     assets, 
     user, 
     totalBotEarnings, 
-    botActive, 
-    botAllocation, 
-    botRiskLevel, 
-    botStrategy,
-    derivBalance,
-    derivActive,
-    botLogs, 
-    isAnalyzing,
-    updateBotSettings,
-    clearBotLogs
+    stockBotActive, 
+    stockBotAllocation, 
+    stockBotRisk, 
+    stockBotLogs, 
+    isAnalyzingStocks,
+    updateStockBotSettings,
+    clearStockBotLogs
   } = useWalletStore();
 
-  const [localAllocation, setLocalAllocation] = useState(botAllocation.toString());
-  const [localRisk, setLocalRisk] = useState<'low' | 'medium' | 'high'>(botRiskLevel);
-  const [localStrategy, setLocalStrategy] = useState<string>(botStrategy);
-  const [chartSymbol, setChartSymbol] = useState("BTC");
+  const [localAllocation, setLocalAllocation] = useState((stockBotAllocation || 20).toString());
+  const [localRisk, setLocalRisk] = useState<'low' | 'medium' | 'high'>(stockBotRisk || 'medium');
+  const [chartSymbol, setChartSymbol] = useState("NVDA");
   const terminalEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [botLogs]);
+  }, [stockBotLogs]);
 
   useEffect(() => {
-    setLocalAllocation(botAllocation.toString());
-    setLocalRisk(botRiskLevel);
-    setLocalStrategy(botStrategy);
-    if (botStrategy === 'deriv_indices') setChartSymbol("DERIV");
-    else setChartSymbol(botStrategy === 'bitcoin_multiplier' ? 'BTC' : botStrategy.split('_')[0].toUpperCase());
-  }, [botAllocation, botRiskLevel, botStrategy]);
+    setLocalAllocation((stockBotAllocation || 20).toString());
+    setLocalRisk(stockBotRisk || 'medium');
+  }, [stockBotAllocation, stockBotRisk]);
 
   const handleToggleBot = () => {
     const allocationNum = parseFloat(localAllocation);
-    if (isNaN(allocationNum) || allocationNum < 1) {
+    if (isNaN(allocationNum) || allocationNum < 20) {
       toast({
         title: "Configuration Error",
-        description: "Please specify an Allocation Cap of at least $1 USD.",
+        description: "Minimum micro-allocation for the RWA agent is $20 USD.",
         variant: "destructive"
       });
       return;
     }
-    updateBotSettings(!botActive, allocationNum, localRisk, localStrategy as any);
+    updateStockBotSettings(!stockBotActive, allocationNum, localRisk);
   };
-
-  const isLocalProtocol = botLogs.some(log => log.msg.includes("LOCAL PROTOCOL"));
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20">
@@ -144,30 +136,24 @@ export default function TradingBotPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Cpu className="h-4 w-4" />
-            Micro-Earning Protocol Active. Optimized for balances starting at $20.
+            RWA Earning Protocol. Optimized for $20+ starting balances.
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {derivActive && (
-            <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20 px-4 py-1.5 font-black uppercase text-[10px] tracking-widest gap-2">
-              <Wallet className="h-3 w-3" />
-              Real Balance: ${derivBalance.toFixed(2)}
-            </Badge>
-          )}
           <Badge variant="outline" className={cn(
             "px-4 py-1.5 font-black uppercase text-[10px] tracking-[0.2em] border-2",
-            botActive ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"
+            stockBotActive ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"
           )}>
-            <div className={cn("h-2 w-2 rounded-full mr-2", botActive ? "bg-green-500 animate-pulse" : "bg-amber-500")} />
-            Strategy Link: {botActive ? 'LIVE' : 'STANDBY'}
+            <div className={cn("h-2 w-2 rounded-full mr-2", stockBotActive ? "bg-green-500 animate-pulse" : "bg-amber-500")} />
+            Strategy Link: {stockBotActive ? 'LIVE' : 'STANDBY'}
           </Badge>
           <Button 
             onClick={handleToggleBot} 
-            variant={botActive ? "destructive" : "default"}
+            variant={stockBotActive ? "destructive" : "default"}
             className="h-12 px-8 font-bold rounded-2xl shadow-xl gap-2 transition-all"
           >
-            {botActive ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-            {botActive ? 'Disable Agent' : 'Launch Agent'}
+            {stockBotActive ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+            {stockBotActive ? 'Disable Agent' : 'Launch Agent'}
           </Button>
         </div>
       </div>
@@ -189,8 +175,8 @@ export default function TradingBotPage() {
             <Card className="rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/10 shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Network Safety</p>
-                  <p className="text-4xl font-black tracking-tighter text-green-600">LOCKED</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Enclave Status</p>
+                  <p className="text-4xl font-black tracking-tighter text-green-600">SECURE</p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-green-500/10 flex items-center justify-center border-green-500/20">
                   <Activity className="h-7 w-7 text-green-600" />
@@ -203,8 +189,20 @@ export default function TradingBotPage() {
             <div className="flex items-center justify-between px-2">
               <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-secondary" />
-                Market Vision: {chartSymbol === 'DERIV' ? 'V-100 Synthetic' : `${chartSymbol}/USDT`}
+                Market Vision: {chartSymbol}/USD
               </h3>
+              <Select value={chartSymbol} onValueChange={setChartSymbol}>
+                <SelectTrigger className="w-40 h-10 rounded-xl font-bold bg-card border-none shadow-sm">
+                  <SelectValue placeholder="Select Asset" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  <SelectItem value="NVDA">NVIDIA (NVDA)</SelectItem>
+                  <SelectItem value="AAPL">Apple (AAPL)</SelectItem>
+                  <SelectItem value="TSLA">Tesla (TSLA)</SelectItem>
+                  <SelectItem value="TQQQ">TQQQ (3X Leveraged)</SelectItem>
+                  <SelectItem value="SOXL">SOXL (3X Semi)</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <BotTradingChart symbol={chartSymbol} />
           </div>
@@ -213,28 +211,28 @@ export default function TradingBotPage() {
             <CardHeader className="border-b border-white/10 flex flex-row items-center justify-between px-8 py-6">
               <div className="flex items-center gap-3">
                 <Terminal className="h-5 w-5 text-secondary" />
-                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">Enclave Strategy Feed</CardTitle>
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">Strategy Feed</CardTitle>
               </div>
               <div className="flex items-center gap-2">
-                {isAnalyzing && (
+                {isAnalyzingStocks && (
                   <div className="flex items-center gap-2 text-[10px] font-bold text-secondary mr-4">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    ANALYZING LEDGER
+                    HARVESTING ALPHA
                   </div>
                 )}
-                <Button variant="ghost" size="icon" onClick={clearBotLogs} className="h-8 w-8 text-white/30 hover:text-white">
+                <Button variant="ghost" size="icon" onClick={clearStockBotLogs} className="h-8 w-8 text-white/30 hover:text-white">
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto p-8 font-mono text-xs space-y-3 no-scrollbar max-h-[400px]">
-              {botLogs.length === 0 ? (
+              {stockBotLogs.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center opacity-20 text-center space-y-6 py-20">
                   <BrainCircuit className="h-16 w-16" />
                   <p className="uppercase tracking-[0.4em] font-black text-sm">Awaiting Strategic Signal</p>
                 </div>
               ) : (
-                botLogs.map((log, i) => (
+                stockBotLogs.map((log, i) => (
                   <div key={i} className={cn(
                     "flex gap-3 animate-in fade-in slide-in-from-left-4 duration-500",
                     log.type === 'success' ? "text-green-400" : log.type === 'warning' ? "text-amber-400" : "text-blue-300"
@@ -261,19 +259,10 @@ export default function TradingBotPage() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-widest opacity-70">Agent Profile</Label>
-                  <Select value={localStrategy} onValueChange={(v: any) => setLocalStrategy(v)} disabled={botActive}>
-                    <SelectTrigger className="h-12 rounded-xl font-bold">
-                      <SelectValue placeholder="Select Bot Strategy" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      <SelectItem value="standard">Mainnet Rebalancing (Standard)</SelectItem>
-                      <SelectItem value="deriv_indices">Deriv Synthetic Indices (V100)</SelectItem>
-                      <SelectItem value="sol_yield">Solana Yield Hunter (SOL)</SelectItem>
-                      <SelectItem value="bnb_surge">BNB Surge Guardian (BNB)</SelectItem>
-                      <SelectItem value="xrp_bridge">XRP Ledger Bridge (XRP)</SelectItem>
-                      <SelectItem value="bitcoin_multiplier">Bitcoin Multiplier (WBTC)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="h-12 rounded-xl border bg-muted/20 flex items-center px-4 font-bold gap-2">
+                    <Landmark className="h-4 w-4 text-secondary" />
+                    Proactive Equity Harvester
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -285,22 +274,23 @@ export default function TradingBotPage() {
                       placeholder="20" 
                       value={localAllocation}
                       onChange={(e) => setLocalAllocation(e.target.value)}
-                      disabled={botActive}
+                      disabled={stockBotActive}
                       className="pl-9 h-12 rounded-xl font-bold text-lg"
                     />
                   </div>
+                  <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">* Min: $20.00 for modern network efficiency.</p>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-widest opacity-70">Risk Profile</Label>
-                  <Select value={localRisk} onValueChange={(v: any) => setLocalRisk(v)} disabled={botActive}>
+                  <Select value={localRisk} onValueChange={(v: any) => setLocalRisk(v)} disabled={stockBotActive}>
                     <SelectTrigger className="h-12 rounded-xl font-bold">
                       <SelectValue placeholder="Select Strategy" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
-                      <SelectItem value="low">Conservative (Safety First)</SelectItem>
-                      <SelectItem value="medium">Standard (Balanced Growth)</SelectItem>
-                      <SelectItem value="high">Aggressive (Maximum Yield)</SelectItem>
+                      <SelectItem value="low">Conservative (Bond Tokens)</SelectItem>
+                      <SelectItem value="medium">Balanced (Equity Tokens)</SelectItem>
+                      <SelectItem value="high">Aggressive (Growth Alpha)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -309,18 +299,18 @@ export default function TradingBotPage() {
               <div className="h-px bg-primary/10 w-full" />
 
               <div className="p-6 rounded-[1.5rem] bg-slate-900 text-white space-y-4 relative overflow-hidden">
-                <Cpu className={cn("absolute -right-6 -bottom-6 h-28 w-28 opacity-10 text-secondary transition-all", botActive && "animate-pulse")} />
+                <Cpu className={cn("absolute -right-6 -bottom-6 h-28 w-28 opacity-10 text-secondary transition-all", stockBotActive && "animate-pulse")} />
                 
                 <h4 className="text-sm font-black flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-secondary" />
-                  $20 Safety Protocol
+                  No-Loss Harvest
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  Optimized for micro-capital. Trades utilize $1 stakes to provide maximum runway. Automatic shutdown triggered if session loss reaches $2 USD.
+                  The agent identifies dips in tech equities and buys spot fractional shares. It will strictly HOLD until a profit target is reached, ensuring no principal is lost.
                 </p>
               </div>
 
-              {botActive && (
+              {stockBotActive && (
                 <p className="text-center text-[10px] font-black text-green-600 uppercase animate-pulse">
                   Agent is active
                 </p>
