@@ -1,7 +1,7 @@
 'use server';
 /**
  * @fileOverview Alpha-Maximizing Institutional Crypto Strategy Agent.
- * Optimized for Standard Spot Momentum on Ethereum Mainnet assets.
+ * Optimized for Spot Momentum on Ethereum Mainnet assets.
  */
 
 import { ai } from '@/ai/genkit';

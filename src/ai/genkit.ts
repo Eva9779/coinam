@@ -3,10 +3,10 @@ import { googleAI } from '@genkit-ai/google-genai';
 
 /**
  * Institutional AI Enclave Configuration
- * Clean API Key loading to support production environment variables.
- * Prioritizes GOOGLE_GENAI_API_KEY or GEMINI_API_KEY from .env.
+ * Robust API Key loading for production environments.
+ * Prioritizes GEMINI_API_KEY or GOOGLE_GENAI_API_KEY from .env.
  */
-const apiKey = process.env.GOOGLE_GENAI_API_KEY || process.env.GEMINI_API_KEY;
+const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
 
 export const ai = genkit({
   plugins: [

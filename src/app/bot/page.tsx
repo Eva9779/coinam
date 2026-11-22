@@ -82,21 +82,17 @@ export default function TradingBotPage() {
   const { 
     user, 
     totalBotEarnings,
-    // Crypto
     botActive, botAllocation, botRiskLevel, botStrategy, botLogs, updateBotSettings, clearBotLogs,
-    // Stocks
     stockBotActive, stockBotAllocation, stockBotRisk, stockBotLogs, isAnalyzingStocks, updateStockBotSettings, clearStockBotLogs
   } = useWalletStore();
 
   const [agentType, setAgentType] = useState<'crypto' | 'equity'>('crypto');
   
-  // Local Crypto State
   const [cryptoAllocation, setCryptoAllocation] = useState(botAllocation?.toString() || "20");
   const [cryptoRisk, setCryptoRisk] = useState<'low' | 'medium' | 'high'>(botRiskLevel || 'medium');
   const [cryptoStrategy, setCryptoStrategy] = useState(botStrategy || 'standard');
   const [cryptoSymbol, setCryptoSymbol] = useState("BTC");
 
-  // Local Stock State
   const [stockAllocation, setStockAllocation] = useState(stockBotAllocation?.toString() || "20");
   const [stockRisk, setStockRisk] = useState<'low' | 'medium' | 'high'>(stockBotRisk || 'medium');
   const [stockSymbol, setStockSymbol] = useState("NVDA");
@@ -106,14 +102,6 @@ export default function TradingBotPage() {
   useEffect(() => {
     terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [botLogs, stockBotLogs]);
-
-  useEffect(() => {
-    if (botAllocation) setCryptoAllocation(botAllocation.toString());
-    if (botRiskLevel) setCryptoRisk(botRiskLevel);
-    if (botStrategy) setCryptoStrategy(botStrategy);
-    if (stockBotAllocation) setStockAllocation(stockBotAllocation.toString());
-    if (stockBotRisk) setStockRisk(stockBotRisk);
-  }, [botAllocation, botRiskLevel, botStrategy, stockBotAllocation, stockBotRisk]);
 
   const handleToggleBot = () => {
     if (agentType === 'crypto') {
@@ -368,7 +356,7 @@ export default function TradingBotPage() {
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
                   {agentType === 'crypto' 
-                    ? "The agent uses 18-decimal precision to identify micro-dips in crypto assets. It strictly holds until a +1.5% profit target is reached, ensuring zero principal loss."
+                    ? "The agent uses 18-decimal precision to identify micro-dips in crypto assets. It strictly holds until a +2.1% profit target is reached, ensuring zero principal loss."
                     : "The agent identifies dips in tech equities and buys spot fractional shares. It will strictly HOLD until a profit target is reached, ensuring no principal is lost."}
                 </p>
               </div>

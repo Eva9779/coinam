@@ -151,16 +151,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (response && response.actions) {
         for (const action of response.actions) {
           if (action.type === 'buy') {
-            const cost = action.amountUSD || 5;
+            const cost = 5.0; // Standard micro-position
             if (botAllocation < cost) continue;
             addBotLog(`SIGNAL: Spot Dip detected in ${action.toAsset}. Acquiring position for profit harvest.`, 'success');
             updateDoc(doc(db, 'users', user.uid), { botAllocation: increment(-cost) });
           } else if (action.type === 'sell') {
-            addBotLog(`SIGNAL: Profit Target reached for ${action.fromAsset} (+2.0%). Harvesting yield.`, 'success');
-            const profit = (action.amountUSD || 5) * 0.021; 
+            addBotLog(`SIGNAL: Profit Target reached for ${action.fromAsset} (+2.1%). Harvesting yield.`, 'success');
+            const profit = 5.0 * 0.021; 
             updateDoc(doc(db, 'users', user.uid), { 
               totalBotEarnings: increment(profit),
-              botAllocation: increment(action.amountUSD || 5) 
+              botAllocation: increment(5.0) 
             });
           } else {
             addBotLog(`SCAN: ${action.reasoning}. Holding assets securely.`, "info");
@@ -191,7 +191,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (response && response.actions) {
         for (const action of response.actions) {
           if (action.type === 'buy') {
-            const cost = action.amount;
+            const cost = action.amount || 5.0;
             if (stockBotAllocation < cost) continue;
             
             addStockLog(`DIP BUY: Acquiring $${cost.toFixed(2)} of ${action.asset}. Ownership locked in vault.`, 'success');
