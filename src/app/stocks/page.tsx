@@ -94,8 +94,8 @@ export default function StocksPage() {
     liquidateEarnings
   } = useWalletStore();
 
-  const [localRisk, setLocalRisk] = useState<'low' | 'medium' | 'high'>(stockBotRisk);
-  const [localAllocation, setLocalAllocation] = useState(stockBotAllocation.toString());
+  const [localRisk, setLocalRisk] = useState<'low' | 'medium' | 'high'>(stockBotRisk || 'medium');
+  const [localAllocation, setLocalAllocation] = useState(stockBotAllocation?.toString() || "20");
   const [chartSymbol, setChartSymbol] = useState("NASDAQ:NVDA");
   const [isLiquidating, setIsLiquidating] = useState(false);
   const terminalEndRef = useRef<HTMLDivElement>(null);
@@ -105,8 +105,8 @@ export default function StocksPage() {
   }, [stockBotLogs]);
 
   useEffect(() => {
-    setLocalAllocation(stockBotAllocation.toString());
-    setLocalRisk(stockBotRisk);
+    if (stockBotAllocation) setLocalAllocation(stockBotAllocation.toString());
+    if (stockBotRisk) setLocalRisk(stockBotRisk);
   }, [stockBotAllocation, stockBotRisk]);
 
   const handleToggleBot = () => {

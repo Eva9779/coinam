@@ -25,7 +25,6 @@ import {
   BrainCircuit,
   Cpu,
   Landmark,
-  ShieldEllipsis,
   Coins
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
@@ -92,14 +91,14 @@ export default function TradingBotPage() {
   const [agentType, setAgentType] = useState<'crypto' | 'equity'>('crypto');
   
   // Local Crypto State
-  const [cryptoAllocation, setCryptoAllocation] = useState(botAllocation.toString());
-  const [cryptoRisk, setCryptoRisk] = useState<'low' | 'medium' | 'high'>(botRiskLevel);
-  const [cryptoStrategy, setCryptoStrategy] = useState(botStrategy);
+  const [cryptoAllocation, setCryptoAllocation] = useState(botAllocation?.toString() || "20");
+  const [cryptoRisk, setCryptoRisk] = useState<'low' | 'medium' | 'high'>(botRiskLevel || 'medium');
+  const [cryptoStrategy, setCryptoStrategy] = useState(botStrategy || 'standard');
   const [cryptoSymbol, setCryptoSymbol] = useState("BTC");
 
   // Local Stock State
-  const [stockAllocation, setStockAllocation] = useState(stockBotAllocation.toString());
-  const [stockRisk, setStockRisk] = useState<'low' | 'medium' | 'high'>(stockBotRisk);
+  const [stockAllocation, setStockAllocation] = useState(stockBotAllocation?.toString() || "20");
+  const [stockRisk, setStockRisk] = useState<'low' | 'medium' | 'high'>(stockBotRisk || 'medium');
   const [stockSymbol, setStockSymbol] = useState("NVDA");
 
   const terminalEndRef = useRef<HTMLDivElement>(null);
@@ -109,11 +108,11 @@ export default function TradingBotPage() {
   }, [botLogs, stockBotLogs]);
 
   useEffect(() => {
-    setCryptoAllocation(botAllocation.toString());
-    setCryptoRisk(botRiskLevel);
-    setCryptoStrategy(botStrategy);
-    setStockAllocation(stockBotAllocation.toString());
-    setStockRisk(stockBotRisk);
+    if (botAllocation) setCryptoAllocation(botAllocation.toString());
+    if (botRiskLevel) setCryptoRisk(botRiskLevel);
+    if (botStrategy) setCryptoStrategy(botStrategy);
+    if (stockBotAllocation) setStockAllocation(stockBotAllocation.toString());
+    if (stockBotRisk) setStockRisk(stockBotRisk);
   }, [botAllocation, botRiskLevel, botStrategy, stockBotAllocation, stockBotRisk]);
 
   const handleToggleBot = () => {
