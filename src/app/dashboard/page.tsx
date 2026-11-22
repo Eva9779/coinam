@@ -1,16 +1,13 @@
+
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { useEffect, useState, useMemo } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
   ShieldCheck, 
-  Activity,
   Zap,
   Sparkles,
-  RefreshCw,
-  Bot,
-  BrainCircuit,
   Terminal,
   TrendingUp,
   Briefcase,
@@ -19,88 +16,41 @@ import {
   ArrowDownLeft,
   ChevronRight,
   Loader2,
-  Globe,
-  Settings,
-  Cpu,
   Landmark,
-  Layers
+  Settings,
 } from "lucide-react";
-import { useWalletStore, Transaction } from "@/lib/store";
+import { useWalletStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 
-const StockPulse = () => {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    
-    containerRef.current.innerHTML = ''; 
-    const script = document.createElement("script");
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
-    script.type = "text/javascript";
-    script.async = true;
-    
-    const config = {
-      "symbols": [
-        { "proName": "NASDAQ:NVDA", "title": "NVIDIA" },
-        { "proName": "NASDAQ:AAPL", "title": "Apple" },
-        { "proName": "NASDAQ:TSLA", "title": "Tesla" },
-        { "proName": "NASDAQ:TQQQ", "title": "TQQQ" },
-        { "proName": "NASDAQ:SOXL", "title": "SOXL" },
-        { "proName": "AMEX:BND", "title": "Total Bond" }
-      ],
-      "showSymbolLogo": true,
-      "colorTheme": "dark",
-      "isTransparent": true,
-      "displayMode": "adaptive",
-      "locale": "en"
-    };
-
-    script.innerHTML = JSON.stringify(config);
-    containerRef.current.appendChild(script);
-  }, []);
-
+const CustomPulseMarquee = ({ items }: { items: any[] }) => {
   return (
-    <div className="w-full h-[72px] overflow-hidden" ref={containerRef} />
-  );
-};
-
-const CryptoPulse = () => {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    
-    containerRef.current.innerHTML = ''; 
-    const script = document.createElement("script");
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
-    script.type = "text/javascript";
-    script.async = true;
-    
-    const config = {
-      "symbols": [
-        { "proName": "BITSTAMP:BTCUSD", "title": "Bitcoin" },
-        { "proName": "BITSTAMP:ETHUSD", "title": "Ethereum" },
-        { "proName": "BINANCE:SOLUSDT", "title": "Solana" },
-        { "proName": "BINANCE:BNBUSDT", "title": "BNB" },
-        { "proName": "BINANCE:XRPUSDT", "title": "XRP" }
-      ],
-      "showSymbolLogo": true,
-      "colorTheme": "dark",
-      "isTransparent": true,
-      "displayMode": "adaptive",
-      "locale": "en"
-    };
-
-    script.innerHTML = JSON.stringify(config);
-    containerRef.current.appendChild(script);
-  }, []);
-
-  return (
-    <div className="w-full h-[72px] overflow-hidden" ref={containerRef} />
+    <div className="w-full overflow-hidden whitespace-nowrap bg-slate-950/40 rounded-2xl border border-white/5 py-3 relative group">
+      <div className="flex animate-[marquee_30s_linear_infinite] hover:[animation-play-state:paused] gap-12 px-6">
+        {[...items, ...items].map((item, idx) => (
+          <div key={idx} className="inline-flex flex-col items-start gap-0.5">
+            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{item.currency}</span>
+            <span className="text-sm font-black text-white leading-none">
+              ${item.currentPriceUSD.toLocaleString(undefined, { minimumFractionDigits: item.currentPriceUSD < 1 ? 4 : 2 })}
+            </span>
+            <span className={cn(
+              "text-[10px] font-bold leading-none",
+              item.dailyChangePercent >= 0 ? "text-green-400" : "text-red-400"
+            )}>
+              {item.dailyChangePercent >= 0 ? '+' : ''}{item.dailyChangePercent.toFixed(2)}%
+            </span>
+          </div>
+        ))}
+      </div>
+      <style jsx>{`
+        @keyframes marquee {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+      `}</style>
+    </div>
   );
 };
 
@@ -113,6 +63,7 @@ export default function Dashboard() {
     stockBotActive, 
     stockBotLogs,
     totalBotEarnings,
+    marketData,
     updateStockBotSettings 
   } = useWalletStore();
   
@@ -127,6 +78,14 @@ export default function Dashboard() {
     const stockVal = stockAssets.reduce((acc, s) => acc + s.totalValue, 0);
     return cryptoVal + stockVal;
   }, [assets, stockAssets]);
+
+  const cryptoMarketData = useMemo(() => 
+    marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USD'].includes(m.currency)), 
+  [marketData]);
+
+  const stockMarketData = useMemo(() => 
+    marketData.filter(m => ['NVD', 'SOX', 'TQQQ'].includes(m.currency)), 
+  [marketData]);
 
   if (!initialized || !mounted) {
     return (
@@ -150,8 +109,8 @@ export default function Dashboard() {
         <div className="flex items-center gap-3">
           {stockBotActive && (
             <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px] animate-pulse">
-              <BrainCircuit className="h-3.5 w-3.5" />
-              +2.1% TARGET AGENT
+              <Zap className="h-3.5 w-3.5" />
+              +2.1% TARGET ACTIVE
             </Badge>
           )}
           <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
@@ -180,15 +139,15 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden flex flex-col justify-center min-h-[140px]">
+        <Card className="lg:col-span-3 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden flex flex-col justify-center">
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Landmark className="h-3 w-3 text-secondary" />
-                Live Equity Pulse (Mainnet Real-Time)
+                Live Equity & Bond Pulse (Real-World)
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
-            <StockPulse />
+            <CustomPulseMarquee items={stockMarketData} />
           </CardContent>
         </Card>
       </div>
@@ -226,15 +185,15 @@ export default function Dashboard() {
             </div>
          </Card>
 
-         <Card className="lg:col-span-2 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden flex flex-col justify-center min-h-[140px]">
+         <Card className="lg:col-span-2 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden flex flex-col justify-center">
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Zap className="h-3 w-3 text-secondary" />
-                Live Crypto Pulse (Mainnet Real-Time)
+                Live Cryptographic Pulse (Real-World)
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
-            <CryptoPulse />
+            <CustomPulseMarquee items={cryptoMarketData} />
           </CardContent>
         </Card>
       </div>

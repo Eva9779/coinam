@@ -2,7 +2,7 @@
 /**
  * Global Market Registry
  * Baseline for initial sync before live API data takes over.
- * Updated with high-volatility RWA assets for maximized daily yield.
+ * Updated with user-requested values for institutional precision.
  */
 export const INITIAL_WALLET_BALANCES = [];
 
@@ -12,56 +12,56 @@ export const INITIAL_MARKET_DATA = [
   {
     currency: 'BTC',
     currentPriceUSD: 64250.20,
-    dailyChangePercent: 1.4,
+    dailyChangePercent: 1.40,
     weeklyChangePercent: 4.2,
     volume24hUSD: 35000000000,
   },
   {
     currency: 'ETH',
     currentPriceUSD: 2450.75,
-    dailyChangePercent: -0.8,
+    dailyChangePercent: -0.80,
     weeklyChangePercent: 2.1,
     volume24hUSD: 15000000000,
   },
   {
     currency: 'BNB',
     currentPriceUSD: 580.40,
-    dailyChangePercent: 8.2,
+    dailyChangePercent: 8.20,
     weeklyChangePercent: 12.5,
     volume24hUSD: 2000000000,
   },
   {
     currency: 'SOL',
     currentPriceUSD: 145.30,
-    dailyChangePercent: 5.2,
+    dailyChangePercent: 5.20,
     weeklyChangePercent: 12.4,
     volume24hUSD: 4000000000,
   },
   {
     currency: 'XRP',
     currentPriceUSD: 0.62,
-    dailyChangePercent: 4.5,
+    dailyChangePercent: 4.50,
     weeklyChangePercent: 8.2,
     volume24hUSD: 1200000000,
   },
   {
-    currency: 'USDC',
+    currency: 'USD',
     currentPriceUSD: 1.00,
-    dailyChangePercent: 0,
+    dailyChangePercent: 0.00,
     weeklyChangePercent: 0,
     volume24hUSD: 500000000,
   },
   {
-    currency: 'NVDA',
+    currency: 'NVD',
     currentPriceUSD: 725.10,
-    dailyChangePercent: 4.8,
+    dailyChangePercent: 4.80,
     weeklyChangePercent: 15.2,
     volume24hUSD: 45000000000,
   },
   {
-    currency: 'SOXL',
+    currency: 'SOX',
     currentPriceUSD: 42.15,
-    dailyChangePercent: 12.4,
+    dailyChangePercent: 12.40,
     weeklyChangePercent: 28.5,
     volume24hUSD: 5000000000,
   },
