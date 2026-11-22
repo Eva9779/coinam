@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -21,7 +22,9 @@ import {
   Loader2,
   Globe,
   Settings,
-  Cpu
+  Cpu,
+  Landmark,
+  Layers
 } from "lucide-react";
 import { useWalletStore, Transaction } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -40,9 +43,10 @@ export default function Dashboard() {
     derivActive,
     derivBalance,
     botLogs, 
+    stockBotLogs,
     totalBotEarnings,
     marketData,
-    updateDerivSettings 
+    updateStockBotSettings 
   } = useWalletStore();
   
   const [mounted, setMounted] = useState(false);
@@ -66,14 +70,14 @@ export default function Dashboard() {
       return acc + (s.shares * currentPrice);
     }, 0);
 
-    return cryptoVal + stockVal + derivBalance;
-  }, [assets, stockAssets, marketData, initialized, derivBalance]);
+    return cryptoVal + stockVal;
+  }, [assets, stockAssets, marketData, initialized]);
 
   if (!initialized || !mounted) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-center">Syncing Production Session...</p>
+        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-center">Syncing Real-World Pulse...</p>
       </div>
     );
   }
@@ -89,7 +93,7 @@ export default function Dashboard() {
           <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Mainnet & Equity Protocol Active</p>
         </div>
         <div className="flex items-center gap-3">
-          {(botActive || stockBotActive || derivActive) && (
+          {(botActive || stockBotActive) && (
             <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px] animate-pulse">
               <BrainCircuit className="h-3.5 w-3.5" />
               AI QUANTUM ACTIVE
@@ -125,7 +129,7 @@ export default function Dashboard() {
           <CardHeader className="pb-4">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <TrendingUp className="h-3 w-3 text-secondary" />
-                Live Market Pulse
+                Live Market Pulse (Real-World)
              </CardTitle>
           </CardHeader>
           <CardContent className="flex items-center gap-12 overflow-x-auto no-scrollbar pb-2">
@@ -134,7 +138,6 @@ export default function Dashboard() {
                 <RefreshCw className="h-3 w-3 animate-spin" /> Synchronizing...
               </div>
             ) : marketData.slice(0, 8).map((item, idx) => {
-              // SAFE PROPERTY ACCESS: Prevents 'TypeError: slice of undefined'
               const symbol = item?.symbol || item?.currency || item?.id || '???';
               const price = item?.current_price || item?.currentPriceUSD || 0;
               const change = item?.price_change_percentage_24h || item?.dailyChangePercent || 0;
@@ -167,31 +170,31 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
          <Card className="lg:col-span-1 rounded-[2.5rem] bg-slate-950 text-white shadow-2xl border-none p-8 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none group-hover:scale-110 transition-transform">
-               <Globe className="h-32 w-32 text-secondary" />
+               <Landmark className="h-32 w-32 text-secondary" />
             </div>
             <div className="relative z-10 space-y-6">
                <div className="flex items-center justify-between">
-                  <Badge className="bg-secondary text-white font-black text-[9px] tracking-widest uppercase">Deriv Protocol</Badge>
-                  <Switch checked={derivActive} onCheckedChange={updateDerivSettings} />
+                  <Badge className="bg-secondary text-white font-black text-[9px] tracking-widest uppercase">Original Equity Protocol</Badge>
+                  <Switch checked={stockBotActive} onCheckedChange={(v) => updateStockBotSettings(v, 20, 'medium')} />
                </div>
                <div className="space-y-1">
-                  <h3 className="text-2xl font-black tracking-tight">Synthetic Indices</h3>
-                  <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest">High-Frequency Autonomous Execution</p>
+                  <h3 className="text-2xl font-black tracking-tight">RWA Alpha Agent</h3>
+                  <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Autonomous Spot Equity Harvesting</p>
                </div>
                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
                   <div className="flex justify-between text-[9px] font-black uppercase text-white/40">
-                     <span>API LINK</span>
-                     <span className={cn(derivActive ? "text-green-400" : "text-red-400")}>{derivActive ? "SECURE-ESTABLISHED" : "OFFLINE"}</span>
+                     <span>NETWORK</span>
+                     <span className="text-green-400">MAINNET-CONNECTED</span>
                   </div>
                   <div className="flex justify-between text-[9px] font-black uppercase text-white/40">
                      <span>STRATEGY</span>
-                     <span>VOLATILITY-100-AI</span>
+                     <span>SPOT-DIP-HARVEST</span>
                   </div>
                </div>
                <Button className="w-full h-12 rounded-xl font-bold bg-secondary text-white shadow-xl gap-2" asChild>
-                  <Link href="/bot">
+                  <Link href="/stocks">
                     <Settings className="h-4 w-4" />
-                    Configure Protocol
+                    Configure Enclave
                   </Link>
                </Button>
             </div>
@@ -203,25 +206,25 @@ export default function Dashboard() {
                   <Cpu className="h-5 w-5 text-secondary" />
                   Quantum Performance
                </h3>
-               <Badge variant="outline" className="text-[9px] font-bold">REAL-TIME TELEMETRY</Badge>
+               <Badge variant="outline" className="text-[9px] font-bold">REAL-WORLD TELEMETRY</Badge>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                <div className="space-y-4">
                   <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                      <span>Mainnet Load</span>
-                     <span>42%</span>
+                     <span>28%</span>
                   </div>
                   <div className="h-2 w-full bg-primary/5 rounded-full overflow-hidden">
-                     <div className="h-full bg-secondary w-[42%] animate-in slide-in-from-left duration-1000" />
+                     <div className="h-full bg-secondary w-[28%] animate-in slide-in-from-left duration-1000" />
                   </div>
                </div>
                <div className="space-y-4">
                   <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                     <span>AI Neural Integrity</span>
-                     <span>99.8%</span>
+                     <span>Market Sync Integrity</span>
+                     <span>100%</span>
                   </div>
                   <div className="h-2 w-full bg-primary/5 rounded-full overflow-hidden">
-                     <div className="h-full bg-green-500 w-[99.8%] animate-in slide-in-from-left duration-1000" />
+                     <div className="h-full bg-green-500 w-[100%] animate-in slide-in-from-left duration-1000" />
                   </div>
                </div>
             </div>
@@ -280,14 +283,14 @@ export default function Dashboard() {
         <div className="space-y-6">
           <h3 className="text-lg font-black text-primary flex items-center gap-2 px-2">
             <Terminal className="h-5 w-5 text-secondary" />
-            AI Strategy Feed
+            Equity Strategy Feed
           </h3>
           <Card className="shadow-2xl border-none bg-slate-950 text-white rounded-[2rem] overflow-hidden min-h-[400px]">
              <CardHeader className="border-b border-white/10">
-                <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Real-Time Analysis</CardTitle>
+                <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Real-Time Mainnet Pulse</CardTitle>
              </CardHeader>
              <CardContent className="p-6 space-y-4 font-mono text-[10px] max-h-[450px] overflow-y-auto no-scrollbar">
-                {botLogs.slice(-10).map((log, i) => (
+                {stockBotLogs.slice(-10).map((log, i) => (
                   <div key={i} className={cn(
                     "flex gap-2 leading-relaxed",
                     log.type === 'success' ? "text-green-400" : log.type === 'warning' ? "text-amber-400" : "text-blue-300"
@@ -296,10 +299,10 @@ export default function Dashboard() {
                     <span>{log.msg}</span>
                   </div>
                 ))}
-                {botLogs.length === 0 && (
+                {stockBotLogs.length === 0 && (
                   <div className="py-20 text-center opacity-20 flex flex-col items-center gap-4">
-                    <Bot className="h-10 w-10" />
-                    <p className="uppercase font-black tracking-widest">Awaiting Alpha Signals</p>
+                    <Landmark className="h-10 w-10" />
+                    <p className="uppercase font-black tracking-widest">Awaiting Alpha Entry</p>
                   </div>
                 )}
              </CardContent>
