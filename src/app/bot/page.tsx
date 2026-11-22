@@ -163,8 +163,8 @@ export default function TradingBotPage() {
             <Card className="rounded-[2.5rem] bg-gradient-to-br from-primary to-primary/80 text-white border-none shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Settled Alpha Yield</p>
-                  <p className="text-4xl font-black tracking-tighter">${totalBotEarnings.toFixed(4)}</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Realized Mainnet Yield</p>
+                  <p className="text-4xl font-black tracking-tighter">$0.00</p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
                   <Trophy className="h-7 w-7 text-secondary" />

@@ -64,7 +64,7 @@ const StockPulse = () => {
   }, []);
 
   return (
-    <div className="w-full h-full min-h-[50px] overflow-hidden" ref={containerRef} />
+    <div className="w-full h-[72px] overflow-hidden" ref={containerRef} />
   );
 };
 
@@ -100,7 +100,7 @@ const CryptoPulse = () => {
   }, []);
 
   return (
-    <div className="w-full h-full min-h-[50px] overflow-hidden" ref={containerRef} />
+    <div className="w-full h-[72px] overflow-hidden" ref={containerRef} />
   );
 };
 
@@ -180,7 +180,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden flex flex-col justify-center">
+        <Card className="lg:col-span-3 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden flex flex-col justify-center min-h-[140px]">
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Landmark className="h-3 w-3 text-secondary" />
@@ -226,7 +226,7 @@ export default function Dashboard() {
             </div>
          </Card>
 
-         <Card className="lg:col-span-2 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden flex flex-col justify-center">
+         <Card className="lg:col-span-2 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden flex flex-col justify-center min-h-[140px]">
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Zap className="h-3 w-3 text-secondary" />

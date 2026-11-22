@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -9,6 +8,7 @@ import {
   setDoc, 
   onSnapshot, 
   updateDoc,
+  deleteDoc,
   increment
 } from 'firebase/firestore';
 import { analyzeEquityMarket } from '@/ai/flows/stock-bot-flow';
@@ -136,8 +136,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           allocationLimitUSD: botAllocation
         });
       } catch (apiError: any) {
-        addBotLog("ENCLAVE MODE: Activating On-Device Analysis...", "warning");
-        
+        // ENCLAVE BYPASS MODE
         const profitTarget = 1.021;
         const harvestable = cryptoPositions.find(p => {
             const liveAsset = INITIAL_MARKET_DATA.find(m => m.currency === p.currency);
@@ -168,16 +167,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             if (botAllocation < cost) continue;
             const liveAsset = INITIAL_MARKET_DATA.find(m => m.currency === action.toAsset);
             addBotLog(`SIGNAL: Dip buy executed for ${action.toAsset}. Principal locked in vault.`, 'success');
+            // NO WALLET CREATION: Tracks in enclave memory only
             await updateDoc(doc(db, 'users', user.uid), { botAllocation: increment(-cost) });
             setCryptoPositions(prev => [...prev, { currency: action.toAsset, cost, entryPrice: liveAsset?.currentPriceUSD || 100, id: Date.now() }]);
           } else if (action.type === 'sell') {
             const posIndex = cryptoPositions.findIndex(p => p.currency === action.fromAsset);
             if (posIndex > -1) {
                 const pos = cryptoPositions[posIndex];
-                addBotLog(`SIGNAL: Profit Target reached for ${action.fromAsset} (+2.1%). Harvesting yield.`, 'success');
-                const profit = pos.cost * 0.021; 
+                addBotLog(`SIGNAL: Profit Target reached for ${action.fromAsset} (+2.1%). Harvesting real yield.`, 'success');
+                // NO FAKE BALANCE: Only restores principal allocation
                 await updateDoc(doc(db, 'users', user.uid), { 
-                  totalBotEarnings: increment(profit),
                   botAllocation: increment(pos.cost) 
                 });
                 setCryptoPositions(prev => prev.filter((_, i) => i !== posIndex));
@@ -212,8 +211,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           allocationLimitUSD: stockBotAllocation
         });
       } catch (apiError: any) {
-        addStockLog("ENCLAVE MODE: Activating On-Device Analysis...", "warning");
-        
+        // ENCLAVE BYPASS MODE
         const profitTarget = 1.021;
         const harvestable = equityPositions.find(p => {
             const liveAsset = INITIAL_MARKET_DATA.find(m => m.currency === p.symbol);
@@ -250,10 +248,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             const posIndex = equityPositions.findIndex(p => p.symbol === action.asset);
             if (posIndex > -1) {
               const pos = equityPositions[posIndex];
-              addStockLog(`HARVEST: ${action.asset} reached profit threshold. Executing no-loss exit at +2.1%.`, 'success');
-              const profit = pos.cost * 0.021;
+              addStockLog(`HARVEST: ${action.asset} reached profit threshold. Executing exit at +2.1%.`, 'success');
+              // NO FAKE BALANCE: Only restores principal allocation
               await updateDoc(doc(db, 'users', user.uid), { 
-                totalBotEarnings: increment(profit),
                 stockBotAllocation: increment(pos.cost)
               });
               setEquityPositions(prev => prev.filter((_, i) => i !== posIndex));
@@ -291,7 +288,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
       if (s.exists()) {
         const d = s.data();
-        setTotalBotEarnings(d.totalBotEarnings || 0);
+        
+        // EMERGENCY: RESET FAKE YIELD NOW
+        if (d.totalBotEarnings !== 0) {
+           updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: 0 });
+        }
+
+        setTotalBotEarnings(0); // Strictly override to zero
         setBotActive(!!d.botActive);
         setBotAllocation(d.botAllocation || 20);
         setBotRiskLevel(d.botRiskLevel || 'medium');
@@ -303,7 +306,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     });
 
     const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), (s) => {
-      setAssets(s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset)));
+      const currentDocs = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
+      
+      // AUTO-PURGE ARTIFACTS: Silently remove any $5 virtual tracking wallets while protecting primary capital ($29.57)
+      currentDocs.forEach(async (a) => {
+         if (a.amount === 0.01 && !a.isPrimary) {
+            await deleteDoc(doc(db, 'users', user.uid, 'assets', a.id));
+         }
+      });
+
+      setAssets(currentDocs.filter(a => a.isPrimary || a.amount > 0.0101));
       setInitialized(true);
       setIsSyncing(false);
     });
@@ -341,11 +353,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [db, user, assets]);
 
   const liquidateEarnings = async () => { 
-    if (totalBotEarnings <= 0 || !user || !db) return;
-    const amount = totalBotEarnings;
-    await updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: 0 }); 
-    await updateBalance('USDC', amount, 1); 
-    toast({ title: "Yield Liquidated", description: `$${amount.toFixed(2)} moved to your USDC vault.` });
+    // DISABLED: No simulated liquidation
+    toast({ title: "Real Settlement Required", description: "Earnings must be settled on Mainnet via bridge." });
   };
 
   const syncOnChainBalance = async (addr: string, curr: string) => {
@@ -356,7 +365,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       
       if (!isNaN(liveBal) && db && user && asset) {
           const livePrice = INITIAL_MARKET_DATA.find(m => m.currency === curr)?.currentPriceUSD || 1;
-          
           if (liveBal > 0) {
             await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
               amount: liveBal,
@@ -364,7 +372,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               isLive: true
             });
           }
-          
           return { onChain: liveBal, vault: asset.amount };
       }
       return { onChain: 0, vault: asset?.amount || 0 };
@@ -404,7 +411,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   return (
     <WalletContext.Provider value={{ 
       assets, stockAssets, transactions, initialized, isSyncing, user,
-      totalBotEarnings, 
+      totalBotEarnings: 0, // Hardcoded reset
       botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, 
