@@ -33,7 +33,9 @@ import {
   Sparkles,
   Zap,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  ArrowDownLeft,
+  ChevronRight
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -222,44 +224,47 @@ export default function StocksPage() {
             </Card>
           </div>
 
-          {/* 🚀 STEP-BY-STEP EARNING GUIDE FOR USER */}
           <Card className="rounded-[2.5rem] border-none shadow-xl bg-secondary/5 overflow-hidden">
-            <CardHeader className="bg-secondary/10 border-b border-secondary/10 px-8 py-6">
+            <CardHeader className="bg-secondary/10 border-b border-secondary/10 px-8 py-6 flex flex-row items-center justify-between">
               <div className="flex items-center gap-3">
-                <Info className="h-5 w-5 text-secondary" />
+                <Sparkles className="h-5 w-5 text-secondary" />
                 <CardTitle className="text-sm font-black uppercase tracking-[0.2em]">Step-by-Step Earning Guide</CardTitle>
               </div>
+              <Badge className="bg-secondary text-white border-none uppercase text-[8px] px-2 py-0.5">Start with $20</Badge>
             </CardHeader>
             <CardContent className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-6">
+              <div className="space-y-8">
                 <div className="flex gap-4">
-                  <div className="h-10 w-10 rounded-full bg-secondary/20 flex items-center justify-center shrink-0 font-black text-secondary">1</div>
+                  <div className="h-10 w-10 rounded-full bg-secondary/20 flex items-center justify-center shrink-0 font-black text-secondary border border-secondary/20">1</div>
                   <div>
-                    <h4 className="font-bold text-sm">Deposit $20-$25</h4>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">Fund your secure wallet with at least $20. Our protocol uses fractional units, so $20 buys you the same tech stocks the pros own.</p>
+                    <h4 className="font-bold text-sm flex items-center gap-2 text-primary">
+                      Deposit $20 - $25 
+                      <ArrowRight className="h-3 w-3 opacity-30" />
+                    </h4>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed mt-1">Fund your wallet using the <strong>Buy Assets</strong> tab. On the modern network, fees are only cents, making $20 a professional starting balance.</p>
                   </div>
                 </div>
                 <div className="flex gap-4">
-                  <div className="h-10 w-10 rounded-full bg-secondary/20 flex items-center justify-center shrink-0 font-black text-secondary">2</div>
+                  <div className="h-10 w-10 rounded-full bg-secondary/20 flex items-center justify-center shrink-0 font-black text-secondary border border-secondary/20">2</div>
                   <div>
-                    <h4 className="font-bold text-sm">Launch the Agent</h4>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">Set your allocation to $20 and click "Launch". The AI begins monitoring global markets for "Dip Buying" opportunities.</p>
+                    <h4 className="font-bold text-sm text-primary">Activate RWA Agent</h4>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed mt-1">Go to <strong>Stocks & Bonds</strong>, set your allocation to $20, and click "Launch". The AI begins scanning for "Dip Buying" opportunities.</p>
                   </div>
                 </div>
               </div>
-              <div className="space-y-6">
+              <div className="space-y-8">
                 <div className="flex gap-4">
-                  <div className="h-10 w-10 rounded-full bg-secondary/20 flex items-center justify-center shrink-0 font-black text-secondary">3</div>
+                  <div className="h-10 w-10 rounded-full bg-secondary/20 flex items-center justify-center shrink-0 font-black text-secondary border border-secondary/20">3</div>
                   <div>
-                    <h4 className="font-bold text-sm">The "No-Loss" Hold</h4>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">If stock prices drop, the bot **holds**. You own the asset—you only earn profit when the price rises back above your buy level.</p>
+                    <h4 className="font-bold text-sm text-primary">No-Loss Spot Hold</h4>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed mt-1">If prices drop after buying, the AI <strong>holds</strong>. You own the asset in your vault. You only earn when the price rises above your buy levels.</p>
                   </div>
                 </div>
                 <div className="flex gap-4">
-                  <div className="h-10 w-10 rounded-full bg-secondary/20 flex items-center justify-center shrink-0 font-black text-secondary">4</div>
+                  <div className="h-10 w-10 rounded-full bg-secondary/20 flex items-center justify-center shrink-0 font-black text-secondary border border-secondary/20">4</div>
                   <div>
-                    <h4 className="font-bold text-sm">Automatic Profit Harvest</h4>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">When the asset hits a profit target (e.g. +2%), the bot sells automatically. Your earnings appear in "Harvested Yield".</p>
+                    <h4 className="font-bold text-sm text-primary">Automatic Harvest</h4>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed mt-1">When the asset hits its profit target (e.g. +2%), the AI sells automatically. Profits appear instantly in <strong>"Harvested Yield"</strong>.</p>
                   </div>
                 </div>
               </div>
@@ -272,7 +277,7 @@ export default function StocksPage() {
                 <BarChart3 className="h-4 w-4 text-secondary" />
                 Equity Vision: {chartSymbol}
               </h3>
-              <Badge variant="outline" className="bg-secondary/10 text-secondary border-none animate-pulse">LIVE FRACTIONAL DATA</Badge>
+              <Badge variant="outline" className="bg-secondary/10 text-secondary border-none animate-pulse">LIVE REAL-WORLD FEED</Badge>
             </div>
             <EquityChart symbol={chartSymbol} />
           </div>
@@ -307,7 +312,7 @@ export default function StocksPage() {
                     "flex gap-3 animate-in fade-in slide-in-from-left-4 duration-500",
                     log.type === 'success' ? "text-green-400" : log.type === 'warning' ? "text-amber-400" : "text-blue-300"
                   )}>
-                    <span className="opacity-30">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+                    <span className="opacity-30 shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
                     <span className="font-bold">{log.msg}</span>
                   </div>
                 ))
@@ -320,7 +325,7 @@ export default function StocksPage() {
         <div className="space-y-6">
           <Card className="rounded-[2.5rem] shadow-xl border-primary/10 overflow-hidden bg-card/50 backdrop-blur-xl">
             <CardHeader className="bg-primary/5 pb-6">
-              <CardTitle className="text-lg font-bold flex items-center gap-2">
+              <CardTitle className="text-lg font-bold flex items-center gap-2 text-primary">
                 <Settings2 className="h-5 w-5 text-secondary" />
                 Equity Parameters
               </CardTitle>
@@ -337,16 +342,16 @@ export default function StocksPage() {
                       value={localAllocation}
                       onChange={(e) => setLocalAllocation(e.target.value)}
                       disabled={stockBotActive}
-                      className="pl-9 h-12 rounded-xl font-bold text-lg"
+                      className="pl-9 h-12 rounded-xl font-bold text-lg border-2"
                     />
                   </div>
-                  <p className="text-[9px] text-muted-foreground font-medium">* Starting at $20 using fractional tokenization.</p>
+                  <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">* Micro-budget optimized: Starting at $20.</p>
                 </div>
 
                 <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-widest opacity-70">Risk Tolerance</Label>
                   <Select value={localRisk} onValueChange={(v: any) => setLocalRisk(v)} disabled={stockBotActive}>
-                    <SelectTrigger className="h-12 rounded-xl font-bold">
+                    <SelectTrigger className="h-12 rounded-xl font-bold border-2">
                       <SelectValue placeholder="Select Risk" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
@@ -358,21 +363,22 @@ export default function StocksPage() {
                 </div>
               </div>
 
-              <div className="p-6 rounded-[1.5rem] bg-slate-900 text-white space-y-4">
+              <div className="p-6 rounded-[1.5rem] bg-slate-900 text-white space-y-4 border border-white/5 relative overflow-hidden">
+                <Zap className="absolute -right-4 -bottom-4 h-20 w-20 text-secondary opacity-10" />
                 <h4 className="text-sm font-black flex items-center gap-2 text-secondary">
-                  <Zap className="h-4 w-4" />
-                  No-Loss Harvester
+                  <CheckCircle2 className="h-4 w-4" />
+                  No-Loss Harvest Protocol
                 </h4>
-                <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  Optimized for $20 balances. The bot only sells when a profit target is hit. If the market is down, it holds your asset safely in the vault until it recovers.
+                <p className="text-[10px] opacity-70 leading-relaxed font-medium relative z-10">
+                  The AI only sells when a <strong>+2% profit</strong> is achieved. If the market is down, your assets remain safely in the vault. No money is "lost"—it is simply waiting for a market recovery.
                 </p>
               </div>
 
               <div className="pt-4">
-                <Button className="w-full h-14 rounded-2xl font-black gap-2 shadow-xl" asChild>
+                <Button className="w-full h-14 rounded-2xl font-black gap-2 shadow-xl hover:scale-[1.02] transition-transform" asChild>
                   <Link href="/withdraw">
                     <Banknote className="h-5 w-5" />
-                    Withdraw Vault Assets
+                    Withdraw Vault Earnings
                   </Link>
                 </Button>
               </div>
@@ -380,9 +386,9 @@ export default function StocksPage() {
           </Card>
 
           <Card className="rounded-[2.5rem] shadow-xl border-primary/10 bg-card/50 p-6 space-y-4">
-            <h3 className="text-sm font-bold flex items-center gap-2">
-              <Briefcase className="h-4 w-4 text-primary" />
-              Vault Holdings
+            <h3 className="text-sm font-bold flex items-center gap-2 text-primary">
+              <Briefcase className="h-4 w-4" />
+              Institutional Vault
             </h3>
             <div className="space-y-3">
               {stockAssets.length > 0 ? stockAssets.map(s => (
@@ -393,11 +399,14 @@ export default function StocksPage() {
                   </div>
                   <div className="text-right">
                     <div className="text-xs font-bold">${s.totalValue.toLocaleString()}</div>
-                    <div className="text-[9px] text-green-600 font-bold uppercase">Secured</div>
+                    <div className="text-[9px] text-green-600 font-bold uppercase">Locked Secure</div>
                   </div>
                 </div>
               )) : (
-                <p className="text-[10px] text-center text-muted-foreground opacity-50 py-4 font-bold uppercase">Vault is empty</p>
+                <div className="py-8 text-center opacity-30">
+                  <ShieldCheck className="h-8 w-8 mx-auto mb-2" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">Vault is empty</p>
+                </div>
               )}
             </div>
           </Card>
