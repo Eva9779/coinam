@@ -21,8 +21,6 @@ import {
   Key,
   PlusCircle,
   ArrowUpRight,
-  Trash2,
-  AlertTriangle,
   Info,
   ShieldAlert
 } from "lucide-react";
@@ -31,16 +29,11 @@ import { toast } from "@/hooks/use-toast";
 import { useWalletStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { doc, deleteDoc } from "firebase/firestore";
-import { useFirestore } from "@/firebase";
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export default function WalletPage() {
   const { assets, initialized, isSyncing, user, generateNewWallet, syncOnChainBalance } = useWalletStore();
   const [search, setSearch] = useState("");
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
-  const db = useFirestore();
 
   const filteredAssets = useMemo(() => {
     return assets.filter(a => 
@@ -48,32 +41,6 @@ export default function WalletPage() {
       a.address.toLowerCase().includes(search.toLowerCase())
     ).sort((a, b) => (b.fiatValueUSD || 0) - (a.fiatValueUSD || 0));
   }, [assets, search]);
-
-  const handleDeleteWallet = async (assetId: string, address: string) => {
-    if (!user || !db) return;
-    
-    // Immediate UI Feedback
-    toast({ 
-      title: "Purging Artifact", 
-      description: `Removing endpoint ${address.slice(0, 8)}...` 
-    });
-    
-    const assetRef = doc(db, 'users', user.uid, 'assets', assetId);
-    
-    try {
-      await deleteDoc(assetRef);
-      toast({ 
-        title: "Ledger Updated", 
-        description: "Record permanently removed from enclave." 
-      });
-    } catch (serverError) {
-      const permissionError = new FirestorePermissionError({
-        path: assetRef.path,
-        operation: 'delete',
-      } satisfies SecurityRuleContext);
-      errorEmitter.emit('permission-error', permissionError);
-    }
-  };
 
   const handleSyncBalance = async (address: string, currency: string) => {
     setSyncingBalances(prev => ({ ...prev, [address]: true }));
@@ -248,15 +215,6 @@ export default function WalletPage() {
                           >
                             <RefreshCw className={cn("h-4 w-4 text-secondary", syncingBalances[asset.address] && "animate-spin")} />
                           </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            title="Purge Artifact"
-                            className="h-10 w-10 rounded-xl hover:bg-destructive/10 text-destructive"
-                            onClick={() => handleDeleteWallet(asset.id, asset.address)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
                         </div>
                       </div>
                     </div>
@@ -350,10 +308,10 @@ export default function WalletPage() {
           <Card className="rounded-[2rem] p-6 bg-primary/5 border-dashed border-2 border-primary/20 space-y-4">
             <h4 className="text-xs font-black uppercase flex items-center gap-2 text-primary">
               <ShieldAlert className="h-4 w-4" />
-              Artifact Management
+              Institutional Protocol
             </h4>
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Bot-generated records (0.01 ETH) are internal tracking documents. You can safely purge them using the trash icon. Your primary funds (0.0121 ETH) are isolated and protected.
+              Bot operations are strictly isolated in memory. Your primary funds (0.0121 ETH) are held in hardware-isolated vaults and can only be modified by authorized broadcasts.
             </p>
           </Card>
         </div>

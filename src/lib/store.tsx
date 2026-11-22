@@ -9,8 +9,7 @@ import {
   setDoc, 
   onSnapshot, 
   updateDoc,
-  increment,
-  deleteDoc
+  increment
 } from 'firebase/firestore';
 import { analyzeEquityMarket } from '@/ai/flows/stock-bot-flow';
 import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
@@ -358,7 +357,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (!isNaN(liveBal) && db && user && asset) {
           const livePrice = INITIAL_MARKET_DATA.find(m => m.currency === curr)?.currentPriceUSD || 1;
           
-          // If blockchain shows actual funds, update the enclave.
           if (liveBal > 0) {
             await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
               amount: liveBal,
