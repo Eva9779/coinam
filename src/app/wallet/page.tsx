@@ -32,9 +32,11 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { doc, deleteDoc } from "firebase/firestore";
 import { useFirestore } from "@/firebase";
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export default function WalletPage() {
-  const { assets, initialized, isSyncing, isProvisioning, user, generateNewWallet, syncOnChainBalance } = useWalletStore();
+  const { assets, initialized, isSyncing, user, generateNewWallet, syncOnChainBalance } = useWalletStore();
   const [search, setSearch] = useState("");
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
   const db = useFirestore();
@@ -47,28 +49,29 @@ export default function WalletPage() {
     ).sort((a, b) => (b.fiatValueUSD || 0) - (a.fiatValueUSD || 0));
   }, [assets, search]);
 
-  const handleDeleteWallet = async (assetId: string, address: string) => {
+  const handleDeleteWallet = (assetId: string, address: string) => {
     if (!user || !db) return;
     
-    // Professional verification for purging an endpoint
+    // Professional verification for purging an artifact
     const confirmed = window.confirm(`CAUTION: You are about to purge record ${address} from the secure enclave. This action is irreversible. Continue?`);
     if (!confirmed) return;
     
-    try {
-      const assetRef = doc(db, 'users', user.uid, 'assets', assetId);
-      await deleteDoc(assetRef);
-      toast({ 
-        title: "Ledger Updated", 
-        description: "Cryptographic artifact purged successfully." 
+    const assetRef = doc(db, 'users', user.uid, 'assets', assetId);
+    
+    // Standard Non-Blocking Deletion
+    deleteDoc(assetRef)
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: assetRef.path,
+          operation: 'delete',
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
       });
-    } catch (e: any) {
-      console.error("Purge Failed:", e);
-      toast({ 
-        title: "Purge Failed", 
-        description: "Authentication required to modify ledger records.",
-        variant: "destructive" 
-      });
-    }
+
+    toast({ 
+      title: "Ledger Updated", 
+      description: "Cryptographic artifact purged successfully." 
+    });
   };
 
   const handleSyncBalance = async (address: string, currency: string) => {
@@ -174,6 +177,7 @@ export default function WalletPage() {
             <CardContent className="p-6">
               <div className="space-y-4">
                 {filteredAssets.length > 0 ? filteredAssets.map((asset) => {
+                  // Standardize identification: Real capital has isPrimary or a larger balance
                   const isArtifact = asset.fiatValueUSD === 5 || !asset.isPrimary;
                   return (
                     <div key={asset.id} className={cn(
@@ -267,7 +271,7 @@ export default function WalletPage() {
                   );
                 }) : (
                   <div className="py-24 text-center space-y-6 flex flex-col items-center border-2 border-dashed rounded-[2.5rem] bg-muted/5">
-                    {isProvisioning ? (
+                    {isSyncing ? (
                       <>
                         <Loader2 className="h-12 w-12 animate-spin text-primary" />
                         <div className="space-y-2">
