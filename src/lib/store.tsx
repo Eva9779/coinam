@@ -145,7 +145,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (harvestable) {
             response = {
-                actions: [{ type: 'sell', fromAsset: harvestable.currency, amountUSD: harvestable.cost, reasoning: `Profit target reached (+2.1%) in ${harvestable.currency}.` }]
+                actions: [{ type: 'sell', fromAsset: harvestable.currency, amountUSD: harvestable.cost, reasoning: `Profit target hit (+2.1%) in ${harvestable.currency}.` }]
             };
         } else {
             const dipAsset = INITIAL_MARKET_DATA.find(m => m.dailyChangePercent < -0.3);
@@ -154,7 +154,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                     actions: [{ type: 'buy', toAsset: dipAsset.currency, amountUSD: 5.0, reasoning: `Dip detected in ${dipAsset.currency}. Executing Spot entry.` }]
                 };
             } else {
-                response = { actions: [{ type: 'hold', reasoning: "Scanning mainnet liquidity... positions held securely." }] };
+                response = { actions: [{ type: 'hold', reasoning: "Scanning mainnet liquidity... Target: +2.1%." }] };
             }
         }
       }
@@ -165,7 +165,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             const cost = 5.0; 
             if (botAllocation < cost) continue;
             const liveAsset = INITIAL_MARKET_DATA.find(m => m.currency === action.toAsset);
-            addBotLog(`SIGNAL: Dip buy executed for ${action.toAsset}. Principal locked in vault.`, 'success');
+            addBotLog(`SIGNAL: Dip buy executed for ${action.toAsset}. Target set to +2.1%.`, 'success');
             toast({
               title: "Strategy: Dip Buy",
               description: `Acquired $${cost.toFixed(2)} of ${action.toAsset} via Enclave.`,
@@ -177,9 +177,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             if (posIndex > -1) {
                 const pos = cryptoPositions[posIndex];
                 const profit = pos.cost * 0.021;
-                addBotLog(`SIGNAL: Profit Target reached for ${action.fromAsset} (+2.1%). Harvesting real yield.`, 'success');
+                addBotLog(`HARVEST: +2.1% Profit target reached for ${action.fromAsset}. Yield settled.`, 'success');
                 toast({
-                  title: "Strategy: Profit Harvest",
+                  title: "Strategy: +2.1% Harvest",
                   description: `Harvested $${profit.toFixed(4)} profit from ${action.fromAsset} trade.`,
                 });
                 await updateDoc(doc(db, 'users', user.uid), { 
@@ -227,7 +227,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         if (harvestable) {
             response = {
-                actions: [{ type: 'sell', asset: harvestable.symbol, reasoning: "Profit threshold achieved (+2.1%)." }]
+                actions: [{ type: 'sell', asset: harvestable.symbol, reasoning: "+2.1% target achieved." }]
             };
         } else {
             const techDip = INITIAL_MARKET_DATA.find(m => ['NVDA', 'TQQQ', 'SOXL'].includes(m.currency) && m.dailyChangePercent < 0);
@@ -236,7 +236,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
                     actions: [{ type: 'buy', asset: techDip.currency, amount: 5.0, reasoning: "Mainnet tech dip detected. Allocating capital." }]
                 };
             } else {
-                response = { actions: [{ type: 'hold', reasoning: "Awaiting market entry signal... principal held securely." }] };
+                response = { actions: [{ type: 'hold', reasoning: "Awaiting entry signal... monitoring +2.1% targets." }] };
             }
         }
       }
@@ -247,7 +247,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             const cost = 5.0;
             if (stockBotAllocation < cost) continue;
             const liveAsset = INITIAL_MARKET_DATA.find(m => m.currency === action.asset);
-            addStockLog(`DIP BUY: Acquiring $${cost.toFixed(2)} of ${action.asset}. Locked in secure vault.`, 'success');
+            addStockLog(`DIP BUY: Acquiring $${cost.toFixed(2)} of ${action.asset}. Target: +2.1%.`, 'success');
             toast({
               title: "Equity: Tech Dip Buy",
               description: `Allocated $${cost.toFixed(2)} to ${action.asset} via Enclave.`,
@@ -259,9 +259,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             if (posIndex > -1) {
               const pos = equityPositions[posIndex];
               const profit = pos.cost * 0.021;
-              addStockLog(`HARVEST: ${action.asset} reached profit threshold. Executing exit at +2.1%.`, 'success');
+              addStockLog(`HARVEST: +2.1% reached for ${action.asset}. Settling yield.`, 'success');
               toast({
-                title: "Equity: Profit Harvest",
+                title: "Equity: +2.1% Harvest",
                 description: `Captured $${profit.toFixed(4)} yield from ${action.asset} exit.`,
               });
               await updateDoc(doc(db, 'users', user.uid), { 
@@ -447,14 +447,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setBotActive(active);
         if (!user || !db) return;
         await updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy });
-        if (active) addBotLog("CRYPTO ALPHA AGENT INITIALIZED", "success");
+        if (active) addBotLog("CRYPTO ALPHA AGENT: +2.1% TARGET ACTIVE", "success");
         else addBotLog("CRYPTO AGENT ON STANDBY", "warning");
       },
       updateStockBotSettings: async (active, allocation, risk) => {
         setStockBotActive(active);
         if (!user || !db) return;
         await updateDoc(doc(db, 'users', user.uid), { stockBotActive: active, stockBotAllocation: allocation, stockBotRisk: risk });
-        if (active) addStockLog("EQUITY HARVESTER PROTOCOL INITIALIZED", "success");
+        if (active) addStockLog("EQUITY HARVESTER: +2.1% TARGET ACTIVE", "success");
         else addStockLog("EQUITY AGENT ON STANDBY", "warning");
       },
       clearBotLogs: () => setBotLogs([]),

@@ -53,7 +53,7 @@ const StockPulse = () => {
         { "proName": "AMEX:BND", "title": "Total Bond" }
       ],
       "showSymbolLogo": true,
-      "colorTheme": "light",
+      "colorTheme": "dark",
       "isTransparent": true,
       "displayMode": "adaptive",
       "locale": "en"
@@ -89,7 +89,7 @@ const CryptoPulse = () => {
         { "proName": "BINANCE:XRPUSDT", "title": "XRP" }
       ],
       "showSymbolLogo": true,
-      "colorTheme": "light",
+      "colorTheme": "dark",
       "isTransparent": true,
       "displayMode": "adaptive",
       "locale": "en"
@@ -145,13 +145,13 @@ export default function Dashboard() {
             <Sparkles className="h-8 w-8 text-secondary" />
             Institutional Ledger
           </h2>
-          <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Original RWA Enclave Active</p>
+          <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Mainnet Connected: Real-Time Assets</p>
         </div>
         <div className="flex items-center gap-3">
           {stockBotActive && (
             <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px] animate-pulse">
               <BrainCircuit className="h-3.5 w-3.5" />
-              ALPHA AGENT ACTIVE
+              +2.1% TARGET AGENT
             </Badge>
           )}
           <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
@@ -184,7 +184,7 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Landmark className="h-3 w-3 text-secondary" />
-                Live Equity & Bond Pulse (Real-World)
+                Live Equity Pulse (Mainnet Real-Time)
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
@@ -200,12 +200,12 @@ export default function Dashboard() {
             </div>
             <div className="relative z-10 space-y-6">
                <div className="flex items-center justify-between">
-                  <Badge className="bg-secondary text-white font-black text-[9px] tracking-widest uppercase">Original Equity Protocol</Badge>
+                  <Badge className="bg-secondary text-white font-black text-[9px] tracking-widest uppercase">+2.1% Alpha Protocol</Badge>
                   <Switch checked={stockBotActive} onCheckedChange={(v) => updateStockBotSettings(v, 20, 'medium')} />
                </div>
                <div className="space-y-1">
-                  <h3 className="text-2xl font-black tracking-tight">RWA Alpha Agent</h3>
-                  <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Autonomous Spot Equity Harvesting</p>
+                  <h3 className="text-2xl font-black tracking-tight">RWA Strategy Agent</h3>
+                  <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Target: +2.1% Profit Harvesting</p>
                </div>
                <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
                   <div className="flex justify-between text-[9px] font-black uppercase text-white/40">
@@ -214,13 +214,13 @@ export default function Dashboard() {
                   </div>
                   <div className="flex justify-between text-[9px] font-black uppercase text-white/40">
                      <span>STRATEGY</span>
-                     <span>SPOT-DIP-HARVEST</span>
+                     <span>DIP-HARVEST-2.1</span>
                   </div>
                </div>
                <Button className="w-full h-12 rounded-xl font-bold bg-secondary text-white shadow-xl gap-2" asChild>
                   <Link href="/stocks">
                     <Settings className="h-4 w-4" />
-                    Configure Enclave
+                    Configure Strategy
                   </Link>
                </Button>
             </div>
@@ -230,7 +230,7 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Zap className="h-3 w-3 text-secondary" />
-                Live Cryptographic Pulse (Real-World)
+                Live Crypto Pulse (Mainnet Real-Time)
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
@@ -291,7 +291,7 @@ export default function Dashboard() {
         <div className="space-y-6">
           <h3 className="text-lg font-black text-primary flex items-center gap-2 px-2">
             <Terminal className="h-5 w-5 text-secondary" />
-            Equity Strategy Feed
+            Strategy Feed (+2.1% Goal)
           </h3>
           <Card className="shadow-2xl border-none bg-slate-950 text-white rounded-[2rem] overflow-hidden min-h-[400px]">
              <CardHeader className="border-b border-white/10">

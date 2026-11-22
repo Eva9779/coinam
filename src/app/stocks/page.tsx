@@ -141,7 +141,7 @@ export default function StocksPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            Spot Equity Protocol Active. Optimized for $20+ balances.
+            Target: +2.1% Profit Harvesting. Locked at $20 Min.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -153,7 +153,7 @@ export default function StocksPage() {
               disabled={isLiquidating}
             >
               {isLiquidating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-              Liquidate ${totalBotEarnings.toFixed(2)} Profit
+              Liquidate Profit
             </Button>
           )}
           <Badge variant="outline" className={cn(
@@ -161,7 +161,7 @@ export default function StocksPage() {
             stockBotActive ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"
           )}>
             <div className={cn("h-2 w-2 rounded-full mr-2", stockBotActive ? "bg-green-500 animate-pulse" : "bg-amber-500")} />
-            Protocol Link: {stockBotActive ? 'LIVE' : 'STANDBY'}
+            Protocol: {stockBotActive ? 'ACTIVE (+2.1%)' : 'STANDBY'}
           </Badge>
           <Button 
             onClick={handleToggleBot} 
@@ -169,7 +169,7 @@ export default function StocksPage() {
             className="h-12 px-8 font-bold rounded-2xl shadow-xl gap-2 transition-all"
           >
             {stockBotActive ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-            {stockBotActive ? 'Deactivate Agent' : 'Launch RWA Agent'}
+            {stockBotActive ? 'Deactivate Agent' : 'Launch +2.1% Agent'}
           </Button>
         </div>
       </div>
@@ -206,9 +206,9 @@ export default function StocksPage() {
             <Card className="rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/10 shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Est. Annual Yield</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Harvest Target</p>
                   <p className="text-3xl font-black tracking-tighter text-green-600">
-                    {apy}
+                    +2.1%
                   </p>
                 </div>
                 <div className="h-12 w-12 rounded-2xl bg-green-500/10 flex items-center justify-center border-green-500/20">
@@ -252,7 +252,7 @@ export default function StocksPage() {
             <CardHeader className="border-b border-white/10 flex flex-row items-center justify-between px-8 py-6">
               <div className="flex items-center gap-3">
                 <Terminal className="h-5 w-5 text-secondary" />
-                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">RWA Analysis Feed</CardTitle>
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">Analysis Feed (+2.1%)</CardTitle>
               </div>
               <div className="flex items-center gap-2">
                 {isAnalyzingStocks && (
@@ -293,7 +293,7 @@ export default function StocksPage() {
             <CardHeader className="bg-primary/5 pb-6">
               <CardTitle className="text-lg font-bold flex items-center gap-2 text-primary">
                 <Settings2 className="h-5 w-5 text-secondary" />
-                Equity Parameters
+                Strategy: +2.1% Target
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
@@ -311,7 +311,7 @@ export default function StocksPage() {
                       className="pl-9 h-12 rounded-xl font-bold text-lg border-2"
                     />
                   </div>
-                  <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">* Micro-budget optimized: Starting at $20.</p>
+                  <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">* Strategy Optimized: Minimum $20.</p>
                 </div>
 
                 <div className="space-y-2">
@@ -333,10 +333,10 @@ export default function StocksPage() {
                 <Zap className="absolute -right-4 -bottom-4 h-20 w-20 text-secondary opacity-10" />
                 <h4 className="text-sm font-black flex items-center gap-2 text-secondary">
                   <CheckCircle2 className="h-4 w-4" />
-                  No-Loss Harvest Protocol
+                  +2.1% Harvest Protocol
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium relative z-10">
-                  The AI only sells when a <strong>+2% profit</strong> is achieved. If the market is down, your assets remain safely in the vault. No money is "lost"—it is simply waiting for a market recovery.
+                  The AI only harvests when the **+2.1% profit target** is achieved. Assets remain locked in the enclave until profit is mathematically secured. No loss is realized.
                 </p>
               </div>
 
@@ -349,32 +349,6 @@ export default function StocksPage() {
                 </Button>
               </div>
             </CardContent>
-          </Card>
-
-          <Card className="rounded-[2.5rem] shadow-xl border-primary/10 bg-card/50 p-6 space-y-4">
-            <h3 className="text-sm font-bold flex items-center gap-2 text-primary">
-              <Briefcase className="h-4 w-4" />
-              Institutional Vault
-            </h3>
-            <div className="space-y-3">
-              {stockAssets.length > 0 ? stockAssets.map(s => (
-                <div key={s.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/20 border-l-4 border-secondary">
-                  <div>
-                    <div className="font-bold text-xs">{s.symbol}</div>
-                    <div className="text-[10px] text-muted-foreground">{s.shares.toFixed(4)} units</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs font-bold">${s.totalValue.toLocaleString()}</div>
-                    <div className="text-[9px] text-green-600 font-bold uppercase">Locked Secure</div>
-                  </div>
-                </div>
-              )) : (
-                <div className="py-8 text-center opacity-30">
-                  <ShieldCheck className="h-8 w-8 mx-auto mb-2" />
-                  <p className="text-[10px] font-black uppercase tracking-widest">Vault is empty</p>
-                </div>
-              )}
-            </div>
           </Card>
         </div>
       </div>
