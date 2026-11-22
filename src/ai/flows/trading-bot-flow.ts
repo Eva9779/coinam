@@ -1,7 +1,7 @@
 'use server';
 /**
- * @fileOverview Alpha-Maximizing Institutional Strategy Agent.
- * Optimized as a Selective Trend Follower for R_100.
+ * @fileOverview Alpha-Maximizing Institutional Crypto Strategy Agent.
+ * Optimized for Standard Spot Momentum on Ethereum Mainnet assets.
  */
 
 import { ai } from '@/ai/genkit';
@@ -15,7 +15,7 @@ const MarketEntrySchema = z.object({
 
 const TradingBotInputSchema = z.object({
   userId: z.string(),
-  strategyType: z.enum(['standard', 'bitcoin_multiplier', 'sol_yield', 'bnb_surge', 'xrp_bridge', 'deriv_indices']).default('standard'),
+  strategyType: z.enum(['standard', 'bitcoin_multiplier', 'sol_yield', 'bnb_surge', 'xrp_bridge']).default('standard'),
   assets: z.array(z.object({
     currency: z.string(),
     amount: z.number(),
@@ -24,14 +24,11 @@ const TradingBotInputSchema = z.object({
   marketData: z.array(MarketEntrySchema),
   riskTolerance: z.enum(['low', 'medium', 'high']).default('medium'),
   allocationLimitUSD: z.number(),
-  isGuardianMode: z.boolean().optional(),
-  tickStream: z.array(z.number()).optional().describe('The last 20 ticks from Deriv for pattern analysis.'),
 });
 export type TradingBotInput = z.infer<typeof TradingBotInputSchema>;
 
 const TradingActionSchema = z.object({
   type: z.enum(['buy', 'sell', 'hold']),
-  contractType: z.enum(['CALL', 'PUT']).optional().describe('Used specifically for Deriv Synthetic Indices. CALL for Rise, PUT for Fall.'),
   fromAsset: z.string(),
   toAsset: z.string(),
   amountUSD: z.number(),
@@ -47,48 +44,17 @@ const TradingBotOutputSchema = z.object({
 });
 export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
 
-function getLocalStrategy(input: TradingBotInput): TradingBotOutput {
-  const actions: any[] = [];
-  
-  if (input.strategyType === 'deriv_indices' && input.tickStream && input.tickStream.length > 5) {
-    const first = input.tickStream[0];
-    const last = input.tickStream[input.tickStream.length - 1];
-    const isRising = last > first;
-    
-    actions.push({
-      type: 'buy',
-      contractType: isRising ? 'CALL' : 'PUT',
-      fromAsset: 'USD',
-      toAsset: 'VOL100',
-      amountUSD: 1,
-      reasoning: `LOCAL PROTOCOL: ${isRising ? 'Rising' : 'Falling'} trend detected.`,
-      confidence: 85
-    });
-  }
-
-  return {
-    strategy: 'SELECTIVE TREND FOLLOWER',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', fromAsset: 'USDC', toAsset: 'USDC', amountUSD: 0, reasoning: 'Market indecisive.', confidence: 0 }],
-    marketSentiment: 'neutral'
-  };
-}
-
 const tradingBotPrompt = ai.definePrompt({
   name: 'tradingBotPrompt',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `You are the Senior Quantitative Strategist for Coin A,M operating as a SELECTIVE TREND FOLLOWER. 
-      MISSION: Capture structural breakouts in the R_100 index (Volatility 100 Index).
+  prompt: `You are the Senior Quantitative Crypto Strategist for Coin A,M. 
+      MISSION: Capture structural breakouts in major crypto assets like BTC, ETH, SOL, and BNB.
       
-      STRICT TRADING RULES:
-      1. SELECTIVE TREND: Watch the last 20 ticks: {{{tickStream}}}. Evaluate if a clear direction exists.
-      2. CALL (RISE): Only issue a CALL if momentum is strongly upward with >= 85% confidence.
-      3. PUT (FALL): Only issue a PUT if momentum is strongly downward with >= 85% confidence.
-      4. STANDBY: If the market is sideways, choppy, or moving in a tight range without clear direction, do NOT place a trade. Set confidence < 85.
-      
-      ANALYSIS PROTOCOL:
-      - EXHAUSTION SHIELD: DO NOT CALL if current price is the 20-tick high. DO NOT PUT if current price is the 20-tick low.
-      - MOMENTUM: Look for at least 3-5 ticks moving in the same direction.
+      STRICT TRADING RULES (NO-LOSS SPOT):
+      1. SELECTIVE TREND: Watch the market data: {{{marketData}}}. Identify assets that have dropped 2-3% today but remain in a long-term uptrend.
+      2. ZERO LOSS: Only issue a SELL if the current price is higher than the entry price. 
+      3. MICRO ALLOCATION: Use $5 increments of the total {{{allocationLimitUSD}}} to build positions.
       
       GOAL: Maximize win rate by skipping choppy market cycles. Only enter during high-probability breakouts.`,
 });
@@ -100,13 +66,8 @@ const tradingBotFlow = ai.defineFlow(
     outputSchema: TradingBotOutputSchema,
   },
   async (input) => {
-    try {
-      const { output } = await tradingBotPrompt(input);
-      if (!output) throw new Error('AI output null');
-      return output;
-    } catch (error: any) {
-      return getLocalStrategy(input);
-    }
+    const { output } = await tradingBotPrompt(input);
+    return output!;
   }
 );
 

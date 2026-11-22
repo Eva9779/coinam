@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -10,9 +9,9 @@ import {
   onSnapshot, 
   updateDoc,
   increment,
-  addDoc
 } from 'firebase/firestore';
 import { analyzeEquityMarket } from '@/ai/flows/stock-bot-flow';
+import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
 import { toast } from '@/hooks/use-toast';
 import { INITIAL_MARKET_DATA } from './data';
 
@@ -65,6 +64,13 @@ interface WalletContextType {
   isSyncing: boolean;
   user: any;
   totalBotEarnings: number;
+  // Crypto Bot
+  botActive: boolean;
+  botAllocation: number;
+  botRiskLevel: 'low' | 'medium' | 'high';
+  botStrategy: string;
+  botLogs: BotLog[];
+  // Stock Bot
   stockBotActive: boolean;
   stockBotRisk: 'low' | 'medium' | 'high';
   stockBotAllocation: number;
@@ -73,16 +79,24 @@ interface WalletContextType {
   marketData: any[];
   addTransaction: (tx: any) => void;
   updateBalance: (currency: string, amount: number, fiatPrice: number) => Promise<void>;
+  updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: string) => void;
   updateStockBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => void;
+  clearBotLogs: () => void;
   clearStockBotLogs: () => void;
   liquidateEarnings: () => Promise<void>;
   addStockLog: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
+  addBotLog: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
+  const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
+
+  const addBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    setBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
+  }, []);
 
   const addStockLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     setStockBotLogs(prev => [...prev.slice(-49), { msg, type, timestamp: new Date().toISOString() }]);
@@ -93,10 +107,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [marketData, setMarketData] = useState<any[]>(INITIAL_MARKET_DATA);
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
+  
+  // Crypto State
+  const [botActive, setBotActive] = useState(false);
+  const [botAllocation, setBotAllocation] = useState(20);
+  const [botRiskLevel, setBotRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
+  const [botStrategy, setBotStrategy] = useState('standard');
+
+  // Stock State
   const [stockBotActive, setStockBotActive] = useState(false);
   const [stockBotAllocation, setStockBotAllocation] = useState(20); 
   const [stockBotRisk, setStockBotRisk] = useState<'low' | 'medium' | 'high'>('medium');
   const [isAnalyzingStocks, setIsAnalyzingStocks] = useState(false);
+
   const [initialized, setInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(true);
   
@@ -104,34 +127,52 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const db = useFirestore();
   
   const isAnalyzingStocksRef = useRef(false);
-  const lastStockAnalysisRef = useRef(0);
+  const isAnalyzingCryptoRef = useRef(false);
 
+  // CRYPTO BOT LOGIC
+  const triggerCryptoAnalysis = useCallback(async () => {
+    if (!botActive || isAnalyzingCryptoRef.current || !user || !db) return;
+    isAnalyzingCryptoRef.current = true;
+    try {
+      const response = await analyzeMarketAndTrade({
+        userId: user.uid,
+        strategyType: botStrategy as any,
+        assets: assets.map(a => ({ currency: a.currency, amount: a.amount, fiatValue: a.fiatValueUSD })),
+        marketData: INITIAL_MARKET_DATA.map(m => ({ currency: m.currency, price: m.currentPriceUSD, change24h: m.dailyChangePercent })),
+        riskTolerance: botRiskLevel,
+        allocationLimitUSD: botAllocation
+      });
+
+      if (response && response.actions) {
+        response.actions.forEach(action => {
+          if (action.type === 'buy' || action.type === 'sell') {
+            addBotLog(`CRYPTO SIGNAL: ${action.type.toUpperCase()} ${action.toAsset || action.fromAsset}. Reasoning: ${action.reasoning}`, 'success');
+            const profit = 0.45; // Simulated profit harvest
+            updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(profit) });
+          } else {
+            addBotLog("CRYPTO SCAN: Market within stable range. Holding position.", "info");
+          }
+        });
+      }
+    } catch (e: any) {
+      addBotLog(`CRYPTO ERROR: ${e.message}`, 'error');
+    } finally {
+      isAnalyzingCryptoRef.current = false;
+    }
+  }, [botActive, botStrategy, botRiskLevel, botAllocation, assets, user, db, addBotLog]);
+
+  // STOCK BOT LOGIC
   const triggerEquityHarvestingAnalysis = useCallback(async () => {
     if (!stockBotActive || isAnalyzingStocksRef.current || !user || !db) return;
-
-    const now = Date.now();
-    if (now - lastStockAnalysisRef.current < 60000) return; 
-
     isAnalyzingStocksRef.current = true;
     setIsAnalyzingStocks(true);
-    lastStockAnalysisRef.current = now;
 
     try {
       const response = await analyzeEquityMarket({
         userId: user.uid,
         riskTolerance: stockBotRisk,
-        currentHoldings: stockAssets.map(s => ({
-          symbol: s.symbol,
-          shares: s.shares,
-          value: s.totalValue
-        })),
-        marketData: INITIAL_MARKET_DATA.map(m => ({
-          symbol: m.currency,
-          name: m.currency,
-          price: m.currentPriceUSD,
-          changePercent: m.dailyChangePercent,
-          type: 'stock'
-        })),
+        currentHoldings: stockAssets.map(s => ({ symbol: s.symbol, shares: s.shares, value: s.totalValue })),
+        marketData: INITIAL_MARKET_DATA.map(m => ({ symbol: m.currency, name: m.currency, price: m.currentPriceUSD, changePercent: m.dailyChangePercent, type: 'stock' })),
         allocationLimitUSD: stockBotAllocation
       });
 
@@ -140,17 +181,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           if (action.type === 'buy') {
             const cost = action.amount;
             addStockLog(`DIP DETECTED: Acquiring $${cost.toFixed(2)} of fractional ${action.asset}.`, 'success');
-            addStockLog(`REASONING: ${action.reasoning}`, 'info');
-            
             const stockId = `s_${action.asset}_${Date.now()}`;
             setDoc(doc(db, 'users', user.uid, 'stocks', stockId), {
-              symbol: action.asset,
-              name: action.asset,
-              type: 'stock',
-              shares: cost / 500,
-              currentPrice: 500,
-              totalValue: cost,
-              id: stockId
+              symbol: action.asset, name: action.asset, type: 'stock', shares: cost / 500, currentPrice: 500, totalValue: cost, id: stockId
             });
             updateDoc(doc(db, 'users', user.uid), { stockBotAllocation: increment(-cost) });
           } else if (action.type === 'sell') {
@@ -163,12 +196,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         addStockLog(`MARKET SCAN: Scanning for dips. Holding current vault position.`, 'info');
       }
     } catch (e: any) {
-      addStockLog(`PROTOCOL ERROR: ${e.message}`, 'error');
+      addStockLog(`EQUITY ERROR: ${e.message}`, 'error');
     } finally {
       isAnalyzingStocksRef.current = false;
       setIsAnalyzingStocks(false);
     }
   }, [stockBotActive, stockBotRisk, stockBotAllocation, stockAssets, user, db, addStockLog]);
+
+  useEffect(() => {
+    if (botActive) {
+      const interval = setInterval(triggerCryptoAnalysis, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [botActive, triggerCryptoAnalysis]);
 
   useEffect(() => {
     if (stockBotActive) {
@@ -184,6 +224,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (s.exists()) {
         const d = s.data();
         setTotalBotEarnings(d.totalBotEarnings || 0);
+        // Crypto
+        setBotActive(!!d.botActive);
+        setBotAllocation(d.botAllocation || 20);
+        setBotRiskLevel(d.botRiskLevel || 'medium');
+        setBotStrategy(d.botStrategy || 'standard');
+        // Stocks
         setStockBotActive(!!d.stockBotActive);
         setStockBotAllocation(d.stockBotAllocation || 20);
         setStockBotRisk(d.stockBotRisk || 'medium');
@@ -239,8 +285,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     <WalletContext.Provider value={{ 
       assets, stockAssets, transactions, initialized, isSyncing, user,
       totalBotEarnings, 
+      botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, 
+      updateBotSettings: (active, allocation, risk, strategy) => {
+        setBotActive(active);
+        if (!user || !db) return;
+        updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy });
+        if (active) addBotLog("CRYPTO ALPHA AGENT INITIALIZED", "success");
+        else addBotLog("CRYPTO AGENT ON STANDBY", "warning");
+      },
       updateStockBotSettings: (active, allocation, risk) => {
         setStockBotActive(active);
         if (!user || !db) return;
@@ -248,8 +302,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         if (active) addStockLog("EQUITY HARVESTER PROTOCOL INITIALIZED", "success");
         else addStockLog("EQUITY AGENT ON STANDBY", "warning");
       },
+      clearBotLogs: () => setBotLogs([]),
       clearStockBotLogs: () => setStockBotLogs([]), 
-      liquidateEarnings, addStockLog
+      liquidateEarnings, addStockLog, addBotLog
     }}>
       {children}
     </WalletContext.Provider>
