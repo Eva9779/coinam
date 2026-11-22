@@ -114,8 +114,8 @@ export default function StocksPage() {
     const allocationNum = parseFloat(localAllocation);
     if (isNaN(allocationNum) || allocationNum < 20) {
       toast({
-        title: "Configuration Error",
-        description: "Please specify an equity allocation cap of at least $20 USD.",
+        title: "Micro-Allocation Error",
+        description: "Please specify an equity allocation of at least $20 USD.",
         variant: "destructive"
       });
       return;
@@ -142,7 +142,7 @@ export default function StocksPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            Micro-Investing Protocol Active. Start with as little as $20 USD.
+            Spot Equity Protocol Active. Optimized for $20+ balances.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -181,7 +181,7 @@ export default function StocksPage() {
             <Card className="rounded-[2.5rem] bg-gradient-to-br from-primary to-primary/80 text-white border-none shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Unified Yield</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Harvested Yield</p>
                   <p className="text-3xl font-black tracking-tighter">
                     ${totalBotEarnings.toFixed(2)}
                   </p>
@@ -194,7 +194,7 @@ export default function StocksPage() {
             <Card className="rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/10 shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Tokenized Vault</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Equity Vault</p>
                   <p className="text-3xl font-black tracking-tighter text-primary">
                     ${totalValue.toLocaleString()}
                   </p>
@@ -207,7 +207,7 @@ export default function StocksPage() {
             <Card className="rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/10 shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Projected APY</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Est. Annual Yield</p>
                   <p className="text-3xl font-black tracking-tighter text-green-600">
                     {apy}
                   </p>
@@ -225,7 +225,7 @@ export default function StocksPage() {
                 <BarChart3 className="h-4 w-4 text-secondary" />
                 Equity Vision: {chartSymbol}
               </h3>
-              <Badge variant="outline" className="bg-secondary/10 text-secondary border-none animate-pulse">1m LIVE EXCHANGE DATA</Badge>
+              <Badge variant="outline" className="bg-secondary/10 text-secondary border-none animate-pulse">LIVE FRACTIONAL DATA</Badge>
             </div>
             <EquityChart symbol={chartSymbol} />
           </div>
@@ -240,12 +240,12 @@ export default function StocksPage() {
                 {isAnalyzingStocks && (
                   <div className="flex items-center gap-2 text-[10px] font-bold text-secondary mr-4">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    RUNNING ANALYSIS
+                    HARVESTING ALPHA
                   </div>
                 )}
-                <Button variant="ghost" size="icon" onClick={clearStockBotLogs} className="h-8 w-8 text-white/30 hover:text-white">
+                <button onClick={clearStockBotLogs} className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-white/5 text-white/30 hover:text-white transition-colors">
                   <Trash2 className="h-4 w-4" />
-                </Button>
+                </button>
               </div>
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto p-8 font-mono text-xs space-y-3 no-scrollbar max-h-[400px]">
@@ -275,13 +275,13 @@ export default function StocksPage() {
             <CardHeader className="bg-primary/5 pb-6">
               <CardTitle className="text-lg font-bold flex items-center gap-2">
                 <Settings2 className="h-5 w-5 text-secondary" />
-                Agent Parameters
+                Equity Parameters
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Allocation Cap (USD)</Label>
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Allocation (USD)</Label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input 
@@ -302,27 +302,9 @@ export default function StocksPage() {
                       <SelectValue placeholder="Select Risk" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
-                      <SelectItem value="low">Conservative (Bond Focus)</SelectItem>
-                      <SelectItem value="medium">Balanced (Index Focus)</SelectItem>
-                      <SelectItem value="high">Aggressive (High-Profit Mode)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Focus Growth Asset</Label>
-                  <Select value={chartSymbol} onValueChange={setChartSymbol}>
-                    <SelectTrigger className="h-12 rounded-xl font-bold border-secondary/30">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      <SelectItem value="NASDAQ:NVDA">NVIDIA (bNVDA) - High Growth</SelectItem>
-                      <SelectItem value="NASDAQ:TQQQ">TQQQ (bTQQQ) - Leveraged 3X</SelectItem>
-                      <SelectItem value="NASDAQ:SOXL">SOXL (bSOXL) - Leveraged 3X</SelectItem>
-                      <SelectItem value="NASDAQ:META">Meta (bMETA) - High Volatility</SelectItem>
-                      <SelectItem value="NASDAQ:TSLA">Tesla (bTSLA) - Momentum</SelectItem>
-                      <SelectItem value="NASDAQ:AAPL">Apple (bAAPL) - Standard</SelectItem>
-                      <SelectItem value="AMEX:BND">Bond Token (bBND) - Safety</SelectItem>
+                      <SelectItem value="low">Conservative (Bond Tokens)</SelectItem>
+                      <SelectItem value="medium">Balanced (Equity Tokens)</SelectItem>
+                      <SelectItem value="high">Aggressive (Growth Alpha)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -331,10 +313,10 @@ export default function StocksPage() {
               <div className="p-6 rounded-[1.5rem] bg-slate-900 text-white space-y-4">
                 <h4 className="text-sm font-black flex items-center gap-2 text-secondary">
                   <Zap className="h-4 w-4" />
-                  Micro-Alpha Mode
+                  No-Loss Harvester
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  Optimized for starting balances between $20 - $100. Fractional shares allow you to gain exposure to high-value tech stocks with minimal capital.
+                  Optimized for $20 balances. Unlike high-leverage trading, you own these assets. Our AI only harvests profits, meaning it waits for the market to rise before selling, ensuring your principal stays in your vault.
                 </p>
               </div>
 
@@ -342,7 +324,7 @@ export default function StocksPage() {
                 <Button className="w-full h-14 rounded-2xl font-black gap-2 shadow-xl" asChild>
                   <Link href="/withdraw">
                     <Banknote className="h-5 w-5" />
-                    Withdraw Earnings
+                    Withdraw Vault Assets
                   </Link>
                 </Button>
               </div>
@@ -352,22 +334,22 @@ export default function StocksPage() {
           <Card className="rounded-[2.5rem] shadow-xl border-primary/10 bg-card/50 p-6 space-y-4">
             <h3 className="text-sm font-bold flex items-center gap-2">
               <Briefcase className="h-4 w-4 text-primary" />
-              Tokenized Holdings
+              Vault Holdings
             </h3>
             <div className="space-y-3">
               {stockAssets.length > 0 ? stockAssets.map(s => (
                 <div key={s.id} className="flex items-center justify-between p-3 rounded-xl bg-muted/20 border-l-4 border-secondary">
                   <div>
                     <div className="font-bold text-xs">{s.symbol}</div>
-                    <div className="text-[10px] text-muted-foreground">{s.shares.toFixed(2)} units</div>
+                    <div className="text-[10px] text-muted-foreground">{s.shares.toFixed(4)} units</div>
                   </div>
                   <div className="text-right">
                     <div className="text-xs font-bold">${s.totalValue.toLocaleString()}</div>
-                    <div className="text-[9px] text-green-600 font-bold uppercase">Synced</div>
+                    <div className="text-[9px] text-green-600 font-bold uppercase">Secured</div>
                   </div>
                 </div>
               )) : (
-                <p className="text-[10px] text-center text-muted-foreground opacity-50 py-4 font-bold uppercase">No tokenized holdings</p>
+                <p className="text-[10px] text-center text-muted-foreground opacity-50 py-4 font-bold uppercase">Vault is empty</p>
               )}
             </div>
           </Card>

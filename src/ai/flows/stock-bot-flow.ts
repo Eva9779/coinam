@@ -1,7 +1,7 @@
 'use server';
 /**
- * @fileOverview Proactive Equity Agent.
- * Optimized for Genkit 1.x canonical flow standards.
+ * @fileOverview Proactive Equity Harvester Agent.
+ * Optimized for Spot Buy/Sell without leveraged loss risk.
  */
 
 import { ai } from '@/ai/genkit';
@@ -25,64 +25,38 @@ const StockBotInputSchema = z.object({
   })),
   marketData: z.array(EquityMarketEntrySchema),
   allocationLimitUSD: z.number().optional(),
-  isGuardianMode: z.boolean().optional(),
 });
 export type StockBotInput = z.infer<typeof StockBotInputSchema>;
 
 const StockBotActionSchema = z.object({
   type: z.enum(['buy', 'sell', 'hold']),
   asset: z.string(),
-  amount: z.number().describe('Shares or bond units.'),
+  amount: z.number().describe('USD Value to buy or Shares to sell.'),
   reasoning: z.string(),
 });
 
 const StockBotOutputSchema = z.object({
-  summary: z.string().describe('RWA protocol strategy summary.'),
-  actions: z.array(StockBotActionSchema).describe('Recommended tokenized RWA rebalancing actions.'),
+  summary: z.string().describe('Equity protocol strategy summary.'),
+  actions: z.array(StockBotActionSchema).describe('Spot buy/sell actions.'),
   sentiment: z.enum(['bullish', 'bearish', 'neutral']),
-  error: z.string().optional(),
 });
 export type StockBotOutput = z.infer<typeof StockBotOutputSchema>;
-
-function getLocalRWAStrategy(input: StockBotInput): StockBotOutput {
-  const actions: any[] = [];
-  const assumedGasFee = 7;
-  
-  input.currentHoldings.forEach(hold => {
-    const market = input.marketData.find(m => m.symbol === hold.symbol || hold.symbol.includes(m.symbol));
-    if (market && market.changePercent > 0) {
-      const gainUSD = hold.value * (market.changePercent / 100);
-      if (gainUSD > assumedGasFee) {
-        actions.push({
-          type: 'sell',
-          asset: hold.symbol,
-          amount: hold.shares,
-          reasoning: `PROFIT HARVEST: ${hold.symbol} surged past fee cover. Liquidating to USDC.`
-        });
-      }
-    }
-  });
-
-  return {
-    summary: 'EQUITY HARVESTER ACTIVE',
-    actions: actions.length > 0 ? actions : [{ type: 'hold', asset: 'PORTFOLIO', amount: 0, reasoning: 'Awaiting network fee cover.' }],
-    sentiment: 'neutral',
-    error: `Local Enclave Active.`
-  };
-}
 
 const stockBotPrompt = ai.definePrompt({
   name: 'stockBotPrompt',
   input: { schema: StockBotInputSchema },
   output: { schema: StockBotOutputSchema },
-  prompt: `You are the Proactive Equity Guardian for Coin A,M user {{{userId}}}.
-      MISSION: Hunt for daily profit in TQQQ, SOXL, NVDA, and META. Risk: {{{riskTolerance}}}.
+  prompt: `You are the Proactive Equity Harvester for Coin A,M user {{{userId}}}.
+      MISSION: Accumulate high-growth tech stocks and harvest profits automatically.
       
-      HARVESTING RULES:
-      1. NO DELAY: If (Gain in USD - $7 Gas) > $0, SELL IMMEDIATELY.
-      2. LEVERAGE FOCUS: TQQQ and SOXL move 3X faster.
-      3. SAFE LANDING: Always return value to the USDC Dollar Vault.
-      4. SMALL WINS: $1 profit is a victory.`,
+      HARVESTING PROTOCOL (NO-LOSS):
+      1. BUY ON DIPS: Identify assets in MarketData that are neutral/bullish but have a slight daily dip.
+      2. FRACTIONAL ACCUMULATION: Buy $5-$10 worth of assets to diversify small balances ($20-$25).
+      3. PROFIT HARVEST: Only SELL if the current value is >2% higher than the entry price. 
+      4. ZERO LOSS: Never sell at a loss. If the price is down, HOLD until the market recovers.
+      
+      TARGET ASSETS: NVDA, TQQQ, SOXL, META. 
+      RISK: {{{riskTolerance}}}.`,
 });
 
 const stockBotFlow = ai.defineFlow(
@@ -92,13 +66,8 @@ const stockBotFlow = ai.defineFlow(
     outputSchema: StockBotOutputSchema,
   },
   async (input) => {
-    try {
-      const { output } = await stockBotPrompt(input);
-      if (!output) throw new Error('AI output null');
-      return output;
-    } catch (error: any) {
-      return getLocalRWAStrategy(input);
-    }
+    const { output } = await stockBotPrompt(input);
+    return output!;
   }
 );
 

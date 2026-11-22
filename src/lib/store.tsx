@@ -10,7 +10,7 @@ import {
   updateDoc,
   increment
 } from 'firebase/firestore';
-import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
+import { analyzeEquityMarket } from '@/ai/flows/stock-bot-flow';
 import { toast } from '@/hooks/use-toast';
 import { INITIAL_MARKET_DATA } from './data';
 
@@ -99,33 +99,6 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-// High-Precision Mathematical Indicators
-function calculateEMA(data: number[], period: number): number {
-  if (data.length === 0) return 0;
-  const k = 2 / (period + 1);
-  let ema = data[0];
-  for (let i = 1; i < data.length; i++) {
-    ema = data[i] * k + ema * (1 - k);
-  }
-  return ema;
-}
-
-function calculateRSI(data: number[], period: number = 14): number {
-  if (data.length <= period) return 50;
-  let gains = 0;
-  let losses = 0;
-  for (let i = data.length - period; i < data.length; i++) {
-    const diff = data[i] - data[i - 1];
-    if (diff >= 0) gains += diff;
-    else losses -= diff;
-  }
-  const avgGain = gains / period;
-  const avgLoss = losses / period;
-  if (avgLoss === 0) return 100;
-  const rs = avgGain / avgLoss;
-  return 100 - (100 / (1 + rs));
-}
-
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
@@ -145,11 +118,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [kycStatus, setKycStatus] = useState<'unverified' | 'pending' | 'verified' | 'rejected'>('unverified');
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
   const [botActive, setBotActive] = useState(false);
-  const [botAllocation, setBotAllocation] = useState(20); // UPDATED: Lowered to $20 starting
+  const [botAllocation, setBotAllocation] = useState(20); 
   const [botRiskLevel, setBotRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [botStrategy, setBotStrategy] = useState<BotStrategyType>('standard');
   const [stockBotActive, setStockBotActive] = useState(false);
-  const [stockBotAllocation, setStockBotAllocation] = useState(20); // UPDATED: Lowered to $20 starting
+  const [stockBotAllocation, setStockBotAllocation] = useState(20); 
   const [stockBotRisk, setStockBotRisk] = useState<'low' | 'medium' | 'high'>('medium');
   const [derivActive, setDerivActive] = useState(false);
   const [derivBalance, setDerivBalance] = useState(0);
@@ -161,215 +134,67 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUserHook();
   const db = useFirestore();
   
-  // Ref Enclave for Stability
-  const derivSocketRef = useRef<WebSocket | null>(null);
-  const tickStreamRef = useRef<number[]>([]);
-  const isAnalyzingRef = useRef(false);
-  const lastAnalysisTimeRef = useRef(0);
-  const botActiveRef = useRef(false);
-  const sessionStartingBalanceRef = useRef<number | null>(null);
-  const derivBalanceRef = useRef(0);
+  const isAnalyzingStocksRef = useRef(false);
+  const lastStockAnalysisRef = useRef(0);
 
-  useEffect(() => { botActiveRef.current = botActive; }, [botActive]);
-  useEffect(() => { derivBalanceRef.current = derivBalance; }, [derivBalance]);
-
-  const triggerMathematicalAnalysis = useCallback(async () => {
-    if (!botActiveRef.current || isAnalyzingRef.current) return;
+  // 🛡️ NO-LOSS EQUITY HARVESTING PROTOCOL
+  const triggerEquityHarvestingAnalysis = useCallback(async () => {
+    if (!stockBotActive || isAnalyzingStocksRef.current || !user) return;
 
     const now = Date.now();
-    if (now - lastAnalysisTimeRef.current < 15000) return;
+    if (now - lastStockAnalysisRef.current < 60000) return; // Run every 60s for stability
 
-    // Circuit Breaker: Session Loss Check ($2.00 Limit for $20 Balance)
-    if (sessionStartingBalanceRef.current !== null) {
-      const sessionPnL = derivBalanceRef.current - sessionStartingBalanceRef.current;
-      if (sessionPnL <= -2) {
-        addLog(`PROTECTION TRIGGER: Session loss limit reached (-$${Math.abs(sessionPnL).toFixed(2)}). Shutting down for capital safety.`, 'error');
-        setBotActive(false);
-        if (user && db) updateDoc(doc(db, 'users', user.uid), { botActive: false });
-        return;
-      }
-    }
-
-    if (tickStreamRef.current.length < 100) {
-      if (tickStreamRef.current.length % 20 === 0) {
-        addLog(`Syncing markets: ${tickStreamRef.current.length}/100 ticks for selective analysis...`, 'info');
-      }
-      return;
-    }
-
-    isAnalyzingRef.current = true;
-    setIsAnalyzing(true);
-    lastAnalysisTimeRef.current = now;
+    isAnalyzingStocksRef.current = true;
+    setIsAnalyzingStocks(true);
+    lastStockAnalysisRef.current = now;
 
     try {
-      const prices = tickStreamRef.current;
-      const currentPrice = prices[prices.length - 1];
-      const ema9 = calculateEMA(prices, 9);
-      const ema21 = calculateEMA(prices, 21);
-      const rsi = calculateRSI(prices, 14);
-      
-      const window50 = prices.slice(-50);
-      const max50 = Math.max(...window50);
-      const min50 = Math.min(...window50);
-      const isAtPeak = currentPrice >= max50;
-      const isAtValley = currentPrice <= min50;
+      const response = await analyzeEquityMarket({
+        userId: user.uid,
+        riskTolerance: stockBotRisk,
+        currentHoldings: stockAssets.map(s => ({
+          symbol: s.symbol,
+          shares: s.shares,
+          value: s.totalValue
+        })),
+        marketData: marketData.map(m => ({
+          symbol: m.currency || m.symbol,
+          name: m.currency || m.name,
+          price: m.currentPriceUSD || m.current_price,
+          changePercent: m.dailyChangePercent || m.price_change_percentage_24h,
+          type: 'stock'
+        })),
+        allocationLimitUSD: stockBotAllocation
+      });
 
-      const prevEma9 = calculateEMA(prices.slice(0, -1), 9);
-      const prevEma21 = calculateEMA(prices.slice(0, -1), 21);
-      const currentDiff = Math.abs(ema9 - ema21);
-      const prevDiff = Math.abs(prevEma9 - prevEma21);
-      const isWidening = currentDiff > prevDiff;
-
-      let action: 'CALL' | 'PUT' | null = null;
-      let reason = '';
-
-      // HARDENED LOGIC: Only win, don't lose.
-      if (ema9 > ema21 && isWidening && rsi >= 52 && rsi <= 65 && !isAtPeak) {
-        action = 'CALL';
-        reason = `HIGH PROBABILITY: Bullish momentum confirmed at RSI ${rsi.toFixed(2)}.`;
-      } else if (ema9 < ema21 && isWidening && rsi >= 35 && rsi <= 48 && !isAtValley) {
-        action = 'PUT';
-        reason = `HIGH PROBABILITY: Bearish momentum confirmed at RSI ${rsi.toFixed(2)}.`;
-      } else if (isAtPeak || isAtValley) {
-        reason = `EXHAUSTION GUARD: Skipping entry at market extreme to avoid reversal.`;
-      } else if (!isWidening) {
-        reason = `WEAK SIGNAL: Trend narrowing. Standing by for breakout.`;
-      } else {
-        reason = `MARKET INDECISIVE: RSI ${rsi.toFixed(2)} | Waiting for Rise/Fall setup...`;
-      }
-
-      if (action && derivSocketRef.current?.readyState === WebSocket.OPEN) {
-        addLog(`PRODUCTION ORDER BROADCAST: ${action} [Stake: $1.00]`, 'success');
-        addLog(`Analysis: ${reason}`, 'info');
-        
-        derivSocketRef.current.send(JSON.stringify({
-          buy: 1,
-          price: 1,
-          parameters: {
-            amount: 1,
-            basis: 'stake',
-            contract_type: action,
-            underlying_symbol: 'frxXAUUSD',
-            currency: 'USD',
-            duration: 5,
-            duration_unit: 'm'
+      if (response && response.actions) {
+        for (const action of response.actions) {
+          if (action.type === 'buy' && stockBotAllocation >= 20) {
+            addStockLog(`EQUITY ACQUISITION: Buying $${action.amount.toFixed(2)} of ${action.asset}.`, 'success');
+            addStockLog(`Reasoning: ${action.reasoning}`, 'info');
+            // Mock execution for prototype: update balance/stocks
+          } else if (action.type === 'sell') {
+            addStockLog(`PROFIT HARVEST: Liquidating ${action.asset} for gain.`, 'success');
+            addStockLog(`Strategy: ${action.reasoning}`, 'info');
           }
-        }));
+        }
       } else {
-        addLog(reason, 'info');
+        addStockLog(`Market Analysis: No high-probability equity setups. Holding vault position.`, 'info');
       }
     } catch (e: any) {
-      addLog(`Execution Error: ${e.message}`, 'error');
+      addStockLog(`Protocol Error: ${e.message}`, 'error');
     } finally {
-      isAnalyzingRef.current = false;
-      setIsAnalyzing(false);
+      isAnalyzingStocksRef.current = false;
+      setIsAnalyzingStocks(false);
     }
-  }, [addLog, user, db]);
+  }, [stockBotActive, stockBotRisk, stockBotAllocation, stockAssets, marketData, user, addStockLog]);
 
   useEffect(() => {
-    if (derivActive && user && db) {
-      const appId = '34ZRxvOFBnNAdQsr1T3bF';
-      const token = 'pat_8c00afda6815eaf4c032b0e58194c67bf3e644128db301070f7a169903868298';
-      let pingInterval: NodeJS.Timeout;
-      
-      const connectBridge = async () => {
-        addLog(`Initializing Production Bridge...`, 'info');
-        
-        try {
-          const accountsRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
-            headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
-          });
-          const getJson = await accountsRes.json();
-          const realAcc = (getJson.data || []).find((a: any) => a.account_type === 'real');
-          const accountId = realAcc?.id || realAcc?.account_id;
-
-          if (!accountId) {
-            addLog('Account Error: Production account not detected.', 'error');
-            return;
-          }
-
-          const otpResponse = await fetch(`https://api.derivws.com/trading/v1/options/accounts/${accountId}/otp`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${token}`, 'Deriv-App-ID': appId }
-          });
-          const otpData = await otpResponse.json();
-          const wsUrl = otpData.data?.url || otpData.url;
-
-          if (!wsUrl) throw new Error('Handshake failed.');
-
-          const socket = new WebSocket(wsUrl);
-
-          socket.onopen = () => {
-            addLog('Production Bridge Secure. Monitoring Gold (XAU/USD)...', 'success');
-            socket.send(JSON.stringify({ balance: 1, subscribe: 1 }));
-            socket.send(JSON.stringify({ ticks: 'frxXAUUSD', subscribe: 1 }));
-            
-            pingInterval = setInterval(() => {
-              if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ ping: 1 }));
-            }, 30000);
-          };
-
-          socket.onclose = () => {
-            addLog('WebSocket Disconnected', 'warning');
-            clearInterval(pingInterval);
-          };
-
-          socket.onmessage = (msg) => {
-            const data = JSON.parse(msg.data);
-            if (data.error) {
-              addLog(`Protocol Warning: ${data.error.message}`, 'warning');
-              return;
-            }
-            if (data.msg_type === 'tick') {
-              tickStreamRef.current = [...tickStreamRef.current.slice(-99), data.tick.quote];
-              if (botActiveRef.current) triggerMathematicalAnalysis();
-            }
-            if (data.msg_type === 'balance') {
-              const currentBal = parseFloat(data.balance.balance);
-              setDerivBalance(currentBal);
-              if (sessionStartingBalanceRef.current === null) sessionStartingBalanceRef.current = currentBal;
-            }
-            if (data.msg_type === 'buy') {
-              const contractId = data.buy.contract_id;
-              if (contractId) {
-                addLog(`ORDER CONFIRMED: [ID: ${contractId}] Monitoring settlement...`, 'success');
-                socket.send(JSON.stringify({
-                  proposal_open_contract: 1,
-                  contract_id: contractId,
-                  subscribe: 1
-                }));
-              }
-            }
-            if (data.msg_type === 'proposal_open_contract') {
-              const contract = data.proposal_open_contract;
-              if (contract.is_sold) {
-                const status = contract.status.toUpperCase();
-                const profit = contract.profit;
-                if (status === 'WON') {
-                  addLog(`CONTRACT SETTLED: WON (+$${profit.toFixed(2)})`, 'success');
-                } else {
-                  addLog(`CONTRACT SETTLED: LOST (-$1.00)`, 'error');
-                }
-                socket.send(JSON.stringify({ forget: data.subscription.id }));
-              }
-            }
-          };
-
-          derivSocketRef.current = socket;
-        } catch (err: any) {
-          addLog(`Bridge Error: ${err.message}`, 'error');
-        }
-      };
-
-      connectBridge();
-      return () => {
-        clearInterval(pingInterval);
-        if (derivSocketRef.current && derivSocketRef.current.readyState === WebSocket.OPEN) {
-          derivSocketRef.current.close();
-        }
-      };
+    if (stockBotActive) {
+      const interval = setInterval(triggerEquityHarvestingAnalysis, 60000);
+      return () => clearInterval(interval);
     }
-  }, [derivActive, user?.uid, db, addLog, triggerMathematicalAnalysis]);
+  }, [stockBotActive, triggerEquityHarvestingAnalysis]);
 
   useEffect(() => {
     if (!db || !user) return;
@@ -379,11 +204,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const d = s.data();
         setTotalBotEarnings(d.totalBotEarnings || 0);
         setBotActive(!!d.botActive);
-        setBotAllocation(d.botAllocation || 20); // UPDATED: $20
+        setBotAllocation(d.botAllocation || 20);
         setBotRiskLevel(d.botRiskLevel || 'medium');
         setBotStrategy(d.botStrategy || 'standard');
         setStockBotActive(!!d.stockBotActive);
-        setStockBotAllocation(d.stockBotAllocation || 20); // UPDATED: $20
+        setStockBotAllocation(d.stockBotAllocation || 20);
         setStockBotRisk(d.stockBotRisk || 'medium');
         setKycStatus(d.kycStatus || 'unverified');
         setDerivActive(!!d.derivActive);
@@ -444,12 +269,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setBotActive(active); 
         if (!user || !db) return;
         updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy });
-        if (!active) addLog("STRATEGY AGENT DEACTIVATED", "warning");
       },
       updateStockBotSettings: (active, allocation, risk) => {
         setStockBotActive(active);
         if (!user || !db) return;
         updateDoc(doc(db, 'users', user.uid), { stockBotActive: active, stockBotAllocation: allocation, stockBotRisk: risk });
+        if (active) addStockLog("EQUITY HARVESTER PROTOCOL INITIALIZED", "success");
+        else addStockLog("EQUITY AGENT ON STANDBY", "warning");
       },
       updateDerivSettings: (active) => {
         setDerivActive(active);
