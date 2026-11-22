@@ -31,7 +31,7 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 
-const RealWorldTicker = () => {
+const StockPulse = () => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,8 +50,43 @@ const RealWorldTicker = () => {
         { "proName": "NASDAQ:TSLA", "title": "Tesla" },
         { "proName": "NASDAQ:TQQQ", "title": "TQQQ" },
         { "proName": "NASDAQ:SOXL", "title": "SOXL" },
-        { "proName": "FX_IDC:XAUUSD", "title": "Gold" },
-        { "proName": "BITSTAMP:BTCUSD", "title": "Bitcoin" }
+        { "proName": "AMEX:BND", "title": "Total Bond" }
+      ],
+      "showSymbolLogo": true,
+      "colorTheme": "light",
+      "isTransparent": true,
+      "displayMode": "adaptive",
+      "locale": "en"
+    };
+
+    script.innerHTML = JSON.stringify(config);
+    containerRef.current.appendChild(script);
+  }, []);
+
+  return (
+    <div className="w-full h-full min-h-[50px] overflow-hidden" ref={containerRef} />
+  );
+};
+
+const CryptoPulse = () => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    
+    containerRef.current.innerHTML = ''; 
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js";
+    script.type = "text/javascript";
+    script.async = true;
+    
+    const config = {
+      "symbols": [
+        { "proName": "BITSTAMP:BTCUSD", "title": "Bitcoin" },
+        { "proName": "BITSTAMP:ETHUSD", "title": "Ethereum" },
+        { "proName": "BINANCE:SOLUSDT", "title": "Solana" },
+        { "proName": "BINANCE:BNBUSDT", "title": "BNB" },
+        { "proName": "BINANCE:XRPUSDT", "title": "XRP" }
       ],
       "showSymbolLogo": true,
       "colorTheme": "light",
@@ -78,7 +113,6 @@ export default function Dashboard() {
     stockBotActive, 
     stockBotLogs,
     totalBotEarnings,
-    marketData,
     updateStockBotSettings 
   } = useWalletStore();
   
@@ -149,12 +183,12 @@ export default function Dashboard() {
         <Card className="lg:col-span-3 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden flex flex-col justify-center">
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                <TrendingUp className="h-3 w-3 text-secondary" />
-                Live Market Pulse (Real-World)
+                <Landmark className="h-3 w-3 text-secondary" />
+                Live Equity & Bond Pulse (Real-World)
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
-            <RealWorldTicker />
+            <StockPulse />
           </CardContent>
         </Card>
       </div>
@@ -192,35 +226,17 @@ export default function Dashboard() {
             </div>
          </Card>
 
-         <Card className="lg:col-span-2 rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/5 shadow-sm p-8">
-            <div className="flex items-center justify-between mb-6">
-               <h3 className="text-lg font-black text-primary flex items-center gap-2">
-                  <Cpu className="h-5 w-5 text-secondary" />
-                  Quantum Performance
-               </h3>
-               <Badge variant="outline" className="text-[9px] font-bold">REAL-WORLD TELEMETRY</Badge>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-               <div className="space-y-4">
-                  <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                     <span>System Load</span>
-                     <span>12%</span>
-                  </div>
-                  <div className="h-2 w-full bg-primary/5 rounded-full overflow-hidden">
-                     <div className="h-full bg-secondary w-[12%] animate-in slide-in-from-left duration-1000" />
-                  </div>
-               </div>
-               <div className="space-y-4">
-                  <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                     <span>Data Integrity</span>
-                     <span>100%</span>
-                  </div>
-                  <div className="h-2 w-full bg-primary/5 rounded-full overflow-hidden">
-                     <div className="h-full bg-green-500 w-[100%] animate-in slide-in-from-left duration-1000" />
-                  </div>
-               </div>
-            </div>
-         </Card>
+         <Card className="lg:col-span-2 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden flex flex-col justify-center">
+          <CardHeader className="pb-2">
+             <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                <Zap className="h-3 w-3 text-secondary" />
+                Live Cryptographic Pulse (Real-World)
+             </CardTitle>
+          </CardHeader>
+          <CardContent className="pb-4">
+            <CryptoPulse />
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
