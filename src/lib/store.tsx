@@ -145,11 +145,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [kycStatus, setKycStatus] = useState<'unverified' | 'pending' | 'verified' | 'rejected'>('unverified');
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
   const [botActive, setBotActive] = useState(false);
-  const [botAllocation, setBotAllocation] = useState(1);
+  const [botAllocation, setBotAllocation] = useState(30); // Updated to $30 entry
   const [botRiskLevel, setBotRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [botStrategy, setBotStrategy] = useState<BotStrategyType>('standard');
   const [stockBotActive, setStockBotActive] = useState(false);
-  const [stockBotAllocation, setStockBotAllocation] = useState(2500);
+  const [stockBotAllocation, setStockBotAllocation] = useState(30); // Updated to $30 entry
   const [stockBotRisk, setStockBotRisk] = useState<'low' | 'medium' | 'high'>('medium');
   const [derivActive, setDerivActive] = useState(false);
   const [derivBalance, setDerivBalance] = useState(0);
@@ -203,10 +203,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const prices = tickStreamRef.current;
+      const currentPrice = prices[prices.length - 1];
       const ema9 = calculateEMA(prices, 9);
       const ema21 = calculateEMA(prices, 21);
       const rsi = calculateRSI(prices, 14);
-      const currentPrice = prices[prices.length - 1];
       
       const window50 = prices.slice(-50);
       const max50 = Math.max(...window50);
@@ -376,11 +376,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const d = s.data();
         setTotalBotEarnings(d.totalBotEarnings || 0);
         setBotActive(!!d.botActive);
-        setBotAllocation(d.botAllocation || 1);
+        setBotAllocation(d.botAllocation || 30);
         setBotRiskLevel(d.botRiskLevel || 'medium');
         setBotStrategy(d.botStrategy || 'standard');
         setStockBotActive(!!d.stockBotActive);
-        setStockBotAllocation(d.stockBotAllocation || 2500);
+        setStockBotAllocation(d.stockBotAllocation || 30);
         setStockBotRisk(d.stockBotRisk || 'medium');
         setKycStatus(d.kycStatus || 'unverified');
         setDerivActive(!!d.derivActive);

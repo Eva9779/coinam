@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo } from 'react';
@@ -143,7 +142,7 @@ export default function StocksPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            High-Performance RWA Enclave. Trading high-growth equities and leveraged ETFs.
+            Micro-Investing Protocol Active. Start with as little as $30 USD.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -287,7 +286,7 @@ export default function StocksPage() {
                     <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input 
                       type="number" 
-                      placeholder="2500" 
+                      placeholder="30" 
                       value={localAllocation}
                       onChange={(e) => setLocalAllocation(e.target.value)}
                       disabled={stockBotActive}
@@ -332,10 +331,10 @@ export default function StocksPage() {
               <div className="p-6 rounded-[1.5rem] bg-slate-900 text-white space-y-4">
                 <h4 className="text-sm font-black flex items-center gap-2 text-secondary">
                   <Zap className="h-4 w-4" />
-                  Alpha Capture Mode
+                  Micro-Alpha Mode
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  The Strategy Agent is optimized to hunt for surges in Leveraged ETFs (TQQQ/SOXL) and High-Growth Tech (NVDA). These assets can provide significant daily payouts during market rallies.
+                  Optimized for starting balances between $30 - $100. Fractional shares allow you to gain exposure to high-value tech stocks with minimal capital.
                 </p>
               </div>
 
