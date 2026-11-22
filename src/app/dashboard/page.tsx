@@ -23,31 +23,29 @@ import { useWalletStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 
 const CustomPulseMarquee = ({ items }: { items: any[] }) => {
   return (
-    <div className="w-full overflow-hidden bg-slate-900 border-y border-white/5 py-4 relative group rounded-2xl shadow-inner">
+    <div className="w-full overflow-hidden bg-slate-900 border-y border-white/5 py-4 relative group rounded-2xl shadow-inner h-[100px]">
       <div className="flex animate-[marquee_40s_linear_infinite] hover:[animation-play-state:paused] gap-16 px-6">
         {[...items, ...items, ...items].map((item, idx) => {
-          // SAFE FORMATTING: Ensure maximumFractionDigits is always >= minimumFractionDigits
           const minDecimals = item.currentPriceUSD < 1 ? 4 : 2;
           const maxDecimals = Math.max(minDecimals, 4);
 
           return (
-            <div key={idx} className="flex flex-col items-start min-w-[120px] shrink-0 transition-transform hover:scale-105">
-              <span className="text-[10px] font-black text-secondary uppercase tracking-widest mb-1">{item.currency}</span>
-              <span className="text-base font-black text-white leading-tight">
+            <div key={idx} className="flex flex-col items-start min-w-[140px] shrink-0 transition-transform hover:scale-105 py-1">
+              <span className="text-[11px] font-black text-secondary uppercase tracking-[0.2em] mb-1">{item.currency}</span>
+              <span className="text-lg font-black text-white leading-tight">
                 ${item.currentPriceUSD.toLocaleString(undefined, { 
                   minimumFractionDigits: minDecimals,
                   maximumFractionDigits: maxDecimals 
                 })}
               </span>
               <span className={cn(
-                "text-[11px] font-black leading-tight flex items-center gap-0.5 mt-0.5",
+                "text-[11px] font-black leading-tight flex items-center gap-0.5 mt-1",
                 item.dailyChangePercent >= 0 ? "text-green-400" : "text-red-400"
               )}>
-                {item.dailyChangePercent >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                {item.dailyChangePercent >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
                 {item.dailyChangePercent >= 0 ? '+' : ''}{item.dailyChangePercent.toFixed(2)}%
               </span>
             </div>
@@ -67,14 +65,12 @@ const CustomPulseMarquee = ({ items }: { items: any[] }) => {
 export default function Dashboard() {
   const { 
     assets, 
-    stockAssets, 
     transactions, 
     initialized, 
-    stockBotActive, 
-    stockBotLogs,
+    botActive,
+    botLogs,
     totalBotEarnings,
     marketData,
-    updateStockBotSettings 
   } = useWalletStore();
   
   const [mounted, setMounted] = useState(false);
@@ -84,10 +80,8 @@ export default function Dashboard() {
   }, []);
 
   const totalBalance = useMemo(() => {
-    const cryptoVal = assets.reduce((acc, asset) => acc + asset.fiatValueUSD, 0);
-    const stockVal = stockAssets.reduce((acc, s) => acc + s.totalValue, 0);
-    return cryptoVal + stockVal;
-  }, [assets, stockAssets]);
+    return assets.reduce((acc, asset) => acc + asset.fiatValueUSD, 0);
+  }, [assets]);
 
   const cryptoMarketData = useMemo(() => 
     marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USD'].includes(m.currency)), 
@@ -117,7 +111,7 @@ export default function Dashboard() {
           <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Mainnet Connected: Real-Time Assets</p>
         </div>
         <div className="flex items-center gap-3">
-          {stockBotActive && (
+          {botActive && (
             <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px] animate-pulse">
               <Zap className="h-3.5 w-3.5" />
               +2.1% TARGET ACTIVE
@@ -162,40 +156,8 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-         <Card className="lg:col-span-1 rounded-[2.5rem] bg-slate-950 text-white shadow-2xl border-none p-8 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none group-hover:scale-110 transition-transform">
-               <Landmark className="h-32 w-32 text-secondary" />
-            </div>
-            <div className="relative z-10 space-y-6">
-               <div className="flex items-center justify-between">
-                  <Badge className="bg-secondary text-white font-black text-[9px] tracking-widest uppercase">+2.1% Alpha Protocol</Badge>
-                  <Switch checked={stockBotActive} onCheckedChange={(v) => updateStockBotSettings(v, 20, 'medium')} />
-               </div>
-               <div className="space-y-1">
-                  <h3 className="text-2xl font-black tracking-tight">RWA Strategy Agent</h3>
-                  <p className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Target: +2.1% Profit Harvesting</p>
-               </div>
-               <div className="p-4 rounded-2xl bg-white/5 border border-white/10 space-y-3">
-                  <div className="flex justify-between text-[9px] font-black uppercase text-white/40">
-                     <span>NETWORK</span>
-                     <span className="text-green-400">MAINNET-CONNECTED</span>
-                  </div>
-                  <div className="flex justify-between text-[9px] font-black uppercase text-white/40">
-                     <span>STRATEGY</span>
-                     <span>DIP-HARVEST-2.1</span>
-                  </div>
-               </div>
-               <Button className="w-full h-12 rounded-xl font-bold bg-secondary text-white shadow-xl gap-2" asChild>
-                  <Link href="/stocks">
-                    <Settings className="h-4 w-4" />
-                    Configure Strategy
-                  </Link>
-               </Button>
-            </div>
-         </Card>
-
-         <Card className="lg:col-span-2 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden min-h-[140px]">
+      <div className="grid grid-cols-1 gap-6">
+         <Card className="shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden min-h-[140px]">
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Zap className="h-3 w-3 text-secondary" />
@@ -267,7 +229,7 @@ export default function Dashboard() {
                 <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Real-Time Mainnet Pulse</CardTitle>
              </CardHeader>
              <CardContent className="p-6 space-y-4 font-mono text-[10px] max-h-[450px] overflow-y-auto no-scrollbar">
-                {stockBotLogs.slice(-10).map((log, i) => (
+                {botLogs.slice(-10).map((log, i) => (
                   <div key={i} className={cn(
                     "flex gap-2 leading-relaxed",
                     log.type === 'success' ? "text-green-400" : log.type === 'warning' ? "text-amber-400" : "text-blue-300"
@@ -276,9 +238,9 @@ export default function Dashboard() {
                     <span>{log.msg}</span>
                   </div>
                 ))}
-                {stockBotLogs.length === 0 && (
+                {botLogs.length === 0 && (
                   <div className="py-20 text-center opacity-20 flex flex-col items-center gap-4">
-                    <Landmark className="h-10 w-10" />
+                    <Zap className="h-10 w-10" />
                     <p className="uppercase font-black tracking-widest">Awaiting Alpha Entry</p>
                   </div>
                 )}
