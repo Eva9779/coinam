@@ -38,7 +38,7 @@ export default function WalletPage() {
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
   const db = useFirestore();
 
-  // LEDGER RESTORATION: Show all wallets so real funds are never hidden.
+  // Filter assets based on search query
   const filteredAssets = assets.filter(a => 
     a.currency.toLowerCase().includes(search.toLowerCase()) || 
     a.address.toLowerCase().includes(search.toLowerCase())
@@ -46,13 +46,25 @@ export default function WalletPage() {
 
   const handleDeleteWallet = async (assetId: string, address: string) => {
     if (!user || !db) return;
-    if (!confirm(`CAUTION: Are you sure you want to purge wallet ${address}? This action is irreversible.`)) return;
+    
+    // Professional verification for purging an endpoint
+    const confirmed = window.confirm(`CAUTION: You are about to purge wallet ${address} from the secure enclave. This action is irreversible. Continue?`);
+    if (!confirmed) return;
     
     try {
-      await deleteDoc(doc(db, 'users', user.uid, 'assets', assetId));
-      toast({ title: "Ledger Updated", description: "Asset purged from secure enclave." });
-    } catch (e) {
-      toast({ title: "Purge Failed", variant: "destructive" });
+      const assetRef = doc(db, 'users', user.uid, 'assets', assetId);
+      await deleteDoc(assetRef);
+      toast({ 
+        title: "Ledger Updated", 
+        description: "Cryptographic endpoint purged successfully." 
+      });
+    } catch (e: any) {
+      console.error("Purge Failed:", e);
+      toast({ 
+        title: "Purge Failed", 
+        description: "Identity verification required to modify ledger.",
+        variant: "destructive" 
+      });
     }
   };
 
@@ -152,14 +164,14 @@ export default function WalletPage() {
                   placeholder="Filter assets..." 
                   className="pl-10 h-12 bg-background/50 border-none shadow-inner rounded-xl text-sm font-bold" 
                   value={search}
-                  onChange={(e) => setSearch(setSearch(e.target.value))}
+                  onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4">
-                {filteredAssets.length > 0 ? filteredAssets.map((asset, idx) => (
-                  <div key={idx} className="flex flex-col p-6 border-2 rounded-3xl hover:bg-muted/10 transition-all border-primary/5 hover:border-secondary/30 bg-background/30">
+                {filteredAssets.length > 0 ? filteredAssets.map((asset) => (
+                  <div key={asset.id} className="flex flex-col p-6 border-2 rounded-3xl hover:bg-muted/10 transition-all border-primary/5 hover:border-secondary/30 bg-background/30">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-5">
                         <div className="h-14 w-14 rounded-2xl bg-primary/10 flex items-center justify-center font-bold text-lg text-primary shadow-lg border border-primary/10">
@@ -173,7 +185,7 @@ export default function WalletPage() {
                             </Badge>
                           </div>
                           <div className="text-[10px] text-muted-foreground font-mono font-bold flex items-center gap-2 opacity-80">
-                            {asset.address}
+                            {asset.address.slice(0, 16)}...
                             <button 
                               className="p-1 hover:bg-secondary/20 rounded transition-colors"
                               onClick={() => copyToClipboard(asset.address, "Address")}

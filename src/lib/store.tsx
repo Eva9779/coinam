@@ -116,7 +116,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const isAnalyzingCryptoRef = useRef(false);
 
   // INSTITUTIONAL ENCLAVE STORAGE (Memory Only)
-  // These track trades while the bot is active without creating cluttering Asset documents.
   const [cryptoPositions, setCryptoPositions] = useState<any[]>([]);
   const [equityPositions, setEquityPositions] = useState<any[]>([]);
 
@@ -213,7 +212,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           allocationLimitUSD: stockBotAllocation
         });
       } catch (apiError: any) {
-        addStockLog("ENCLAVE MODE: Activating On-Device RWA Analysis...", "warning");
+        addStockLog("ENCLAVE MODE: Activating On-Device Analysis...", "warning");
         
         const profitTarget = 1.021;
         const harvestable = equityPositions.find(p => {
