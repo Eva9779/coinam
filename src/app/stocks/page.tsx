@@ -222,6 +222,7 @@ export default function StocksPage() {
             </Card>
           </div>
 
+          {/* 🚀 STEP-BY-STEP EARNING GUIDE FOR USER */}
           <Card className="rounded-[2.5rem] border-none shadow-xl bg-secondary/5 overflow-hidden">
             <CardHeader className="bg-secondary/10 border-b border-secondary/10 px-8 py-6">
               <div className="flex items-center gap-3">
