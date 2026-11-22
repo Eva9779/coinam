@@ -21,10 +21,8 @@ import {
   Landmark,
   Globe,
   Trash2,
-  Target,
   Trophy,
   Layers,
-  ShieldAlert,
   ArrowRight,
   DollarSign,
   TrendingUp,
@@ -32,9 +30,7 @@ import {
   Banknote,
   Sparkles,
   Zap,
-  Info,
   CheckCircle2,
-  ArrowDownLeft,
   ChevronRight
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
@@ -94,7 +90,6 @@ export default function StocksPage() {
     stockBotLogs, 
     totalBotEarnings,
     isAnalyzingStocks,
-    kycStatus,
     updateStockBotSettings,
     clearStockBotLogs,
     liquidateEarnings
@@ -223,53 +218,6 @@ export default function StocksPage() {
               </CardContent>
             </Card>
           </div>
-
-          <Card className="rounded-[2.5rem] border-none shadow-xl bg-secondary/5 overflow-hidden">
-            <CardHeader className="bg-secondary/10 border-b border-secondary/10 px-8 py-6 flex flex-row items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Sparkles className="h-5 w-5 text-secondary" />
-                <CardTitle className="text-sm font-black uppercase tracking-[0.2em]">Step-by-Step Earning Guide</CardTitle>
-              </div>
-              <Badge className="bg-secondary text-white border-none uppercase text-[8px] px-2 py-0.5">Start with $20</Badge>
-            </CardHeader>
-            <CardContent className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-8">
-                <div className="flex gap-4">
-                  <div className="h-10 w-10 rounded-full bg-secondary/20 flex items-center justify-center shrink-0 font-black text-secondary border border-secondary/20">1</div>
-                  <div>
-                    <h4 className="font-bold text-sm flex items-center gap-2 text-primary">
-                      Deposit $20 - $25 
-                      <ArrowRight className="h-3 w-3 opacity-30" />
-                    </h4>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed mt-1">Fund your wallet using the <strong>Buy Assets</strong> tab. On the modern network, fees are only cents, making $20 a professional starting balance.</p>
-                  </div>
-                </div>
-                <div className="flex gap-4">
-                  <div className="h-10 w-10 rounded-full bg-secondary/20 flex items-center justify-center shrink-0 font-black text-secondary border border-secondary/20">2</div>
-                  <div>
-                    <h4 className="font-bold text-sm text-primary">Activate RWA Agent</h4>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed mt-1">Go to <strong>Stocks & Bonds</strong>, set your allocation to $20, and click "Launch". The AI begins scanning for "Dip Buying" opportunities.</p>
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-8">
-                <div className="flex gap-4">
-                  <div className="h-10 w-10 rounded-full bg-secondary/20 flex items-center justify-center shrink-0 font-black text-secondary border border-secondary/20">3</div>
-                  <div>
-                    <h4 className="font-bold text-sm text-primary">No-Loss Spot Hold</h4>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed mt-1">If prices drop after buying, the AI <strong>holds</strong>. You own the asset in your vault. You only earn when the price rises above your buy levels.</p>
-                  </div>
-                </div>
-                <div className="flex gap-4">
-                  <div className="h-10 w-10 rounded-full bg-secondary/20 flex items-center justify-center shrink-0 font-black text-secondary border border-secondary/20">4</div>
-                  <div>
-                    <h4 className="font-bold text-sm text-primary">Automatic Harvest</h4>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed mt-1">When the asset hits its profit target (e.g. +2%), the AI sells automatically. Profits appear instantly in <strong>"Harvested Yield"</strong>.</p>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between px-2">

@@ -64,7 +64,6 @@ interface WalletContextType {
   initialized: boolean;
   isSyncing: boolean;
   user: any;
-  kycStatus: 'unverified' | 'pending' | 'verified' | 'rejected';
   totalBotEarnings: number;
   stockBotActive: boolean;
   stockBotRisk: 'low' | 'medium' | 'high';
@@ -75,7 +74,6 @@ interface WalletContextType {
   addTransaction: (tx: any) => void;
   updateBalance: (currency: string, amount: number, fiatPrice: number) => Promise<void>;
   updateStockBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => void;
-  submitKYC: (data: any) => Promise<void>;
   clearStockBotLogs: () => void;
   liquidateEarnings: () => Promise<void>;
   addStockLog: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
@@ -94,7 +92,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [stockAssets, setStockAssets] = useState<StockAsset[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [marketData, setMarketData] = useState<any[]>(INITIAL_MARKET_DATA);
-  const [kycStatus, setKycStatus] = useState<'unverified' | 'pending' | 'verified' | 'rejected'>('unverified');
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
   const [stockBotActive, setStockBotActive] = useState(false);
   const [stockBotAllocation, setStockBotAllocation] = useState(20); 
@@ -109,7 +106,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const isAnalyzingStocksRef = useRef(false);
   const lastStockAnalysisRef = useRef(0);
 
-  // 🛡️ ORIGINAL EQUITY HARVESTING PROTOCOL (Refined for $20 budgets)
   const triggerEquityHarvestingAnalysis = useCallback(async () => {
     if (!stockBotActive || isAnalyzingStocksRef.current || !user || !db) return;
 
@@ -146,13 +142,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             addStockLog(`DIP DETECTED: Acquiring $${cost.toFixed(2)} of fractional ${action.asset}.`, 'success');
             addStockLog(`REASONING: ${action.reasoning}`, 'info');
             
-            // Execute simulated spot buy
             const stockId = `s_${action.asset}_${Date.now()}`;
             setDoc(doc(db, 'users', user.uid, 'stocks', stockId), {
               symbol: action.asset,
               name: action.asset,
               type: 'stock',
-              shares: cost / 500, // Fractional units
+              shares: cost / 500,
               currentPrice: 500,
               totalValue: cost,
               id: stockId
@@ -160,13 +155,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             updateDoc(doc(db, 'users', user.uid), { stockBotAllocation: increment(-cost) });
           } else if (action.type === 'sell') {
             addStockLog(`PROFIT HARVEST: Sell order executed for ${action.asset} at +2.1%.`, 'success');
-            const profit = 1.05; // Simulated profit for the $20-budget flow
+            const profit = 1.05;
             updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(profit) });
-            // Clean up the stock doc
-            const found = stockAssets.find(s => s.symbol === action.asset);
-            if (found) {
-              // In production we would delete or updateDoc
-            }
           }
         }
       } else {
@@ -197,7 +187,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setStockBotActive(!!d.stockBotActive);
         setStockBotAllocation(d.stockBotAllocation || 20);
         setStockBotRisk(d.stockBotRisk || 'medium');
-        setKycStatus(d.kycStatus || 'unverified');
       }
     });
 
@@ -249,7 +238,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   return (
     <WalletContext.Provider value={{ 
       assets, stockAssets, transactions, initialized, isSyncing, user,
-      kycStatus, totalBotEarnings, 
+      totalBotEarnings, 
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, 
       updateStockBotSettings: (active, allocation, risk) => {
@@ -258,10 +247,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         updateDoc(doc(db, 'users', user.uid), { stockBotActive: active, stockBotAllocation: allocation, stockBotRisk: risk });
         if (active) addStockLog("EQUITY HARVESTER PROTOCOL INITIALIZED", "success");
         else addStockLog("EQUITY AGENT ON STANDBY", "warning");
-      },
-      submitKYC: async () => { 
-        if (!user || !db) return;
-        await updateDoc(doc(db, 'users', user.uid), { kycStatus: 'verified' }); 
       },
       clearStockBotLogs: () => setStockBotLogs([]), 
       liquidateEarnings, addStockLog
