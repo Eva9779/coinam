@@ -1,3 +1,4 @@
+
 'use server';
 /**
  * @fileOverview Proactive Equity Harvester Agent.
@@ -53,7 +54,7 @@ const stockBotPrompt = ai.definePrompt({
       HARVESTING PROTOCOL (NO-LOSS SPOT TRADING):
       1. BUY ON DIPS: Identify tech assets that have dropped slightly (-1% to -3%) but are fundamentally strong.
       2. FRACTIONAL POSITION: Use small increments to build fractional shares.
-      3. PROFIT HARVEST: Only SELL if the current price is at least 2% higher than the entry price. 
+      3. PROFIT HARVEST: Only SELL if the current price is at least 2.1% higher than the entry price. 
       4. ZERO LOSS HOLD: If the price drops after buying, DO NOT SELL. HOLD until the market recovers.
       
       CURRENT ALLOCATION: $ {{{allocationLimitUSD}}}
