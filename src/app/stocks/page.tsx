@@ -219,27 +219,30 @@ export default function StocksPage() {
           </div>
 
           <div className="space-y-4">
-            <div className="flex items-center justify-between px-2">
-              <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                <BarChart3 className="h-4 w-4 text-secondary" />
-                Equity Vision: {chartSymbol.split(':')[1] || chartSymbol}
-              </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-2">
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-secondary" />
+                  Equity Vision: {chartSymbol.split(':')[1] || chartSymbol}
+                </h3>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase mt-1">Select an asset below to toggle chart vision</p>
+              </div>
               <div className="flex items-center gap-3">
                 <Select value={chartSymbol} onValueChange={setChartSymbol}>
-                  <SelectTrigger className="w-40 h-10 rounded-xl font-bold bg-card border-none shadow-sm">
+                  <SelectTrigger className="w-56 h-12 rounded-xl font-bold bg-background border-2 border-primary/20 shadow-md focus:ring-secondary">
                     <SelectValue placeholder="Select Asset" />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl">
-                    <SelectItem value="NASDAQ:NVDA">NVIDIA (NVDA)</SelectItem>
-                    <SelectItem value="NASDAQ:AAPL">Apple (AAPL)</SelectItem>
-                    <SelectItem value="NASDAQ:TSLA">Tesla (TSLA)</SelectItem>
-                    <SelectItem value="NASDAQ:META">Meta (META)</SelectItem>
-                    <SelectItem value="NASDAQ:TQQQ">TQQQ (3X Leveraged)</SelectItem>
-                    <SelectItem value="NASDAQ:SOXL">SOXL (3X Semi)</SelectItem>
-                    <SelectItem value="AMEX:BND">Total Bond (BND)</SelectItem>
+                  <SelectContent className="rounded-xl border-2 shadow-2xl">
+                    <SelectItem value="NASDAQ:NVDA" className="font-bold">NVIDIA (NVDA)</SelectItem>
+                    <SelectItem value="NASDAQ:AAPL" className="font-bold">Apple (AAPL)</SelectItem>
+                    <SelectItem value="NASDAQ:TSLA" className="font-bold">Tesla (TSLA)</SelectItem>
+                    <SelectItem value="NASDAQ:META" className="font-bold">Meta (META)</SelectItem>
+                    <SelectItem value="NASDAQ:TQQQ" className="font-bold">TQQQ (3X Leveraged)</SelectItem>
+                    <SelectItem value="NASDAQ:SOXL" className="font-bold">SOXL (3X Semi)</SelectItem>
+                    <SelectItem value="AMEX:BND" className="font-bold">Total Bond (BND)</SelectItem>
                   </SelectContent>
                 </Select>
-                <Badge variant="outline" className="bg-secondary/10 text-secondary border-none animate-pulse hidden sm:flex">LIVE FEED</Badge>
+                <Badge variant="outline" className="bg-secondary/10 text-secondary border-none animate-pulse hidden xl:flex">LIVE FEED</Badge>
               </div>
             </div>
             <EquityChart symbol={chartSymbol} />
