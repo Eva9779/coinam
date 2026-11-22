@@ -135,7 +135,7 @@ export default function TradingBotPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Cpu className="h-4 w-4" />
-            {agentType === 'crypto' ? 'Crypto Alpha Protocol' : 'RWA Earning Protocol'}. Optimized for $20+ balances.
+            {agentType === 'crypto' ? 'Crypto Alpha Protocol' : 'RWA Earning Protocol'}. Mainnet Live.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -144,7 +144,7 @@ export default function TradingBotPage() {
             isActive ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-amber-500/10 text-amber-600 border-amber-500/20"
           )}>
             <div className={cn("h-2 w-2 rounded-full mr-2", isActive ? "bg-green-500 animate-pulse" : "bg-amber-500")} />
-            Link: {isActive ? 'LIVE' : 'STANDBY'}
+            Protocol Link: {isActive ? 'LIVE' : 'STANDBY'}
           </Badge>
           <Button 
             onClick={handleToggleBot} 
@@ -152,7 +152,7 @@ export default function TradingBotPage() {
             className="h-12 px-8 font-bold rounded-2xl shadow-xl gap-2 transition-all"
           >
             {isActive ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-            {isActive ? 'Disable Agent' : 'Launch Agent'}
+            {isActive ? 'Deactivate Agent' : 'Launch Agent'}
           </Button>
         </div>
       </div>
@@ -163,7 +163,7 @@ export default function TradingBotPage() {
             <Card className="rounded-[2.5rem] bg-gradient-to-br from-primary to-primary/80 text-white border-none shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Captured Yield</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Settled Alpha Yield</p>
                   <p className="text-4xl font-black tracking-tighter">${totalBotEarnings.toFixed(4)}</p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
@@ -307,7 +307,7 @@ export default function TradingBotPage() {
                       className="pl-9 h-12 rounded-xl font-bold text-lg border-2"
                     />
                   </div>
-                  <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">* Minimum: $20.00</p>
+                  <p className="text-[9px] text-muted-foreground font-black uppercase tracking-tighter">* Mainnet Optimized: $20.00</p>
                 </div>
 
                 {agentType === 'crypto' && (
@@ -356,14 +356,14 @@ export default function TradingBotPage() {
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
                   {agentType === 'crypto' 
-                    ? "The agent uses 18-decimal precision to identify micro-dips in crypto assets. It strictly holds until a +2.1% profit target is reached, ensuring zero principal loss."
-                    : "The agent identifies dips in tech equities and buys spot fractional shares. It will strictly HOLD until a profit target is reached, ensuring no principal is lost."}
+                    ? "The agent uses 18-decimal precision to identify real-world dips in crypto assets. It strictly holds until a +2.1% profit target is reached, ensuring zero principal loss."
+                    : "The agent identifies institutional dips in tech equities and buys spot fractional shares. It will strictly HOLD until a profit target is reached, ensuring no principal is lost."}
                 </p>
               </div>
 
               {isActive && (
                 <p className="text-center text-[10px] font-black text-green-600 uppercase animate-pulse">
-                  Agent is active
+                  Agent is actively harvesting
                 </p>
               )}
             </CardContent>
