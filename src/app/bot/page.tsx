@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect, useRef, memo } from 'react';
@@ -122,7 +121,7 @@ export default function TradingBotPage() {
 
   const handleToggleBot = () => {
     const allocationNum = parseFloat(localAllocation);
-    if (isNaN(allocationNum) || allocationNum <= 0) {
+    if (isNaN(allocationNum) || allocationNum < 1) {
       toast({
         title: "Configuration Error",
         description: "Please specify an Allocation Cap of at least $1 USD.",
@@ -145,7 +144,7 @@ export default function TradingBotPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Cpu className="h-4 w-4" />
-            {isLocalProtocol ? 'Local Quantitative Protocol active (Regional Mode).' : 'AI Neural Link active. Monitoring Mainnet trends.'}
+            Micro-Earning Protocol Active. Optimized for balances starting at $20.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -173,13 +172,6 @@ export default function TradingBotPage() {
         </div>
       </div>
 
-      {localAllocation === "0" && !botActive && (
-        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-600">
-          <AlertCircle className="h-5 w-5 shrink-0" />
-          <p className="text-sm font-bold uppercase tracking-tight">Warning: Allocation Cap is set to $0. Set a limit of at least $1 to enable trading.</p>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -197,8 +189,8 @@ export default function TradingBotPage() {
             <Card className="rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/10 shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Mainnet Sync</p>
-                  <p className="text-4xl font-black tracking-tighter text-green-600">{botActive ? 'ACTIVE' : 'IDLE'}</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Network Safety</p>
+                  <p className="text-4xl font-black tracking-tighter text-green-600">LOCKED</p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-green-500/10 flex items-center justify-center border-green-500/20">
                   <Activity className="h-7 w-7 text-green-600" />
@@ -290,7 +282,7 @@ export default function TradingBotPage() {
                     <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input 
                       type="number" 
-                      placeholder="1000" 
+                      placeholder="20" 
                       value={localAllocation}
                       onChange={(e) => setLocalAllocation(e.target.value)}
                       disabled={botActive}
@@ -306,9 +298,9 @@ export default function TradingBotPage() {
                       <SelectValue placeholder="Select Strategy" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl">
-                      <SelectItem value="low">Conservative (Balanced)</SelectItem>
-                      <SelectItem value="medium">Standard (Growth)</SelectItem>
-                      <SelectItem value="high">Aggressive (Institutional)</SelectItem>
+                      <SelectItem value="low">Conservative (Safety First)</SelectItem>
+                      <SelectItem value="medium">Standard (Balanced Growth)</SelectItem>
+                      <SelectItem value="high">Aggressive (Maximum Yield)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -321,10 +313,10 @@ export default function TradingBotPage() {
                 
                 <h4 className="text-sm font-black flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-secondary" />
-                  Execution Protection
+                  $20 Safety Protocol
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  Autonomous agents provide institutional rebalancing signals. Trades are authorized starting from $1 USD. Ensure your Real Balance is funded via Deriv.
+                  Optimized for micro-capital. Trades utilize $1 stakes to provide maximum runway. Automatic shutdown triggered if session loss reaches $2 USD.
                 </p>
               </div>
 

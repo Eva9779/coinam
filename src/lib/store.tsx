@@ -145,11 +145,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [kycStatus, setKycStatus] = useState<'unverified' | 'pending' | 'verified' | 'rejected'>('unverified');
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
   const [botActive, setBotActive] = useState(false);
-  const [botAllocation, setBotAllocation] = useState(30); // Updated to $30 entry
+  const [botAllocation, setBotAllocation] = useState(20); // UPDATED: Lowered to $20 starting
   const [botRiskLevel, setBotRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [botStrategy, setBotStrategy] = useState<BotStrategyType>('standard');
   const [stockBotActive, setStockBotActive] = useState(false);
-  const [stockBotAllocation, setStockBotAllocation] = useState(30); // Updated to $30 entry
+  const [stockBotAllocation, setStockBotAllocation] = useState(20); // UPDATED: Lowered to $20 starting
   const [stockBotRisk, setStockBotRisk] = useState<'low' | 'medium' | 'high'>('medium');
   const [derivActive, setDerivActive] = useState(false);
   const [derivBalance, setDerivBalance] = useState(0);
@@ -179,11 +179,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const now = Date.now();
     if (now - lastAnalysisTimeRef.current < 15000) return;
 
-    // Circuit Breaker: Session Loss Check ($3.00 Limit)
+    // Circuit Breaker: Session Loss Check ($2.00 Limit for $20 Balance)
     if (sessionStartingBalanceRef.current !== null) {
       const sessionPnL = derivBalanceRef.current - sessionStartingBalanceRef.current;
-      if (sessionPnL <= -3) {
-        addLog(`CIRCUIT BREAKER: Session loss limit reached (-$${Math.abs(sessionPnL).toFixed(2)}). Shutdown initiated.`, 'error');
+      if (sessionPnL <= -2) {
+        addLog(`PROTECTION TRIGGER: Session loss limit reached (-$${Math.abs(sessionPnL).toFixed(2)}). Shutting down for capital safety.`, 'error');
         setBotActive(false);
         if (user && db) updateDoc(doc(db, 'users', user.uid), { botActive: false });
         return;
@@ -192,7 +192,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     if (tickStreamRef.current.length < 100) {
       if (tickStreamRef.current.length % 20 === 0) {
-        addLog(`Collecting ticks: ${tickStreamRef.current.length}/100 for indicators...`, 'info');
+        addLog(`Syncing markets: ${tickStreamRef.current.length}/100 ticks for selective analysis...`, 'info');
       }
       return;
     }
@@ -223,23 +223,24 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       let action: 'CALL' | 'PUT' | null = null;
       let reason = '';
 
+      // HARDENED LOGIC: Only win, don't lose.
       if (ema9 > ema21 && isWidening && rsi >= 52 && rsi <= 65 && !isAtPeak) {
         action = 'CALL';
-        reason = `HIGH PROBABILITY: Bullish Acceleration + RSI Pullback (${rsi.toFixed(2)}).`;
+        reason = `HIGH PROBABILITY: Bullish momentum confirmed at RSI ${rsi.toFixed(2)}.`;
       } else if (ema9 < ema21 && isWidening && rsi >= 35 && rsi <= 48 && !isAtValley) {
         action = 'PUT';
-        reason = `HIGH PROBABILITY: Bearish Acceleration + RSI Pullback (${rsi.toFixed(2)}).`;
+        reason = `HIGH PROBABILITY: Bearish momentum confirmed at RSI ${rsi.toFixed(2)}.`;
       } else if (isAtPeak || isAtValley) {
-        reason = `EXHAUSTION SHIELD: Price at extreme limit. Avoiding top/bottom entry.`;
+        reason = `EXHAUSTION GUARD: Skipping entry at market extreme to avoid reversal.`;
       } else if (!isWidening) {
-        reason = `WEAK MOMENTUM: EMA spread narrowing. Analysis skipped.`;
+        reason = `WEAK SIGNAL: Trend narrowing. Standing by for breakout.`;
       } else {
-        reason = `MARKET INDECISIVE: RSI ${rsi.toFixed(2)} | EMA Diff: ${currentDiff.toFixed(3)}`;
+        reason = `MARKET INDECISIVE: RSI ${rsi.toFixed(2)} | Waiting for Rise/Fall setup...`;
       }
 
       if (action && derivSocketRef.current?.readyState === WebSocket.OPEN) {
         addLog(`PRODUCTION ORDER BROADCAST: ${action} [Stake: $1.00]`, 'success');
-        addLog(`Reasoning: ${reason}`, 'info');
+        addLog(`Analysis: ${reason}`, 'info');
         
         derivSocketRef.current.send(JSON.stringify({
           buy: 1,
@@ -254,9 +255,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             duration_unit: 'm'
           }
         }));
+      } else {
+        addLog(reason, 'info');
       }
     } catch (e: any) {
-      addLog(`Execution Exception: ${e.message}`, 'error');
+      addLog(`Execution Error: ${e.message}`, 'error');
     } finally {
       isAnalyzingRef.current = false;
       setIsAnalyzing(false);
@@ -270,7 +273,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       let pingInterval: NodeJS.Timeout;
       
       const connectBridge = async () => {
-        addLog(`Initializing Institutional Bridge (Production)...`, 'info');
+        addLog(`Initializing Production Bridge...`, 'info');
         
         try {
           const accountsRes = await fetch('https://api.derivws.com/trading/v1/options/accounts', {
@@ -281,7 +284,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const accountId = realAcc?.id || realAcc?.account_id;
 
           if (!accountId) {
-            addLog('Account Error: Production credential not found.', 'error');
+            addLog('Account Error: Production account not detected.', 'error');
             return;
           }
 
@@ -292,7 +295,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const otpData = await otpResponse.json();
           const wsUrl = otpData.data?.url || otpData.url;
 
-          if (!wsUrl) throw new Error('Secure handshake failed.');
+          if (!wsUrl) throw new Error('Handshake failed.');
 
           const socket = new WebSocket(wsUrl);
 
@@ -314,7 +317,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           socket.onmessage = (msg) => {
             const data = JSON.parse(msg.data);
             if (data.error) {
-              addLog(`Bridge Protocol Error: ${data.error.message}`, 'error');
+              addLog(`Protocol Warning: ${data.error.message}`, 'warning');
               return;
             }
             if (data.msg_type === 'tick') {
@@ -329,7 +332,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             if (data.msg_type === 'buy') {
               const contractId = data.buy.contract_id;
               if (contractId) {
-                addLog(`ORDER ACCEPTED: [ID: ${contractId}] Monitoring settlement...`, 'success');
+                addLog(`ORDER CONFIRMED: [ID: ${contractId}] Monitoring settlement...`, 'success');
                 socket.send(JSON.stringify({
                   proposal_open_contract: 1,
                   contract_id: contractId,
@@ -354,7 +357,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
           derivSocketRef.current = socket;
         } catch (err: any) {
-          addLog(`Connection Failed: ${err.message}`, 'error');
+          addLog(`Bridge Error: ${err.message}`, 'error');
         }
       };
 
@@ -376,11 +379,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const d = s.data();
         setTotalBotEarnings(d.totalBotEarnings || 0);
         setBotActive(!!d.botActive);
-        setBotAllocation(d.botAllocation || 30);
+        setBotAllocation(d.botAllocation || 20); // UPDATED: $20
         setBotRiskLevel(d.botRiskLevel || 'medium');
         setBotStrategy(d.botStrategy || 'standard');
         setStockBotActive(!!d.stockBotActive);
-        setStockBotAllocation(d.stockBotAllocation || 30);
+        setStockBotAllocation(d.stockBotAllocation || 20); // UPDATED: $20
         setStockBotRisk(d.stockBotRisk || 'medium');
         setKycStatus(d.kycStatus || 'unverified');
         setDerivActive(!!d.derivActive);

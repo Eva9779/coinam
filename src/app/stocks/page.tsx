@@ -112,10 +112,10 @@ export default function StocksPage() {
 
   const handleToggleBot = () => {
     const allocationNum = parseFloat(localAllocation);
-    if (isNaN(allocationNum) || allocationNum <= 0) {
+    if (isNaN(allocationNum) || allocationNum < 20) {
       toast({
         title: "Configuration Error",
-        description: "Please specify a valid equity allocation cap.",
+        description: "Please specify an equity allocation cap of at least $20 USD.",
         variant: "destructive"
       });
       return;
@@ -142,7 +142,7 @@ export default function StocksPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            Micro-Investing Protocol Active. Start with as little as $30 USD.
+            Micro-Investing Protocol Active. Start with as little as $20 USD.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -286,7 +286,7 @@ export default function StocksPage() {
                     <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input 
                       type="number" 
-                      placeholder="30" 
+                      placeholder="20" 
                       value={localAllocation}
                       onChange={(e) => setLocalAllocation(e.target.value)}
                       disabled={stockBotActive}
@@ -334,7 +334,7 @@ export default function StocksPage() {
                   Micro-Alpha Mode
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  Optimized for starting balances between $30 - $100. Fractional shares allow you to gain exposure to high-value tech stocks with minimal capital.
+                  Optimized for starting balances between $20 - $100. Fractional shares allow you to gain exposure to high-value tech stocks with minimal capital.
                 </p>
               </div>
 
