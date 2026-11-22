@@ -9,8 +9,7 @@ import {
   setDoc, 
   onSnapshot, 
   updateDoc,
-  increment,
-  deleteDoc
+  increment
 } from 'firebase/firestore';
 import { analyzeEquityMarket } from '@/ai/flows/stock-bot-flow';
 import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
@@ -116,7 +115,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const isAnalyzingStocksRef = useRef(false);
   const isAnalyzingCryptoRef = useRef(false);
 
-  // REAL-WORLD Position state (Transient Enclave Storage - Memory Only to avoid DB clutter)
+  // INSTITUTIONAL ENCLAVE STORAGE (Memory Only)
+  // These track trades while the bot is active without creating cluttering Asset documents.
   const [cryptoPositions, setCryptoPositions] = useState<any[]>([]);
   const [equityPositions, setEquityPositions] = useState<any[]>([]);
 
@@ -137,7 +137,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           allocationLimitUSD: botAllocation
         });
       } catch (apiError: any) {
-        addBotLog("ENCLAVE MODE: Activating On-Device Quantitative Analysis...", "warning");
+        addBotLog("ENCLAVE MODE: Activating On-Device Analysis...", "warning");
         
         const profitTarget = 1.021;
         const harvestable = cryptoPositions.find(p => {
@@ -189,7 +189,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (e: any) {
-      addBotLog(`CRITICAL ERROR: ${e.message}`, 'error');
+      addBotLog(`ERROR: ${e.message}`, 'error');
     } finally {
       isAnalyzingCryptoRef.current = false;
     }
@@ -265,7 +265,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (e: any) {
-      addStockLog(`CRITICAL ERROR: ${e.message}`, 'error');
+      addStockLog(`ERROR: ${e.message}`, 'error');
     } finally {
       isAnalyzingStocksRef.current = false;
       setIsAnalyzingStocks(false);
@@ -332,7 +332,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const updateBalance = useCallback(async (currency: string, amount: number, fiatPrice: number) => {
     if (!db || !user) return;
-    const asset = assets.find(a => a.currency === currency);
+    const asset = assets.find(a => a.currency === currency && a.isPrimary);
     if (asset) {
       await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
         amount: increment(amount),
