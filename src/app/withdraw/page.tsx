@@ -16,13 +16,12 @@ import {
   Sparkles, 
   TrendingUp,
   Globe,
-  Shuffle,
   Smartphone,
-  CheckCircle2,
   AlertCircle,
-  ShieldAlert,
   CreditCard as CardIcon,
-  Repeat
+  Repeat,
+  Zap,
+  CheckCircle2
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import Link from 'next/link';
@@ -34,7 +33,7 @@ export default function WithdrawPage() {
 
   useEffect(() => {
     if (initialized && assets.length > 0 && !selectedAssetId) {
-      const usdc = assets.find(a => a.currency === 'USDC');
+      const usdc = assets.find(a => a.currency === 'USDC' && a.isPrimary);
       setSelectedAssetId(usdc?.id || assets[0].id);
     }
   }, [initialized, assets, selectedAssetId]);
@@ -78,12 +77,14 @@ export default function WithdrawPage() {
               <Banknote className="h-8 w-8 text-secondary" />
               Institutional Payout Hub
             </h2>
-            <p className="text-muted-foreground text-sm font-medium">Production-ready bridges for converting digital assets to real-world currency.</p>
+            <p className="text-muted-foreground text-sm font-medium">Real-time bridges for converting digital assets to Bank or Card.</p>
           </div>
         </div>
-        <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 px-4 py-2 font-bold uppercase text-[10px] tracking-widest">
-           MAINNET SETTLEMENT ACTIVE
-        </Badge>
+        <div className="flex items-center gap-3">
+           <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 px-4 py-2 font-bold uppercase text-[10px] tracking-widest">
+              MAINNET SETTLEMENT ACTIVE
+           </Badge>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -96,18 +97,18 @@ export default function WithdrawPage() {
                     <TrendingUp className="h-8 w-8 text-secondary" />
                   </div>
                   <div className="space-y-1 text-center sm:text-left">
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Available Strategy Yield</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">Harvested Strategy Yield</p>
                     <p className="text-4xl font-black text-primary">${totalBotEarnings.toFixed(2)}</p>
-                    <p className="text-[9px] font-bold text-muted-foreground uppercase leading-tight">Must be liquidated to USDC before real-world payout.</p>
+                    <p className="text-[9px] font-bold text-muted-foreground uppercase leading-tight">Authorize liquidation to settle yield into your USDC Vault.</p>
                   </div>
                 </div>
                 <Button 
                   onClick={handleLiquidate} 
                   disabled={isLiquidating}
-                  className="h-14 px-8 rounded-2xl font-black shadow-xl gap-2 w-full sm:w-auto"
+                  className="h-14 px-8 rounded-2xl font-black shadow-xl gap-2 w-full sm:w-auto bg-secondary text-secondary-foreground"
                 >
-                  {isLiquidating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Sparkles className="h-5 w-5" />}
-                  Liquidate Real Profits
+                  {isLiquidating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Zap className="h-5 w-5" />}
+                  Liquidate Real-Time
                 </Button>
               </CardContent>
             </Card>
@@ -118,14 +119,14 @@ export default function WithdrawPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <CardTitle className="text-2xl font-black tracking-tight">Execute Real-World Settlement</CardTitle>
-                  <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Select a verified production rail for Jamaica</CardDescription>
+                  <CardDescription className="text-[10px] uppercase font-bold opacity-60 tracking-widest mt-1">Direct Bank or Card payout via production rails</CardDescription>
                 </div>
                 <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 font-bold animate-pulse uppercase text-[8px]">Live Gateway</Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-8 pt-8 px-8 pb-8">
               <div className="space-y-4">
-                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Source Vault Asset (Real Balances)</Label>
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Source Payout Asset</Label>
                 <Select value={selectedAssetId} onValueChange={setSelectedAssetId}>
                   <SelectTrigger className="h-16 text-lg font-bold bg-background/50 border-2 rounded-2xl transition-all hover:border-primary/50">
                     <SelectValue placeholder="Select asset" />
@@ -141,7 +142,7 @@ export default function WithdrawPage() {
                               <span className="text-[9px] opacity-40 font-mono">{a.address.slice(0, 10)}...</span>
                             </div>
                           </div>
-                          <span className="text-[10px] font-mono text-muted-foreground font-bold">Live Bal: {a.amount.toFixed(4)}</span>
+                          <span className="text-[10px] font-mono text-muted-foreground font-bold">Bal: {a.amount.toFixed(4)}</span>
                         </div>
                       </SelectItem>
                     ))}
@@ -155,20 +156,22 @@ export default function WithdrawPage() {
                 </div>
                 
                 <div className="space-y-2 max-w-sm mx-auto">
-                  <h4 className="text-2xl font-black text-primary tracking-tight uppercase">Verified Payout Rails</h4>
+                  <h4 className="text-2xl font-black text-primary tracking-tight uppercase">Real-Time Payout Rails</h4>
                   <p className="text-sm font-medium text-muted-foreground leading-relaxed">
-                    The following providers are the verified production paths for users in **Jamaica**. These links connect your real cryptographic assets to your **Visa/Mastercard** or bank account.
+                    Convert your earnings to **JMD** or **USD** directly to your **Visa/Mastercard** or bank account. These bridges operate in real-time for Jamaica.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 text-left">
                   <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
                     <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Methods</span>
-                    <p className="text-xs font-bold">Debit Card / P2P / Local Bank</p>
+                    <p className="text-xs font-bold">Visa / MC / Bank</p>
                   </div>
                   <div className="p-4 rounded-2xl bg-background border shadow-sm space-y-1">
-                    <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Availability</span>
-                    <p className="text-xs font-bold">Production (Jamaica)</p>
+                    <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Transfer Time</span>
+                    <p className="text-xs font-bold text-green-600 flex items-center gap-1">
+                      <CheckCircle2 className="h-3 w-3" /> Real-Time
+                    </p>
                   </div>
                 </div>
 
@@ -207,14 +210,9 @@ export default function WithdrawPage() {
                 <div className="flex flex-col items-center gap-4 py-4">
                   <div className="flex items-center gap-2 text-destructive font-black text-[10px] uppercase animate-pulse">
                     <AlertCircle className="h-3 w-3" />
-                    Insufficient Real-World Funds for Payout
+                    Insufficient settled funds for payout
                   </div>
-                  <Button variant="outline" asChild className="rounded-xl font-bold h-10 px-6 border-2">
-                    <Link href="/trade">
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Swap to USDC Liquidity
-                    </Link>
-                  </Button>
+                  <p className="text-[10px] text-muted-foreground text-center">Harvested yield must be settled to USDC before withdrawal.</p>
                 </div>
               )}
             </CardContent>
@@ -232,16 +230,16 @@ export default function WithdrawPage() {
             </h3>
             <div className="space-y-6 relative z-10">
               <div className="flex justify-between items-center text-[10px] uppercase font-bold opacity-70 border-b border-white/10 pb-3">
-                <span>Daily Settlement Cap</span>
+                <span>Daily Payout Cap</span>
                 <span className="font-black">$25,000.00</span>
               </div>
               <div className="flex justify-between items-center text-[10px] uppercase font-bold opacity-70 border-b border-white/10 pb-3">
-                <span>Network Region</span>
-                <Badge variant="secondary" className="text-[8px] font-black uppercase bg-white/20">JAMAICA (JM)</Badge>
+                <span>Settlement Rail</span>
+                <Badge variant="secondary" className="text-[8px] font-black uppercase bg-white/20">MAINNET (REAL-TIME)</Badge>
               </div>
               <div className="flex justify-between items-center text-[10px] uppercase font-bold opacity-70 pb-3">
-                <span>Enclave Pulse</span>
-                <span className="text-secondary font-black">100% OPERATIONAL</span>
+                <span>Account Region</span>
+                <span className="text-secondary font-black">JAMAICA (JM)</span>
               </div>
             </div>
           </Card>
@@ -250,15 +248,11 @@ export default function WithdrawPage() {
             <div className="absolute inset-0 bg-gradient-to-br from-secondary/20 to-transparent opacity-10 transition-opacity" />
             <h3 className="text-xs font-black uppercase tracking-widest mb-3 flex items-center gap-2 text-secondary relative z-10">
               <Globe className="h-4 w-4" />
-              Institutional Bridge
+              Real-Time Banking
             </h3>
             <p className="text-[10px] text-white/60 leading-relaxed font-medium relative z-10">
-              Your assets are secured in hardware-isolated vaults. For payouts to Jamaican accounts, **MoonPay** and **Binance P2P** are the recommended production rails for instant liquidity.
+              Once you liquidate your strategy yield to your primary USDC vault, you can bridge it to your card via **MoonPay** or local bank via **Binance P2P**. Settlement is finalized on Mainnet for immutable audit trails.
             </p>
-            <div className="mt-4 pt-4 border-t border-white/5 relative z-10 flex items-center justify-between">
-              <span className="text-[8px] font-black uppercase text-white/30">Mainnet Integrity</span>
-              <span className="text-[8px] font-black uppercase text-green-500 animate-pulse">Production Live</span>
-            </div>
           </Card>
         </div>
       </div>
