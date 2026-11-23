@@ -82,8 +82,9 @@ export default function Dashboard() {
   }, []);
 
   const totalBalance = useMemo(() => {
-    return assets.reduce((acc, asset) => acc + asset.fiatValueUSD, 0);
-  }, [assets]);
+    const walletValue = assets.reduce((acc, asset) => acc + (asset.fiatValueUSD || 0), 0);
+    return walletValue + totalBotEarnings;
+  }, [assets, totalBotEarnings]);
 
   const cryptoMarketData = useMemo(() => 
     marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USDC'].includes(m.currency)), 
