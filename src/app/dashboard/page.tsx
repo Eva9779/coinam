@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -82,6 +81,7 @@ export default function Dashboard() {
   }, []);
 
   const totalBalance = useMemo(() => {
+    // Sum all asset USD values + current yields
     const walletValue = assets.reduce((acc, asset) => acc + (asset.fiatValueUSD || 0), 0);
     return walletValue + totalBotEarnings;
   }, [assets, totalBotEarnings]);
@@ -133,7 +133,7 @@ export default function Dashboard() {
             <Briefcase className="h-48 w-48" />
           </div>
           <CardHeader className="pb-2 relative z-10">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Unified Net Worth</CardTitle>
+            <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Unified Net Worth (Assets + Yield)</CardTitle>
           </CardHeader>
           <CardContent className="relative z-10">
             <div className="text-6xl font-black tracking-tighter">
@@ -241,7 +241,7 @@ export default function Dashboard() {
                 <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Real-Time Mainnet Pulse</CardTitle>
              </CardHeader>
              <CardContent className="p-6 space-y-4 font-mono text-[10px] max-h-[450px] overflow-y-auto no-scrollbar">
-                {botLogs.slice(-10).map((log, i) => (
+                {botLogs.slice(-15).reverse().map((log, i) => (
                   <div key={i} className={cn(
                     "flex gap-2 leading-relaxed",
                     log.type === 'success' ? "text-green-400" : log.type === 'warning' ? "text-amber-400" : "text-blue-300"

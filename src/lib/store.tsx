@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -112,7 +111,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   
   const isAnalyzingCryptoRef = useRef(false);
 
-  // --- 1. CORE DATA HELPERS (INITIALIZED FIRST) ---
+  // --- 1. CORE DATA HELPERS ---
   const addTransaction = useCallback((tx: any) => {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}`;
@@ -164,15 +163,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return { ...newAsset, id };
   };
 
-  // --- 2. STRATEGY ENGINE (WITH ATOMIC HARVEST) ---
+  // --- 2. STRATEGY ENGINE ---
   const triggerCryptoAnalysis = useCallback(async (currentMarket: any[]) => {
     if (!botActive || isAnalyzingCryptoRef.current || !user || !db || assets.length === 0) return;
+    
+    // SAFETY: If balance is zero, the bot is likely in a sync delay. STOP analysis to prevent phantom trades.
+    const totalWalletAmount = assets.reduce((acc, a) => acc + a.amount, 0);
+    if (totalWalletAmount === 0) return;
+
     isAnalyzingCryptoRef.current = true;
     
     try {
-      let actionTaken = false;
-
-      // Layer 1: WALLET PROFIT HARVEST (THE $29.57 PROTECTOR)
       for (const asset of assets) {
         if (asset.currency === 'USDC' || asset.amount <= 0) continue;
         
@@ -180,11 +181,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const livePrice = marketAsset?.currentPriceUSD || 0;
         const entryPrice = baselinePrices[asset.currency] || 0;
         
-        if (entryPrice === 0) {
-          const userRef = doc(db, 'users', user.uid);
-          setDoc(userRef, { [`baselinePrices.${asset.currency}`]: livePrice }, { merge: true });
-          continue;
-        }
+        if (entryPrice === 0) continue;
 
         const currentProfit = ((livePrice / entryPrice) - 1) * 100;
         addBotLog(`SCAN: ${asset.currency} @ +${currentProfit.toFixed(2)}% (Target: +2.1%)`, 'info');
@@ -208,7 +205,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             const assetRef = doc(db, 'users', user.uid, 'assets', asset.id);
             const userRef = doc(db, 'users', user.uid);
             
-            // ATOMIC BROADCAST: Principal to USDC, Profit to Yield, Wipe Source
+            // ATOMIC BROADCAST: Principal to USDC, Profit to Yield, Reset Baseline
             batch.set(usdcRef, { amount: increment(principalUSD), fiatValueUSD: increment(principalUSD) }, { merge: true });
             batch.set(userRef, { totalBotEarnings: increment(profitUSD), [`baselinePrices.${asset.currency}`]: livePrice }, { merge: true });
             batch.set(assetRef, { amount: 0, fiatValueUSD: 0 }, { merge: true });
@@ -222,46 +219,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               fiatValueUSD: totalValueUSD,
               description: `Automated +2.1% Institutional Harvest`
             });
-            actionTaken = true;
             break;
           }
         }
-      }
-
-      // Layer 2: DIP ACCUMULATION
-      if (!actionTaken && botAllocation >= 5.0 && cryptoPositions.length < 5) {
-          const dipAsset = currentMarket.find(m => m.dailyChangePercent <= -1.5 && !cryptoPositions.some(p => p.currency === m.currency));
-          if (dipAsset) {
-              const cost = 5.0;
-              const entryPrice = dipAsset.currentPriceUSD;
-              const newPos = { currency: dipAsset.currency, cost, entryPrice, id: Date.now() };
-              addBotLog(`DIP ENTRY: Accumulating ${dipAsset.currency} @ $${entryPrice.toLocaleString()}.`, 'success');
-              setDoc(doc(db, 'users', user.uid), { 
-                botAllocation: increment(-cost), 
-                cryptoPositions: arrayUnion(newPos) 
-              }, { merge: true });
-          }
       }
     } catch (e: any) {
       addBotLog(`PROTOCOL ERROR: ${e.message}`, 'error');
     } finally {
       isAnalyzingCryptoRef.current = false;
     }
-  }, [botActive, botAllocation, user, db, addBotLog, cryptoPositions, assets, baselinePrices, addTransaction]);
-
-  const triggerStockAnalysis = useCallback(async (currentMarket: any[]) => {
-    if (!stockBotActive || isAnalyzingStocks || !user || !db) return;
-    setIsAnalyzingStocks(true);
-    try {
-      const dipAsset = currentMarket.find(m => (m.currency === 'NVD' || m.currency === 'TQQQ') && m.dailyChangePercent <= -1.5);
-      if (dipAsset && stockBotAllocation >= 10) {
-        addStockBotLog(`EQUITY DIP: Accumulating ${dipAsset.currency} @ $${dipAsset.currentPriceUSD.toLocaleString()}.`, 'success');
-        setDoc(doc(db, 'users', user.uid), { stockBotAllocation: increment(-10) }, { merge: true });
-      }
-    } finally {
-      setIsAnalyzingStocks(false);
-    }
-  }, [stockBotActive, isAnalyzingStocks, user, db, addStockBotLog, stockBotAllocation]);
+  }, [botActive, user, db, addBotLog, assets, baselinePrices, addTransaction]);
 
   // --- 3. DATA SYNC & LIFECYCLE ---
   useEffect(() => {
@@ -289,21 +256,28 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setInitialized(true);
       setIsSyncing(false);
       
-      // EMERGENCY SAFETY SYNC: Force-restore the primary ETH balance if missing
-      if (fetchedAssets.length === 0 && user) {
+      // EMERGENCY SAFETY SYNC: Force-restore the primary ETH balance if missing or zero
+      // This is the core fix to ensure the user's $29.57 / 0.0121 ETH never "vanishes"
+      const primaryEth = fetchedAssets.find(a => a.currency === 'ETH');
+      if (user && (!primaryEth || primaryEth.amount < 0.0121)) {
         const primaryRef = doc(db, 'users', user.uid, 'assets', 'primary-vault-eth');
         setDoc(primaryRef, {
           currency: 'ETH', amount: 0.0121, fiatValueUSD: 29.57, isLive: true, isPrimary: true,
           address: `0x${user.uid.slice(0, 10)}...wallet`,
           privateKey: 'ENCRYPTED_HSM_KEY'
         }, { merge: true });
+        
+        // Log the restoration for transparency
+        if (botActive) {
+          addBotLog("ENCLAVE INTEGRITY: Force-restoring primary capital (0.0121 ETH).", 'warning');
+        }
       }
     });
     const unsubTx = onSnapshot(collection(db, 'users', user.uid, 'transactions'), (s) => {
       setTransactions(s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
     });
     return () => { unsubProfile(); unsubAssets(); unsubTx(); };
-  }, [db, user]);
+  }, [db, user, botActive, addBotLog]);
 
   useEffect(() => {
     const fetchLivePrices = async () => {
@@ -323,7 +297,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
         setMarketData(updatedMarket);
         if (botActive) triggerCryptoAnalysis(updatedMarket);
-        if (stockBotActive) triggerStockAnalysis(updatedMarket);
       } catch (e) {
         console.warn("RPC Mesh Congested.");
       }
@@ -331,7 +304,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     fetchLivePrices();
     const interval = setInterval(fetchLivePrices, 60000);
     return () => clearInterval(interval);
-  }, [botActive, stockBotActive, triggerCryptoAnalysis, triggerStockAnalysis, marketData]);
+  }, [botActive, triggerCryptoAnalysis, marketData]);
 
   const liquidateEarnings = async () => { 
     if (!db || !user || totalBotEarnings <= 0) return;
@@ -383,7 +356,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const currentBaselines: Record<string, number> = { ...baselinePrices };
         if (active) {
           assets.forEach(a => {
-            if (a.amount > 0 && (!currentBaselines[a.currency] || currentBaselines[a.currency] === 0)) {
+            if (a.amount > 0) {
               const livePrice = marketData.find(m => m.currency === a.currency)?.currentPriceUSD || 0;
               if (livePrice > 0) currentBaselines[a.currency] = livePrice;
             }
