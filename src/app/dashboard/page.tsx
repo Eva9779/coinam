@@ -19,6 +19,7 @@ import {
   Loader2,
   Landmark,
   Settings,
+  DollarSign
 } from "lucide-react";
 import { useWalletStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -55,7 +56,7 @@ const CustomPulseMarquee = ({ items }: { items: any[] }) => {
       </div>
       <style jsx>{`
         @keyframes marquee {
-          0% { transform: translateX(0); }
+          0 { transform: translateX(0); }
           100% { transform: translateX(-33.33%); }
         }
       `}</style>
@@ -126,8 +127,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <Card className="lg:col-span-1 shadow-2xl border-primary/5 bg-primary text-white rounded-[2rem] overflow-hidden relative">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-1 shadow-2xl border-none bg-primary text-white rounded-[2rem] overflow-hidden relative min-h-[160px]">
           <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none">
             <Briefcase className="h-32 w-32" />
           </div>
@@ -135,7 +136,7 @@ export default function Dashboard() {
             <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Unified Net Worth</CardTitle>
           </CardHeader>
           <CardContent className="relative z-10">
-            <div className="text-4xl font-black tracking-tighter">
+            <div className="text-5xl font-black tracking-tighter">
               ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
@@ -145,37 +146,28 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 shadow-2xl border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden min-h-[140px]">
-          <CardHeader className="pb-2 flex flex-row items-center justify-between">
-             <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                <Landmark className="h-3 w-3 text-secondary" />
-                +2.1% ALPHA PROTOCOL
-             </CardTitle>
-             <Badge variant="outline" className="text-[8px] font-bold border-secondary/30 text-secondary uppercase">Institutional Strategy Agent</Badge>
-          </CardHeader>
-          <CardContent className="pb-6">
-             <div className="flex flex-col md:flex-row gap-6 items-center">
-                <div className="flex-1 space-y-4">
-                  <div className="flex items-center justify-between">
-                     <span className="text-[9px] font-bold uppercase opacity-60">Network</span>
-                     <span className="text-[10px] font-black text-primary">MAINNET-CONNECTED</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                     <span className="text-[9px] font-bold uppercase opacity-60">Strategy</span>
-                     <span className="text-[10px] font-black text-secondary">DIP-HARVEST-2.1</span>
-                  </div>
-                  <Button variant="outline" size="sm" asChild className="w-full h-10 rounded-xl font-bold text-[10px] uppercase gap-2 border-primary/10">
-                    <Link href="/bot"><Settings className="h-3 w-3" /> Configure Strategy</Link>
-                  </Button>
-                </div>
-                <div className="h-20 w-px bg-primary/5 hidden md:block" />
-                <div className="flex-1 text-center space-y-1">
-                   <p className="text-[9px] font-bold uppercase opacity-40">Target Yield</p>
-                   <p className="text-3xl font-black text-green-600">+2.1%</p>
-                   <p className="text-[8px] font-bold uppercase text-muted-foreground">Profit Harvesting</p>
-                </div>
-             </div>
-          </CardContent>
+        <Card className="lg:col-span-2 shadow-xl border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden flex flex-col justify-center px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Network Integrity</p>
+              <p className="text-2xl font-black text-primary flex items-center gap-2">
+                <ShieldCheck className="h-6 w-6 text-green-600" />
+                ENCLAVE ACTIVE
+              </p>
+            </div>
+            <div className="text-right space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Target Protocol</p>
+              <p className="text-2xl font-black text-secondary">+2.1% HARVEST</p>
+            </div>
+          </div>
+          <div className="mt-6 flex gap-4">
+             <Button variant="outline" size="sm" asChild className="h-10 rounded-xl font-bold text-[10px] uppercase gap-2 border-primary/10 bg-background/50 flex-1">
+                <Link href="/bot"><Settings className="h-3 w-3" /> Crypto Bot Settings</Link>
+             </Button>
+             <Button variant="outline" size="sm" asChild className="h-10 rounded-xl font-bold text-[10px] uppercase gap-2 border-primary/10 bg-background/50 flex-1">
+                <Link href="/stocks"><Landmark className="h-3 w-3" /> Equity Bot Settings</Link>
+             </Button>
+          </div>
         </Card>
       </div>
 
