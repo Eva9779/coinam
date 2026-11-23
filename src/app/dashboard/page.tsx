@@ -18,7 +18,6 @@ import {
   ChevronRight,
   Loader2,
   Landmark,
-  Settings,
   DollarSign
 } from "lucide-react";
 import { useWalletStore } from "@/lib/store";
@@ -117,7 +116,7 @@ export default function Dashboard() {
           {(botActive || stockBotActive) && (
             <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px] animate-pulse">
               <Zap className="h-3.5 w-3.5" />
-              +2.1% TARGET ACTIVE
+              TARGET ACTIVE
             </Badge>
           )}
           <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
@@ -127,47 +126,32 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-1 shadow-2xl border-none bg-primary text-white rounded-[2rem] overflow-hidden relative min-h-[160px]">
+      <div className="grid grid-cols-1 gap-6">
+        <Card className="shadow-2xl border-none bg-primary text-white rounded-[2rem] overflow-hidden relative min-h-[160px]">
           <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none">
-            <Briefcase className="h-32 w-32" />
+            <Briefcase className="h-48 w-48" />
           </div>
           <CardHeader className="pb-2 relative z-10">
             <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Unified Net Worth</CardTitle>
           </CardHeader>
           <CardContent className="relative z-10">
-            <div className="text-5xl font-black tracking-tighter">
+            <div className="text-6xl font-black tracking-tighter">
               ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
-            <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
-               <span className="text-[9px] font-bold uppercase opacity-60">Captured Yield</span>
-               <span className="text-sm font-black text-secondary">${totalBotEarnings.toFixed(2)}</span>
+            <div className="mt-6 pt-6 border-t border-white/10 flex justify-between items-center">
+               <div className="space-y-1">
+                 <span className="text-[9px] font-bold uppercase opacity-60 block">Captured Yield</span>
+                 <span className="text-xl font-black text-secondary">${totalBotEarnings.toFixed(2)}</span>
+               </div>
+               <div className="text-right space-y-1">
+                 <span className="text-[9px] font-bold uppercase opacity-60 block">Network Status</span>
+                 <span className="text-xs font-black uppercase tracking-widest text-green-400 flex items-center gap-1.5">
+                   <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+                   ENCLAVE-ACTIVE
+                 </span>
+               </div>
             </div>
           </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2 shadow-xl border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden flex flex-col justify-center px-8 py-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Network Integrity</p>
-              <p className="text-2xl font-black text-primary flex items-center gap-2">
-                <ShieldCheck className="h-6 w-6 text-green-600" />
-                ENCLAVE ACTIVE
-              </p>
-            </div>
-            <div className="text-right space-y-1">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Target Protocol</p>
-              <p className="text-2xl font-black text-secondary">+2.1% HARVEST</p>
-            </div>
-          </div>
-          <div className="mt-6 flex gap-4">
-             <Button variant="outline" size="sm" asChild className="h-10 rounded-xl font-bold text-[10px] uppercase gap-2 border-primary/10 bg-background/50 flex-1">
-                <Link href="/bot"><Settings className="h-3 w-3" /> Crypto Bot Settings</Link>
-             </Button>
-             <Button variant="outline" size="sm" asChild className="h-10 rounded-xl font-bold text-[10px] uppercase gap-2 border-primary/10 bg-background/50 flex-1">
-                <Link href="/stocks"><Landmark className="h-3 w-3" /> Equity Bot Settings</Link>
-             </Button>
-          </div>
         </Card>
       </div>
 
