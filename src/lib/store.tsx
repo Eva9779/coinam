@@ -110,6 +110,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   
   const isAnalyzingCryptoRef = useRef(false);
 
+  // --- 1. CORE UTILITY LOGGERS ---
   const addBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     const newLog = { msg, type, timestamp: new Date().toISOString() };
     setBotLogs(prev => [...prev.slice(-49), newLog]);
@@ -128,6 +129,26 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [db, user]);
 
+  // --- 2. DATA MUTATION HELPERS (INITIALIZED FIRST) ---
+  const addTransaction = useCallback((tx: any) => {
+    if (!db || !user) return;
+    const txId = `tx_${Date.now()}`;
+    const txRef = doc(db, 'users', user.uid, 'transactions', txId);
+    const data = { ...tx, id: txId, timestamp: new Date().toISOString(), status: 'completed' };
+    setDoc(txRef, data).catch(() => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: txRef.path, operation: 'create', requestResourceData: data }));
+    });
+  }, [db, user]);
+
+  const updateBalance = useCallback(async (currency: string, amount: number, fiatPrice: number) => {
+    if (!db || !user) return;
+    const asset = assets.find(a => a.currency === currency && a.isPrimary);
+    if (asset) {
+      setDoc(doc(db, 'users', user.uid, 'assets', asset.id), { amount: increment(amount), fiatValueUSD: increment(amount * fiatPrice) }, { merge: true });
+    }
+  }, [db, user, assets]);
+
+  // --- 3. STRATEGY AGENTS ---
   const triggerCryptoAnalysis = useCallback(async (currentMarket: any[]) => {
     if (!botActive || isAnalyzingCryptoRef.current || !user || !db) return;
     isAnalyzingCryptoRef.current = true;
@@ -137,6 +158,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const dipThreshold = -1.5;   // -1.5%
       let harvestableFound = false;
 
+      // Layer 1: REAL WALLET HARVEST SCAN
       for (const asset of assets) {
         if (asset.currency === 'USDC' || asset.amount <= 0) continue;
         
@@ -151,6 +173,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
 
         const currentProfit = ((livePrice / entryPrice) - 1) * 100;
+        
+        // Log progress every minute to feed
+        addBotLog(`PROFIT SCAN: ${asset.currency} at +${currentProfit.toFixed(2)}% (Target: +2.1% to Sell)`, 'info');
+
         if (currentProfit >= 2.1) {
           const totalValue = asset.amount * livePrice;
           const profit = totalValue * 0.021;
@@ -182,6 +208,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Layer 2: MICRO-POSITION SCAN
       if (!harvestableFound) {
         for (const p of cryptoPositions) {
             const liveAsset = currentMarket.find(m => m.currency === p.currency);
@@ -200,6 +227,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Layer 3: DIP ENTRY SCAN
       if (!harvestableFound && botAllocation >= 5.0 && cryptoPositions.length < 5) {
           const dipAsset = currentMarket.find(m => m.dailyChangePercent <= dipThreshold && !cryptoPositions.some(p => p.currency === m.currency));
           if (dipAsset) {
@@ -209,7 +237,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               addBotLog(`INSTITUTIONAL ENTRY: ${dipAsset.currency} dropped ${dipAsset.dailyChangePercent.toFixed(2)}%. Buying @ $${entryPrice.toLocaleString()}.`, 'success');
               setDoc(doc(db, 'users', user.uid), { botAllocation: increment(-cost), cryptoPositions: arrayUnion(newPos) }, { merge: true });
           } else {
-            addBotLog(`ENCLAVE SCAN: Tracking mainnet momentum... Target: +2.1%.`, 'info');
+            addBotLog(`DIP SCAN: Tracking mainnet momentum... (Target: -1.5% to Buy)`, 'info');
           }
       }
     } catch (e: any) {
@@ -234,6 +262,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [stockBotActive, isAnalyzingStocks, user, db, addStockBotLog, stockBotAllocation]);
 
+  // --- 4. DATA SYNC & EFFECTS ---
   useEffect(() => {
     if (!db || !user) return;
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
@@ -281,6 +310,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         });
 
         setMarketData(updatedMarket);
+        // Execute analysis as a side effect to avoid setState-in-render
         if (botActive) triggerCryptoAnalysis(updatedMarket);
         if (stockBotActive) triggerStockAnalysis(updatedMarket);
       } catch (e) {
@@ -291,24 +321,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const interval = setInterval(fetchLivePrices, 60000);
     return () => clearInterval(interval);
   }, [botActive, stockBotActive, triggerCryptoAnalysis, triggerStockAnalysis, marketData]);
-
-  const addTransaction = useCallback((tx: any) => {
-    if (!db || !user) return;
-    const txId = `tx_${Date.now()}`;
-    const txRef = doc(db, 'users', user.uid, 'transactions', txId);
-    const data = { ...tx, id: txId, timestamp: new Date().toISOString(), status: 'completed' };
-    setDoc(txRef, data).catch(() => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: txRef.path, operation: 'create', requestResourceData: data }));
-    });
-  }, [db, user]);
-
-  const updateBalance = useCallback(async (currency: string, amount: number, fiatPrice: number) => {
-    if (!db || !user) return;
-    const asset = assets.find(a => a.currency === currency && a.isPrimary);
-    if (asset) {
-      setDoc(doc(db, 'users', user.uid, 'assets', asset.id), { amount: increment(amount), fiatValueUSD: increment(amount * fiatPrice) }, { merge: true });
-    }
-  }, [db, user, assets]);
 
   const liquidateEarnings = async () => { 
     if (!db || !user || totalBotEarnings <= 0) return;
