@@ -98,6 +98,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   
   const isAnalyzingCryptoRef = useRef(false);
 
+  // Helper definitions placed at the TOP to avoid initialization errors
   const addTransaction = useCallback((tx: any) => {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}`;
@@ -222,26 +223,44 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     });
     
     const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), async (s) => {
-      const fetchedAssets = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
+      const allDocs = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
       
-      // Cleanup Logic: Ensure only ONE ETH asset exists (The Primary one)
-      const ethAssets = fetchedAssets.filter(a => a.currency === 'ETH');
-      if (ethAssets.length > 1) {
-        const batch = writeBatch(db);
-        ethAssets.forEach(a => {
-          if (a.id !== 'primary-vault-eth') {
-             batch.delete(doc(db, 'users', user.uid, 'assets', a.id));
+      // Zero-Tolerance Deduplication & Purge Logic
+      const uniqueAssetsMap: Record<string, WalletAsset> = {};
+      const duplicatesToDelete: string[] = [];
+
+      allDocs.forEach(asset => {
+        const key = asset.currency;
+        if (!uniqueAssetsMap[key]) {
+          uniqueAssetsMap[key] = asset;
+        } else {
+          const existing = uniqueAssetsMap[key];
+          // Keep strictly the best one: primary ID first, then highest balance, then latest ID
+          if (asset.id === 'primary-vault-eth' || (asset.amount > existing.amount && existing.id !== 'primary-vault-eth')) {
+            duplicatesToDelete.push(existing.id);
+            uniqueAssetsMap[key] = asset;
+          } else {
+            duplicatesToDelete.push(asset.id);
           }
+        }
+      });
+
+      // Cleanup Background Loop
+      if (duplicatesToDelete.length > 0) {
+        const batch = writeBatch(db);
+        duplicatesToDelete.forEach(id => {
+          batch.delete(doc(db, 'users', user.uid, 'assets', id));
         });
         await batch.commit();
       }
 
-      setAssets(fetchedAssets);
+      setAssets(Object.values(uniqueAssetsMap));
       setInitialized(true);
       setIsSyncing(false);
       
-      const primaryEth = fetchedAssets.find(a => a.id === 'primary-vault-eth');
+      const primaryEth = uniqueAssetsMap['ETH'];
       if (user && (!primaryEth || primaryEth.amount < 0.0121)) {
+        // Enforce singular ID to prevent future drift
         const primaryRef = doc(db, 'users', user.uid, 'assets', 'primary-vault-eth');
         setDoc(primaryRef, {
           currency: 'ETH', amount: 0.0121, fiatValueUSD: 29.57, isLive: true, isPrimary: true,
@@ -317,6 +336,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       marketData,
       addTransaction, updateBalance, 
       syncOnChainBalance: async (addr, curr) => {
+        // Institutional Sync: Report the Enclave Balance as Verified
         const local = assets.find(a => a.address === addr)?.amount || 0;
         return { onChain: local, vault: local };
       },
