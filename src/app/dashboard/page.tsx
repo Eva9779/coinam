@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -19,48 +20,48 @@ import {
   Landmark,
   DollarSign,
   ArrowRight,
-  Banknote
+  Banknote,
+  ChevronLeft
 } from "lucide-react";
 import { useWalletStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 const CustomPulseMarquee = ({ items, label }: { items: any[], label: string }) => {
   return (
-    <div className="w-full overflow-hidden bg-slate-900 border-y border-white/5 py-4 relative group rounded-2xl shadow-inner h-[110px]">
+    <div className="w-full bg-slate-900 border-y border-white/5 py-4 relative group rounded-2xl shadow-inner h-[110px] overflow-hidden">
       <div className="absolute top-2 left-4 z-20 text-[9px] font-black text-secondary/40 uppercase tracking-widest">{label}</div>
-      <div className="flex animate-[marquee_40s_linear_infinite] hover:[animation-play-state:paused] gap-16 px-6">
-        {[...items, ...items, ...items].map((item, idx) => {
-          const minDec = item.currentPriceUSD < 1 ? 4 : 2;
-          const maxDec = Math.max(minDec, 2);
+      
+      <ScrollArea className="w-full whitespace-nowrap">
+        <div className="flex w-max gap-8 px-6 pt-2">
+          {items.map((item, idx) => {
+            const minDec = item.currentPriceUSD < 1 ? 4 : 2;
+            const maxDec = Math.max(minDec, 2);
 
-          return (
-            <div key={idx} className="flex flex-col items-start min-w-[140px] shrink-0 transition-transform hover:scale-105 py-1">
-              <span className="text-[11px] font-black text-secondary uppercase tracking-[0.2em] mb-1">{item.currency}</span>
-              <span className="text-lg font-black text-white leading-tight">
-                ${item.currentPriceUSD.toLocaleString(undefined, { 
-                  minimumFractionDigits: minDec,
-                  maximumFractionDigits: maxDec 
-                })}
-              </span>
-              <span className={cn(
-                "text-[11px] font-black leading-tight flex items-center gap-0.5 mt-1",
-                item.dailyChangePercent >= 0 ? "text-green-400" : "text-red-400"
-              )}>
-                {item.dailyChangePercent >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                {item.dailyChangePercent >= 0 ? '+' : ''}{item.dailyChangePercent.toFixed(2)}%
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      <style jsx>{`
-        @keyframes marquee {
-          0 { transform: translateX(0); }
-          100 { transform: translateX(-33.33%); }
-        }
-      `}</style>
+            return (
+              <div key={idx} className="flex flex-col items-start min-w-[150px] transition-transform hover:scale-105 py-1">
+                <span className="text-[11px] font-black text-secondary uppercase tracking-[0.2em] mb-1">{item.currency}</span>
+                <span className="text-lg font-black text-white leading-tight">
+                  ${item.currentPriceUSD.toLocaleString(undefined, { 
+                    minimumFractionDigits: minDec,
+                    maximumFractionDigits: maxDec 
+                  })}
+                </span>
+                <span className={cn(
+                  "text-[11px] font-black leading-tight flex items-center gap-0.5 mt-1",
+                  item.dailyChangePercent >= 0 ? "text-green-400" : "text-red-400"
+                )}>
+                  {item.dailyChangePercent >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+                  {item.dailyChangePercent >= 0 ? '+' : ''}{item.dailyChangePercent.toFixed(2)}%
+                </span>
+              </div>
+            );
+          })}
+        </div>
+        <ScrollBar orientation="horizontal" className="bg-white/5 h-1.5" />
+      </ScrollArea>
     </div>
   );
 };

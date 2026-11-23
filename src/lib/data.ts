@@ -45,7 +45,7 @@ export const INITIAL_MARKET_DATA = [
     volume24hUSD: 1200000000,
   },
   {
-    currency: 'USD',
+    currency: 'USDC',
     currentPriceUSD: 1.00,
     dailyChangePercent: 0.00,
     weeklyChangePercent: 0,
@@ -71,5 +71,19 @@ export const INITIAL_MARKET_DATA = [
     dailyChangePercent: 6.5,
     weeklyChangePercent: 18.2,
     volume24hUSD: 8000000000,
+  },
+  {
+    currency: 'META',
+    currentPriceUSD: 485.30,
+    dailyChangePercent: 3.2,
+    weeklyChangePercent: 8.5,
+    volume24hUSD: 18000000000,
+  },
+  {
+    currency: 'AAPL',
+    currentPriceUSD: 185.92,
+    dailyChangePercent: 1.2,
+    weeklyChangePercent: 4.1,
+    volume24hUSD: 15000000000,
   }
 ];
