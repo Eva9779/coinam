@@ -87,12 +87,6 @@ export default function TradingBotPage() {
   const [cryptoStrategy, setCryptoStrategy] = useState(botStrategy || 'standard');
   const [cryptoSymbol, setCryptoSymbol] = useState("BTC");
 
-  const terminalEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [botLogs]);
-
   const handleToggleBot = () => {
       const alloc = parseFloat(cryptoAllocation);
       if (!botActive && (isNaN(alloc) || alloc < 20)) {
@@ -211,7 +205,7 @@ export default function TradingBotPage() {
                   <p className="uppercase tracking-[0.4em] font-black text-sm">Awaiting Strategic Signal</p>
                 </div>
               ) : (
-                botLogs.map((log, i) => (
+                botLogs.slice().reverse().map((log, i) => (
                   <div key={i} className={cn(
                     "flex gap-3 animate-in fade-in slide-in-from-left-4 duration-500",
                     log.type === 'success' ? "text-green-400" : log.type === 'warning' ? "text-amber-400" : "text-blue-300"
@@ -221,7 +215,6 @@ export default function TradingBotPage() {
                   </div>
                 ))
               )}
-              <div ref={terminalEndRef} />
             </CardContent>
           </Card>
         </div>

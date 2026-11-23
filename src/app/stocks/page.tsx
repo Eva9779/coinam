@@ -98,11 +98,6 @@ export default function StocksPage() {
   const [localAllocation, setLocalAllocation] = useState(stockBotAllocation?.toString() || "20");
   const [chartSymbol, setChartSymbol] = useState("NASDAQ:NVDA");
   const [isLiquidating, setIsLiquidating] = useState(false);
-  const terminalEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    terminalEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [stockBotLogs]);
 
   useEffect(() => {
     if (stockBotAllocation) setLocalAllocation(stockBotAllocation.toString());
@@ -269,7 +264,7 @@ export default function StocksPage() {
                   <p className="uppercase tracking-[0.4em] font-black text-sm">Awaiting Strategic Signal</p>
                 </div>
               ) : (
-                stockBotLogs.map((log, i) => (
+                stockBotLogs.slice().reverse().map((log, i) => (
                   <div key={i} className={cn(
                     "flex gap-3 animate-in fade-in slide-in-from-left-4 duration-500",
                     log.type === 'success' ? "text-green-400" : log.type === 'warning' ? "text-amber-400" : "text-blue-300"
@@ -279,7 +274,6 @@ export default function StocksPage() {
                   </div>
                 ))
               )}
-              <div ref={terminalEndRef} />
             </CardContent>
           </Card>
         </div>
