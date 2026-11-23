@@ -98,6 +98,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   
   const isAnalyzingCryptoRef = useRef(false);
 
+  // Define helpers BEFORE strategy logic to avoid ReferenceError
+  const addBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    const newLog = { msg, type, timestamp: new Date().toISOString() };
+    setBotLogs(prev => [...prev.slice(-49), newLog]);
+    if (db && user && (type === 'success' || type === 'warning' || type === 'error')) {
+      const userRef = doc(db, 'users', user.uid);
+      setDoc(userRef, { botLogs: arrayUnion(newLog) }, { merge: true });
+    }
+  }, [db, user]);
+
   const addTransaction = useCallback((tx: any) => {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}`;
@@ -119,18 +129,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [db, user, assets]);
 
-  const addBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-    const newLog = { msg, type, timestamp: new Date().toISOString() };
-    setBotLogs(prev => [...prev.slice(-49), newLog]);
-    if (db && user && (type === 'success' || type === 'warning' || type === 'error')) {
-      const userRef = doc(db, 'users', user.uid);
-      setDoc(userRef, { botLogs: arrayUnion(newLog) }, { merge: true });
-    }
-  }, [db, user]);
-
   const triggerCryptoAnalysis = useCallback(async (currentMarket: any[]) => {
     if (!botActive || isAnalyzingCryptoRef.current || !user || !db || assets.length === 0) return;
     
+    // Scan primary ETH balance for +2.1% profit harvesting
     const ethAsset = assets.find(a => a.currency === 'ETH' && a.isPrimary);
     if (!ethAsset || ethAsset.amount <= 0) return;
 
@@ -155,6 +157,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const totalValueUSD = ethAsset.amount * livePrice;
         const profitUSD = totalValueUSD - (ethAsset.amount * entryPrice);
 
+        // ATOMIC BATCH: Create USDC wallet and clear ETH in one network broadcast
         const batch = writeBatch(db);
         const userRef = doc(db, 'users', user.uid);
         const ethRef = doc(db, 'users', user.uid, 'assets', ethAsset.id);
@@ -225,6 +228,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), async (s) => {
       const allDocs = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
       
+      // Strict Deduplication Sentry
       const uniqueAssetsMap: Record<string, WalletAsset> = {};
       const duplicatesToDelete: string[] = [];
 
@@ -234,6 +238,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           uniqueAssetsMap[key] = asset;
         } else {
           const existing = uniqueAssetsMap[key];
+          // Keep the one with balance or primary ID
           if (asset.amount > existing.amount || asset.id.startsWith('primary')) {
             duplicatesToDelete.push(existing.id);
             uniqueAssetsMap[key] = asset;
@@ -243,6 +248,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       });
 
+      // Cleanup duplicates in background
       if (duplicatesToDelete.length > 0) {
         const batch = writeBatch(db);
         duplicatesToDelete.forEach(id => {

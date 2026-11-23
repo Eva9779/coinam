@@ -26,9 +26,10 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 
-const CustomPulseMarquee = ({ items }: { items: any[] }) => {
+const CustomPulseMarquee = ({ items, label }: { items: any[], label: string }) => {
   return (
     <div className="w-full overflow-hidden bg-slate-900 border-y border-white/5 py-4 relative group rounded-2xl shadow-inner h-[110px]">
+      <div className="absolute top-2 left-4 z-20 text-[9px] font-black text-secondary/40 uppercase tracking-widest">{label}</div>
       <div className="flex animate-[marquee_40s_linear_infinite] hover:[animation-play-state:paused] gap-16 px-6">
         {[...items, ...items, ...items].map((item, idx) => {
           const minDec = item.currentPriceUSD < 1 ? 4 : 2;
@@ -90,6 +91,10 @@ export default function Dashboard() {
 
   const cryptoMarketData = useMemo(() => 
     marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USDC'].includes(m.currency)), 
+  [marketData]);
+
+  const equityMarketData = useMemo(() => 
+    marketData.filter(m => ['NVD', 'SOX', 'TQQQ', 'META', 'AAPL'].includes(m.currency)), 
   [marketData]);
 
   const handleSettle = async () => {
@@ -184,16 +189,28 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden min-h-[140px]">
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Zap className="h-3 w-3 text-secondary" />
-                REAL-TIME CRYPTOGRAPHIC PULSE (MAINNET)
+                REAL-TIME CRYPTOGRAPHIC PULSE
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
-            <CustomPulseMarquee items={cryptoMarketData} />
+            <CustomPulseMarquee items={cryptoMarketData} label="Crypto Pulse" />
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden min-h-[140px]">
+          <CardHeader className="pb-2">
+             <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                <Landmark className="h-3 w-3 text-secondary" />
+                REAL-TIME EQUITY PULSE (RWA)
+             </CardTitle>
+          </CardHeader>
+          <CardContent className="pb-4">
+            <CustomPulseMarquee items={equityMarketData} label="Stock & Bond Pulse" />
           </CardContent>
         </Card>
       </div>
