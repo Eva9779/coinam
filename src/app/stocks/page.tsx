@@ -86,7 +86,7 @@ export default function StocksPage() {
     stockBotActive, 
     stockBotRisk, 
     stockBotAllocation,
-    stockBotLogs, 
+    stockBotLogs = [], 
     totalBotEarnings,
     isAnalyzingStocks,
     updateStockBotSettings,
@@ -128,8 +128,7 @@ export default function StocksPage() {
     setIsLiquidating(false);
   };
 
-  const totalValue = stockAssets.reduce((acc, s) => acc + s.totalValue, 0);
-  const apy = localRisk === 'high' ? '18.2%' : localRisk === 'medium' ? '9.4%' : '5.1%';
+  const totalValue = (stockAssets || []).reduce((acc, s) => acc + s.totalValue, 0);
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20">
@@ -141,19 +140,19 @@ export default function StocksPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Globe className="h-4 w-4" />
-            Target: +2.1% Profit Harvesting. Locked at $20 Min.
+            Target: +2.1% Profit Harvesting. Institutional Enclave active.
           </p>
         </div>
         <div className="flex items-center gap-3">
           {totalBotEarnings > 0 && (
              <Button 
               variant="outline" 
-              className="h-12 px-6 rounded-2xl border-secondary/30 text-secondary hover:bg-secondary/5 font-bold shadow-sm animate-in fade-in slide-in-from-right-4"
+              className="h-12 px-6 rounded-2xl border-secondary/30 text-secondary hover:bg-secondary/5 font-bold shadow-sm"
               onClick={handleLiquidate}
               disabled={isLiquidating}
             >
               {isLiquidating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-              Liquidate Profit
+              Settle Profit
             </Button>
           )}
           <Badge variant="outline" className={cn(
@@ -169,7 +168,7 @@ export default function StocksPage() {
             className="h-12 px-8 font-bold rounded-2xl shadow-xl gap-2 transition-all"
           >
             {stockBotActive ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-            {stockBotActive ? 'Deactivate Agent' : 'Launch +2.1% Agent'}
+            {stockBotActive ? 'Deactivate Agent' : 'Launch Agent'}
           </Button>
         </div>
       </div>
@@ -223,13 +222,12 @@ export default function StocksPage() {
               <div>
                 <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
                   <BarChart3 className="h-4 w-4 text-secondary" />
-                  Equity Vision: {chartSymbol.split(':')[1] || chartSymbol}
+                  Vision: {chartSymbol.split(':')[1] || chartSymbol}
                 </h3>
-                <p className="text-[10px] text-muted-foreground font-bold uppercase mt-1">Select an asset below to toggle chart vision</p>
               </div>
               <div className="flex items-center gap-3">
                 <Select value={chartSymbol} onValueChange={setChartSymbol}>
-                  <SelectTrigger className="w-56 h-12 rounded-xl font-bold bg-background border-2 border-primary/20 shadow-md focus:ring-secondary">
+                  <SelectTrigger className="w-56 h-12 rounded-xl font-bold bg-background border-2 border-primary/20 shadow-md">
                     <SelectValue placeholder="Select Asset" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-2 shadow-2xl">
@@ -238,11 +236,9 @@ export default function StocksPage() {
                     <SelectItem value="NASDAQ:TSLA" className="font-bold">Tesla (TSLA)</SelectItem>
                     <SelectItem value="NASDAQ:META" className="font-bold">Meta (META)</SelectItem>
                     <SelectItem value="NASDAQ:TQQQ" className="font-bold">TQQQ (3X Leveraged)</SelectItem>
-                    <SelectItem value="NASDAQ:SOXL" className="font-bold">SOXL (3X Semi)</SelectItem>
                     <SelectItem value="AMEX:BND" className="font-bold">Total Bond (BND)</SelectItem>
                   </SelectContent>
                 </Select>
-                <Badge variant="outline" className="bg-secondary/10 text-secondary border-none animate-pulse hidden xl:flex">LIVE FEED</Badge>
               </div>
             </div>
             <EquityChart symbol={chartSymbol} />
@@ -252,7 +248,7 @@ export default function StocksPage() {
             <CardHeader className="border-b border-white/10 flex flex-row items-center justify-between px-8 py-6">
               <div className="flex items-center gap-3">
                 <Terminal className="h-5 w-5 text-secondary" />
-                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">Analysis Feed (+2.1%)</CardTitle>
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">Strategy Feed (+2.1%)</CardTitle>
               </div>
               <div className="flex items-center gap-2">
                 {isAnalyzingStocks && (
@@ -267,7 +263,7 @@ export default function StocksPage() {
               </div>
             </CardHeader>
             <CardContent className="flex-1 overflow-y-auto p-8 font-mono text-xs space-y-3 no-scrollbar max-h-[400px]">
-              {stockBotLogs.length === 0 ? (
+              {(stockBotLogs || []).length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center opacity-20 text-center space-y-6 py-20">
                   <Cpu className="h-16 w-16" />
                   <p className="uppercase tracking-[0.4em] font-black text-sm">Awaiting Strategic Signal</p>
@@ -293,7 +289,7 @@ export default function StocksPage() {
             <CardHeader className="bg-primary/5 pb-6">
               <CardTitle className="text-lg font-bold flex items-center gap-2 text-primary">
                 <Settings2 className="h-5 w-5 text-secondary" />
-                Strategy: +2.1% Target
+                Parameters
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
@@ -315,7 +311,7 @@ export default function StocksPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Risk Tolerance</Label>
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Risk Profile</Label>
                   <Select value={localRisk} onValueChange={(v: any) => setLocalRisk(v)} disabled={stockBotActive}>
                     <SelectTrigger className="h-12 rounded-xl font-bold border-2">
                       <SelectValue placeholder="Select Risk" />
@@ -336,7 +332,7 @@ export default function StocksPage() {
                   +2.1% Harvest Protocol
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium relative z-10">
-                  The AI only harvests when the **+2.1% profit target** is achieved. Assets remain locked in the enclave until profit is mathematically secured. No loss is realized.
+                  The RWA agent harvests profit mathematically when the **+2.1% target** is achieved against your baseline. Assets remain locked in the enclave until target hit.
                 </p>
               </div>
 
@@ -344,7 +340,7 @@ export default function StocksPage() {
                 <Button className="w-full h-14 rounded-2xl font-black gap-2 shadow-xl hover:scale-[1.02] transition-transform" asChild>
                   <Link href="/withdraw">
                     <Banknote className="h-5 w-5" />
-                    Withdraw Vault Earnings
+                    Withdraw to Bank
                   </Link>
                 </Button>
               </div>
