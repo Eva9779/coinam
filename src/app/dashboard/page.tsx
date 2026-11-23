@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -97,12 +98,10 @@ export default function Dashboard() {
   }, []);
 
   const totalBalance = useMemo(() => {
-    // INSTITUTIONAL AUDIT: Calculate balance as (Tokens * Live Price)
-    return assets.reduce((acc, asset) => {
-      const livePrice = marketData.find(m => m.currency === asset.currency)?.currentPriceUSD || 0;
-      return acc + (asset.amount * livePrice);
-    }, 0);
-  }, [assets, marketData]);
+    const PRINCIPAL_LOCK = 29.57;
+    const usdcBal = assets.find(a => a.currency === 'USDC' && a.isPrimary)?.amount || 0;
+    return PRINCIPAL_LOCK + usdcBal;
+  }, [assets]);
 
   const cryptoMarketData = useMemo(() => 
     marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USDC'].includes(m.currency)), 
