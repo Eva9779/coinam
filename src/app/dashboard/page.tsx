@@ -56,7 +56,7 @@ const CustomPulseMarquee = ({ items }: { items: any[] }) => {
       <style jsx>{`
         @keyframes marquee {
           0 { transform: translateX(0); }
-          100% { transform: translateX(-33.33%); }
+          100 { transform: translateX(-33.33%); }
         }
       `}</style>
     </div>
@@ -117,7 +117,7 @@ export default function Dashboard() {
           {(botActive || stockBotActive) && (
             <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px] animate-pulse">
               <Zap className="h-3.5 w-3.5" />
-              TARGET ACTIVE
+              STRATEGY ACTIVE
             </Badge>
           )}
           <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
@@ -141,14 +141,14 @@ export default function Dashboard() {
             </div>
             <div className="mt-6 pt-6 border-t border-white/10 flex justify-between items-center">
                <div className="space-y-1">
-                 <span className="text-[9px] font-bold uppercase opacity-60 block">Captured Yield</span>
+                 <span className="text-[9px] font-bold uppercase opacity-60 block">Institutional Yield</span>
                  <span className="text-xl font-black text-secondary">${totalBotEarnings.toFixed(2)}</span>
                </div>
                <div className="text-right space-y-1">
                  <span className="text-[9px] font-bold uppercase opacity-60 block">Network Status</span>
                  <span className="text-xs font-black uppercase tracking-widest text-green-400 flex items-center gap-1.5">
                    <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-                   ENCLAVE-ACTIVE
+                   LIVE-PRODUCTION
                  </span>
                </div>
             </div>
