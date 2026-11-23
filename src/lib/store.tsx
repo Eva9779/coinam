@@ -112,6 +112,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   
   const isAnalyzingCryptoRef = useRef(false);
   const isAnalyzingStocksRef = useRef(false);
+  const lastCryptoLogTimeRef = useRef(0);
+  const lastStockLogTimeRef = useRef(0);
 
   const addBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     const newLog = { msg, type, timestamp: new Date().toISOString() };
@@ -161,7 +163,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const entryPrice = baselinePrices['ETH'] || 0;
       if (entryPrice === 0) return;
       const currentProfit = ((livePrice / entryPrice) - 1) * 100;
-      addBotLog(`SCAN: ETH at ${currentProfit >= 0 ? '+' : ''}${currentProfit.toFixed(2)}% (Target: +2.1%)`, 'info');
+      
+      const now = Date.now();
+      if (now - lastCryptoLogTimeRef.current > 60000) {
+        addBotLog(`SCAN: ETH at ${currentProfit >= 0 ? '+' : ''}${currentProfit.toFixed(2)}% (Target: +2.1%)`, 'info');
+        lastCryptoLogTimeRef.current = now;
+      }
+
       if (currentProfit >= 2.1) {
         addBotLog("TARGET REACHED: Harvesting total value to USDC Vault.", 'success');
         const totalValueUSD = ethAsset.amount * livePrice;
@@ -200,7 +208,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const livePrice = marketAsset.currentPriceUSD;
       const entryPrice = baselinePrices[targetSymbol] || 725.10;
       const currentProfit = ((livePrice / entryPrice) - 1) * 100;
-      addStockBotLog(`RWA SCAN: ${targetSymbol} at ${currentProfit >= 0 ? '+' : ''}${currentProfit.toFixed(2)}% (Target: +2.1%)`, 'info');
+      
+      const now = Date.now();
+      if (now - lastStockLogTimeRef.current > 60000) {
+        addStockBotLog(`RWA SCAN: ${targetSymbol} at ${currentProfit >= 0 ? '+' : ''}${currentProfit.toFixed(2)}% (Target: +2.1%)`, 'info');
+        lastStockLogTimeRef.current = now;
+      }
+
       if (currentProfit >= 2.1) {
         addStockBotLog(`HARVEST: ${targetSymbol} target achieved. Liquidating profit.`, 'success');
         const profitVal = 2.1; 
