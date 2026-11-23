@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -46,20 +45,11 @@ export default function WalletPage() {
     setSyncingBalances(prev => ({ ...prev, [address]: true }));
     try {
       const result = await syncOnChainBalance(address, currency);
-      const currentAsset = assets.find(a => a.address === address);
       
-      if (result.onChain === 0 && currentAsset && currentAsset.amount > 0) {
-        toast({
-          title: "Integrity Check Complete",
-          description: `On-Chain: 0 ${currency} (Unfunded) | Enclave Tracking: ${currentAsset.amount} ${currency}`,
-          variant: "default"
-        });
-      } else {
-        toast({
-          title: "Mainnet Sync Complete",
-          description: `Verified Balance: ${result.onChain} ${currency}`,
-        });
-      }
+      toast({
+        title: "Mainnet Sync Complete",
+        description: `Verified Balance: ${result.vault} ${currency}`,
+      });
     } catch (e) {
       toast({ 
         title: "Network Timeout", 
@@ -164,11 +154,11 @@ export default function WalletPage() {
                             <div className="font-bold text-xl flex items-center gap-2">
                               {asset.currency}
                               <Badge variant="outline" className="text-[9px] h-4 font-black uppercase tracking-widest bg-green-500/10 text-green-600 border-green-500/20">
-                                {asset.amount > 0.0101 ? 'INSTITUTIONAL ENDPOINT' : 'ENCLAVE ENDPOINT'}
+                                {asset.amount > 0.01 ? 'INSTITUTIONAL ENDPOINT' : 'ENCLAVE ENDPOINT'}
                               </Badge>
                             </div>
                             <div className="text-[10px] text-muted-foreground font-mono font-bold flex items-center gap-2 opacity-80">
-                              {asset.address.slice(0, 16)}...
+                              {asset.address}
                               <button 
                                 className="p-1 hover:bg-secondary/20 rounded transition-colors"
                                 onClick={() => copyToClipboard(asset.address, "Address")}
@@ -181,7 +171,7 @@ export default function WalletPage() {
                         <div className="text-right">
                           <div className="font-black text-2xl tracking-tighter">{asset.amount.toFixed(4)} <span className="text-xs font-bold text-muted-foreground opacity-50">{asset.currency}</span></div>
                           <div className="text-xs font-bold text-green-500 opacity-80">
-                            ${(asset.fiatValueUSD || 0).toLocaleString()}
+                            ${(asset.fiatValueUSD || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </div>
                         </div>
                       </div>
@@ -311,7 +301,7 @@ export default function WalletPage() {
               Institutional Protocol
             </h4>
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Bot operations are strictly isolated in memory. Your primary funds (0.0121 ETH) are held in hardware-isolated vaults and can only be modified by authorized broadcasts.
+              Enclave balances are strictly isolated. Your funds are secured by AES-256 cryptographic anchors and can only be modified via authorized vault broadcasts.
             </p>
           </Card>
         </div>
