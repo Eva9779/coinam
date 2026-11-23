@@ -22,6 +22,7 @@ export const navItems = [
   { name: "Wallet", href: "/wallet", icon: Wallet },
   { name: "Send & Receive", href: "/transactions", icon: ArrowLeftRight },
   { name: "Strategy Agent", href: "/bot", icon: Bot },
+  { name: "Stocks & Bonds", href: "/stocks", icon: Landmark },
   { name: "Buy Assets", href: "/buy", icon: CreditCard },
   { name: "Withdraw", href: "/withdraw", icon: Banknote },
   { name: "Trade", href: "/trade", icon: Repeat },

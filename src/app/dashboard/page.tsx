@@ -26,19 +26,19 @@ import { Badge } from "@/components/ui/badge";
 
 const CustomPulseMarquee = ({ items }: { items: any[] }) => {
   return (
-    <div className="w-full overflow-hidden bg-slate-900 border-y border-white/5 py-4 relative group rounded-2xl shadow-inner h-[100px]">
+    <div className="w-full overflow-hidden bg-slate-900 border-y border-white/5 py-4 relative group rounded-2xl shadow-inner h-[110px]">
       <div className="flex animate-[marquee_40s_linear_infinite] hover:[animation-play-state:paused] gap-16 px-6">
         {[...items, ...items, ...items].map((item, idx) => {
-          const minDecimals = item.currentPriceUSD < 1 ? 4 : 2;
-          const maxDecimals = Math.max(minDecimals, 4);
+          const minDec = item.currentPriceUSD < 1 ? 4 : 2;
+          const maxDec = Math.max(minDec, 4);
 
           return (
             <div key={idx} className="flex flex-col items-start min-w-[140px] shrink-0 transition-transform hover:scale-105 py-1">
               <span className="text-[11px] font-black text-secondary uppercase tracking-[0.2em] mb-1">{item.currency}</span>
               <span className="text-lg font-black text-white leading-tight">
                 ${item.currentPriceUSD.toLocaleString(undefined, { 
-                  minimumFractionDigits: minDecimals,
-                  maximumFractionDigits: maxDecimals 
+                  minimumFractionDigits: minDec,
+                  maximumFractionDigits: maxDec 
                 })}
               </span>
               <span className={cn(
@@ -69,6 +69,7 @@ export default function Dashboard() {
     initialized, 
     botActive,
     botLogs,
+    stockBotActive,
     totalBotEarnings,
     marketData,
   } = useWalletStore();
@@ -111,7 +112,7 @@ export default function Dashboard() {
           <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Mainnet Connected: Real-Time Assets</p>
         </div>
         <div className="flex items-center gap-3">
-          {botActive && (
+          {(botActive || stockBotActive) && (
             <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px] animate-pulse">
               <Zap className="h-3.5 w-3.5" />
               +2.1% TARGET ACTIVE
@@ -143,15 +144,36 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden min-h-[140px]">
-          <CardHeader className="pb-2">
+        <Card className="lg:col-span-3 shadow-2xl border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden min-h-[140px]">
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Landmark className="h-3 w-3 text-secondary" />
-                REAL-TIME EQUITY PULSE (MAINNET)
+                +2.1% ALPHA PROTOCOL
              </CardTitle>
+             <Badge variant="outline" className="text-[8px] font-bold border-secondary/30 text-secondary uppercase">RWA Strategy Agent</Badge>
           </CardHeader>
-          <CardContent className="pb-4">
-            <CustomPulseMarquee items={stockMarketData} />
+          <CardContent className="pb-6">
+             <div className="flex flex-col md:flex-row gap-6 items-center">
+                <div className="flex-1 space-y-4">
+                  <div className="flex items-center justify-between">
+                     <span className="text-[9px] font-bold uppercase opacity-60">Network</span>
+                     <span className="text-[10px] font-black text-primary">MAINNET-CONNECTED</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                     <span className="text-[9px] font-bold uppercase opacity-60">Strategy</span>
+                     <span className="text-[10px] font-black text-secondary">DIP-HARVEST-2.1</span>
+                  </div>
+                  <Button variant="outline" size="sm" asChild className="w-full h-10 rounded-xl font-bold text-[10px] uppercase gap-2 border-primary/10">
+                    <Link href="/stocks"><Settings className="h-3 w-3" /> Configure Strategy</Link>
+                  </Button>
+                </div>
+                <div className="h-20 w-px bg-primary/5 hidden md:block" />
+                <div className="flex-1 text-center space-y-1">
+                   <p className="text-[9px] font-bold uppercase opacity-40">Target Yield</p>
+                   <p className="text-3xl font-black text-green-600">+2.1%</p>
+                   <p className="text-[8px] font-bold uppercase text-muted-foreground">Profit Harvesting</p>
+                </div>
+             </div>
           </CardContent>
         </Card>
       </div>
@@ -160,8 +182,20 @@ export default function Dashboard() {
          <Card className="shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden min-h-[140px]">
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                <Landmark className="h-3 w-3 text-secondary" />
+                LIVE EQUITY & BOND PULSE (REAL-WORLD)
+             </CardTitle>
+          </CardHeader>
+          <CardContent className="pb-4">
+            <CustomPulseMarquee items={stockMarketData} />
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden min-h-[140px]">
+          <CardHeader className="pb-2">
+             <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Zap className="h-3 w-3 text-secondary" />
-                REAL-TIME CRYPTOGRAPHIC PULSE (MAINNET)
+                LIVE CRYPTOGRAPHIC PULSE (REAL-WORLD)
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
@@ -222,7 +256,7 @@ export default function Dashboard() {
         <div className="space-y-6">
           <h3 className="text-lg font-black text-primary flex items-center gap-2 px-2">
             <Terminal className="h-5 w-5 text-secondary" />
-            Strategy Feed (+2.1% Goal)
+            Strategy Feed (+2.1%)
           </h3>
           <Card className="shadow-2xl border-none bg-slate-950 text-white rounded-[2rem] overflow-hidden min-h-[400px]">
              <CardHeader className="border-b border-white/10">

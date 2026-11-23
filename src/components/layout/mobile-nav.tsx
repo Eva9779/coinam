@@ -9,6 +9,7 @@ import {
   Wallet, 
   Repeat, 
   Bot, 
+  Landmark,
   Menu as MenuIcon 
 } from "lucide-react";
 import {
@@ -24,8 +25,8 @@ import { ShieldCheck } from "lucide-react";
 const mobileItems = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { name: "Wallet", href: "/wallet", icon: Wallet },
-  { name: "Trade", href: "/trade", icon: Repeat },
   { name: "Bot", href: "/bot", icon: Bot },
+  { name: "Stocks", href: "/stocks", icon: Landmark },
 ];
 
 export function MobileNav() {

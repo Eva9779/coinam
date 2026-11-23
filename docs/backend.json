@@ -15,9 +15,19 @@
         "botAllocation": { "type": "number" },
         "botRiskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
         "botStrategy": { "type": "string", "enum": ["standard", "bitcoin_multiplier"] },
-        "stockBotActive": { "type": "boolean" },
-        "stockBotRisk": { "type": "string", "enum": ["low", "medium", "high"] },
-        "stockBotAllocation": { "type": "number" }
+        "cryptoPositions": { "type": "array", "items": { "type": "object" } },
+        "baselinePrices": { "type": "object" },
+        "botLogs": { 
+          "type": "array", 
+          "items": { 
+            "type": "object",
+            "properties": {
+              "msg": { "type": "string" },
+              "type": { "type": "string" },
+              "timestamp": { "type": "string" }
+            }
+          } 
+        }
       },
       "required": ["uid", "email"]
     },
@@ -35,22 +45,6 @@
         "privateKey": { "type": "string" }
       },
       "required": ["currency", "address"]
-    },
-    "StockAsset": {
-      "title": "Stock Asset",
-      "description": "Tokenized Real World Asset (RWA) representing traditional equity or bonds on-chain.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "symbol": { "type": "string" },
-        "name": { "type": "string" },
-        "type": { "type": "string", "enum": ["stock", "bond"] },
-        "shares": { "type": "number" },
-        "currentPrice": { "type": "number" },
-        "totalValue": { "type": "number" },
-        "tokenAddress": { "type": "string", "description": "The ERC-20 contract address for the tokenized asset." }
-      },
-      "required": ["symbol", "name", "shares"]
     },
     "Transaction": {
       "title": "Transaction",
@@ -83,10 +77,6 @@
     "/users/{userId}/assets/{assetId}": {
       "schema": "WalletAsset",
       "description": "Individual vault endpoints."
-    },
-    "/users/{userId}/stocks/{stockId}": {
-      "schema": "StockAsset",
-      "description": "Tokenized RWA holdings (Stocks and Bonds)."
     },
     "/users/{userId}/transactions/{transactionId}": {
       "schema": "Transaction",
