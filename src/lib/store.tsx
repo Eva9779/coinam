@@ -83,6 +83,8 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
+const PRINCIPAL_LOCK = 29.57;
+
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
@@ -126,7 +128,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const addBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     const newLog = { msg, type, timestamp: new Date().toISOString() };
     setBotLogs(prev => {
-      // Avoid duplicate logs in short bursts
       if (prev.length > 0 && prev[prev.length - 1].msg === msg) return prev;
       return [...prev.slice(-49), newLog];
     });
@@ -171,7 +172,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!botActive || isExecutingTradeRef.current || !user || !db || assetsRef.current.length === 0) return;
     
     const marketAsset = currentMarket.find(m => m.currency === 'ETH');
-    const livePrice = marketAsset?.currentPriceUSD || 1712;
+    const livePrice = marketAsset?.currentPriceUSD || 1875;
     const ethAsset = assetsRef.current.find(a => a.currency === 'ETH' && a.isPrimary);
     
     if (!ethAsset) return;
@@ -186,10 +187,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (currentProfitPercent >= 2.1) {
-      isExecutingTradeRef.current = true; // LOCK SENTRY
+      isExecutingTradeRef.current = true;
       addBotLog("TARGET REACHED: Harvesting +2.1% profit to USDC Vault.", 'success');
       
-      const PRINCIPAL_LOCK = 29.57;
       const ethValueUSD = ethAsset.amount * livePrice;
       const profitUSD = ethValueUSD - PRINCIPAL_LOCK;
       
@@ -233,7 +233,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         toast({ title: "Harvest Complete", description: `Profit moved to USDC. Principal secured at $29.57.` });
       }
       
-      // Delay unlock to allow Firestore sync
       setTimeout(() => { isExecutingTradeRef.current = false; }, 5000);
     }
   }, [botActive, user, db, addBotLog, addTransaction]);
@@ -269,14 +268,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [stockBotActive, isAnalyzingStocks, user, db, addStockBotLog, addTransaction]);
 
-  // STABLE FIRESTORE SYNC: No marketData dependency to avoid infinite loops
   useEffect(() => {
     if (!db || !user) return;
     
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
       if (s.exists()) {
         const d = s.data();
-        // Only update state if values actually changed to avoid render churn
         setTotalBotEarnings(prev => prev !== d.totalBotEarnings ? (d.totalBotEarnings || 0) : prev);
         setBotActive(!!d.botActive);
         setBotAllocation(d.botAllocation || 20);
@@ -292,25 +289,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     });
 
     const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), (s) => {
-      const allDocs = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
-      const uniqueAssetsMap: Record<string, WalletAsset> = {};
-      
-      allDocs.forEach(asset => {
-        if (!uniqueAssetsMap[asset.currency] || asset.isPrimary) {
-          uniqueAssetsMap[asset.currency] = asset;
-        }
-      });
-      
-      const currentAssets = Object.values(uniqueAssetsMap);
+      const currentAssets = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
       setAssets(currentAssets);
       setInitialized(true);
       setIsSyncing(false);
 
-      // Principal Protection Sentry
       const ethAsset = currentAssets.find(a => a.currency === 'ETH' && a.isPrimary);
       if (!ethAsset) {
         setDoc(doc(db, 'users', user.uid, 'assets', 'primary-vault-eth'), {
-          currency: 'ETH', amount: 0.0121, fiatValueUSD: 29.57, isLive: true, isPrimary: true,
+          currency: 'ETH', amount: 0.0157, fiatValueUSD: PRINCIPAL_LOCK, isLive: true, isPrimary: true,
           address: `0x${user.uid.slice(0, 10)}...enclave`, privateKey: 'ENCRYPTED_HSM_KEY'
         }, { merge: true });
       }
@@ -324,7 +311,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => { unsubProfile(); unsubAssets(); unsubTx(); };
   }, [db, user]);
 
-  // MARKET HEARTBEAT: Decoupled from listeners
   useEffect(() => {
     const fetchLivePrices = async () => {
       try {
@@ -347,19 +333,38 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const fetchInterval = setInterval(fetchLivePrices, 60000);
 
     const heartbeatInterval = setInterval(() => {
-      setMarketData(prev => prev.map(m => {
-        const fluctuation = 1 + (Math.random() * 0.001 - 0.0005);
-        return { ...m, currentPriceUSD: m.currentPriceUSD * fluctuation };
-      }));
+      setMarketData(prev => {
+        const updated = prev.map(m => {
+          const fluctuation = 1 + (Math.random() * 0.001 - 0.0005);
+          return { ...m, currentPriceUSD: m.currentPriceUSD * fluctuation };
+        });
+
+        // CAPITAL ANCHOR SENTRY: Adjust ETH units to exactly 29.57 USD in real-time
+        if (initialized && user && db) {
+           const ethMarket = updated.find(m => m.currency === 'ETH');
+           const ethAsset = assetsRef.current.find(a => a.currency === 'ETH' && a.isPrimary);
+           if (ethMarket && ethAsset && !isExecutingTradeRef.current) {
+              const livePrice = ethMarket.currentPriceUSD;
+              const currentVal = ethAsset.amount * livePrice;
+              if (Math.abs(currentVal - PRINCIPAL_LOCK) > 0.05) {
+                 const newAmount = PRINCIPAL_LOCK / livePrice;
+                 updateDoc(doc(db, 'users', user.uid, 'assets', ethAsset.id), { 
+                   amount: newAmount, 
+                   fiatValueUSD: PRINCIPAL_LOCK 
+                 });
+              }
+           }
+        }
+        return updated;
+      });
     }, 5000);
 
     return () => {
       clearInterval(fetchInterval);
       clearInterval(heartbeatInterval);
     };
-  }, []);
+  }, [initialized, user, db]);
 
-  // AGENT TRIGGER: Driven by heartbeat
   useEffect(() => {
     if (botActive) triggerCryptoAnalysis(marketData);
     if (stockBotActive) triggerStockAnalysis(marketData);
