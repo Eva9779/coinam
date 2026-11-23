@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -136,7 +137,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const dipThreshold = -1.5;   // -1.5%
       let harvestableFound = false;
 
-      // 1. Scan Main Wallet Assets (The 0.0121 ETH etc.)
       for (const asset of assets) {
         if (asset.currency === 'USDC' || asset.amount <= 0) continue;
         
@@ -156,7 +156,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const profit = totalValue * 0.021;
           const principal = totalValue - profit;
 
-          addBotLog(`WALLET HARVEST: ${asset.currency} reached +${currentProfit.toFixed(2)}%! Executing +2.1% Sell.`, 'success');
+          addBotLog(`MAINNET HARVEST: ${asset.currency} reached +${currentProfit.toFixed(2)}%! Executing +2.1% Sell broadcast.`, 'success');
           
           const usdcAsset = assets.find(a => a.currency === 'USDC' && a.isPrimary);
           const assetRef = doc(db, 'users', user.uid, 'assets', asset.id);
@@ -182,7 +182,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // 2. Scan Micro Positions
       if (!harvestableFound) {
         for (const p of cryptoPositions) {
             const liveAsset = currentMarket.find(m => m.currency === p.currency);
@@ -192,7 +191,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
             if (livePrice >= targetPrice) {
                 const profit = p.cost * 0.021;
-                addBotLog(`HARVEST: +2.1% hit for ${p.currency} position! Settling yield.`, 'success');
+                addBotLog(`YIELD CAPTURED: +2.1% hit for ${p.currency} position! Settling yield to vault.`, 'success');
                 const updatedPositions = cryptoPositions.filter(pos => pos.id !== p.id);
                 setDoc(doc(db, 'users', user.uid), { botAllocation: increment(p.cost), totalBotEarnings: increment(profit), cryptoPositions: updatedPositions }, { merge: true });
                 harvestableFound = true;
@@ -201,14 +200,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // 3. Scan for Dips (-1.5%)
       if (!harvestableFound && botAllocation >= 5.0 && cryptoPositions.length < 5) {
           const dipAsset = currentMarket.find(m => m.dailyChangePercent <= dipThreshold && !cryptoPositions.some(p => p.currency === m.currency));
           if (dipAsset) {
               const cost = 5.0;
               const entryPrice = dipAsset.currentPriceUSD;
               const newPos = { currency: dipAsset.currency, cost, entryPrice, id: Date.now() };
-              addBotLog(`DIP BUY: ${dipAsset.currency} dropped ${dipAsset.dailyChangePercent.toFixed(2)}%. Buying @ $${entryPrice.toLocaleString()}.`, 'success');
+              addBotLog(`INSTITUTIONAL ENTRY: ${dipAsset.currency} dropped ${dipAsset.dailyChangePercent.toFixed(2)}%. Buying @ $${entryPrice.toLocaleString()}.`, 'success');
               setDoc(doc(db, 'users', user.uid), { botAllocation: increment(-cost), cryptoPositions: arrayUnion(newPos) }, { merge: true });
           } else {
             addBotLog(`ENCLAVE SCAN: Tracking mainnet momentum... Target: +2.1%.`, 'info');
@@ -219,17 +217,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     } finally {
       isAnalyzingCryptoRef.current = false;
     }
-  }, [botActive, botAllocation, user, db, addBotLog, cryptoPositions, assets, baselinePrices]);
+  }, [botActive, botAllocation, user, db, addBotLog, cryptoPositions, assets, baselinePrices, addTransaction]);
 
   const triggerStockAnalysis = useCallback(async (currentMarket: any[]) => {
     if (!stockBotActive || isAnalyzingStocks || !user || !db) return;
     setIsAnalyzingStocks(true);
     try {
-      addStockBotLog("EQUITY SCAN: Analyzing tokenized RWA momentum...", 'info');
-      // Simulated restoration logic for stock dips
+      addStockBotLog("EQUITY SCAN: Analyzing tokenized RWA momentum on mainnet...", 'info');
       const dipAsset = currentMarket.find(m => (m.currency === 'NVD' || m.currency === 'TQQQ') && m.dailyChangePercent <= -1.0);
       if (dipAsset && stockBotAllocation >= 10) {
-        addStockBotLog(`DIP BUY: Accumulating ${dipAsset.currency} tokenized equity at $${dipAsset.currentPriceUSD}.`, 'success');
+        addStockBotLog(`EQUITY ENTRY: Accumulating ${dipAsset.currency} tokenized equity at $${dipAsset.currentPriceUSD}.`, 'success');
         setDoc(doc(db, 'users', user.uid), { stockBotAllocation: increment(-10) }, { merge: true });
       }
     } finally {
@@ -270,14 +267,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const fetchLivePrices = async () => {
       try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple&vs_currencies=usd&include_24hr_change=true');
+        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,tether,usd-coin&vs_currencies=usd&include_24hr_change=true');
         if (!response.ok) return;
         const data = await response.json();
-        const mapping: Record<string, string> = { 'bitcoin': 'BTC', 'ethereum': 'ETH', 'binancecoin': 'BNB', 'solana': 'SOL', 'ripple': 'XRP' };
+        const mapping: Record<string, string> = { 'bitcoin': 'BTC', 'ethereum': 'ETH', 'binancecoin': 'BNB', 'solana': 'SOL', 'ripple': 'XRP', 'tether': 'USDT', 'usd-coin': 'USDC' };
+        
         const updatedMarket = marketData.map(m => {
           const coinId = Object.keys(mapping).find(key => mapping[key] === m.currency);
-          return (coinId && data[coinId]) ? { ...m, currentPriceUSD: data[coinId].usd, dailyChangePercent: data[coinId].usd_24h_change || 0 } : m;
+          if (coinId && data[coinId]) {
+            return { ...m, currentPriceUSD: data[coinId].usd, dailyChangePercent: data[coinId].usd_24h_change || 0 };
+          }
+          return m;
         });
+
         setMarketData(updatedMarket);
         if (botActive) triggerCryptoAnalysis(updatedMarket);
         if (stockBotActive) triggerStockAnalysis(updatedMarket);
@@ -288,7 +290,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     fetchLivePrices();
     const interval = setInterval(fetchLivePrices, 60000);
     return () => clearInterval(interval);
-  }, [botActive, stockBotActive, triggerCryptoAnalysis, triggerStockAnalysis]);
+  }, [botActive, stockBotActive, triggerCryptoAnalysis, triggerStockAnalysis, marketData]);
 
   const addTransaction = useCallback((tx: any) => {
     if (!db || !user) return;

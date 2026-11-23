@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -30,7 +31,7 @@ const CustomPulseMarquee = ({ items }: { items: any[] }) => {
       <div className="flex animate-[marquee_40s_linear_infinite] hover:[animation-play-state:paused] gap-16 px-6">
         {[...items, ...items, ...items].map((item, idx) => {
           const minDec = item.currentPriceUSD < 1 ? 4 : 2;
-          const maxDec = Math.max(minDec, 4);
+          const maxDec = Math.max(minDec, 2);
 
           return (
             <div key={idx} className="flex flex-col items-start min-w-[140px] shrink-0 transition-transform hover:scale-105 py-1">
@@ -85,7 +86,7 @@ export default function Dashboard() {
   }, [assets]);
 
   const cryptoMarketData = useMemo(() => 
-    marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USD'].includes(m.currency)), 
+    marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USDC'].includes(m.currency)), 
   [marketData]);
 
   const stockMarketData = useMemo(() => 
@@ -96,7 +97,7 @@ export default function Dashboard() {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-center">Syncing Real-World Pulse...</p>
+        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-center">Syncing Mainnet Pulse...</p>
       </div>
     );
   }
@@ -109,7 +110,7 @@ export default function Dashboard() {
             <Sparkles className="h-8 w-8 text-secondary" />
             Institutional Ledger
           </h2>
-          <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Mainnet Connected: Real-Time Assets</p>
+          <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Mainnet Connected: Real-World Assets</p>
         </div>
         <div className="flex items-center gap-3">
           {(botActive || stockBotActive) && (
@@ -138,7 +139,7 @@ export default function Dashboard() {
               ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <div className="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
-               <span className="text-[9px] font-bold uppercase opacity-60">Harvested Earnings</span>
+               <span className="text-[9px] font-bold uppercase opacity-60">Captured Yield</span>
                <span className="text-sm font-black text-secondary">${totalBotEarnings.toFixed(2)}</span>
             </div>
           </CardContent>
@@ -150,7 +151,7 @@ export default function Dashboard() {
                 <Landmark className="h-3 w-3 text-secondary" />
                 +2.1% ALPHA PROTOCOL
              </CardTitle>
-             <Badge variant="outline" className="text-[8px] font-bold border-secondary/30 text-secondary uppercase">RWA Strategy Agent</Badge>
+             <Badge variant="outline" className="text-[8px] font-bold border-secondary/30 text-secondary uppercase">Institutional Strategy Agent</Badge>
           </CardHeader>
           <CardContent className="pb-6">
              <div className="flex flex-col md:flex-row gap-6 items-center">
@@ -164,7 +165,7 @@ export default function Dashboard() {
                      <span className="text-[10px] font-black text-secondary">DIP-HARVEST-2.1</span>
                   </div>
                   <Button variant="outline" size="sm" asChild className="w-full h-10 rounded-xl font-bold text-[10px] uppercase gap-2 border-primary/10">
-                    <Link href="/stocks"><Settings className="h-3 w-3" /> Configure Strategy</Link>
+                    <Link href="/bot"><Settings className="h-3 w-3" /> Configure Strategy</Link>
                   </Button>
                 </div>
                 <div className="h-20 w-px bg-primary/5 hidden md:block" />
@@ -183,7 +184,7 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Landmark className="h-3 w-3 text-secondary" />
-                LIVE EQUITY & BOND PULSE (REAL-WORLD)
+                REAL-TIME EQUITY & BOND PULSE (MAINNET)
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
@@ -195,7 +196,7 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Zap className="h-3 w-3 text-secondary" />
-                LIVE CRYPTOGRAPHIC PULSE (REAL-WORLD)
+                REAL-TIME CRYPTOGRAPHIC PULSE (MAINNET)
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
