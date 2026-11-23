@@ -97,6 +97,7 @@ export default function Dashboard() {
   }, []);
 
   const totalBalance = useMemo(() => {
+    // INSTITUTIONAL AUDIT: Calculate balance as (Tokens * Live Price)
     return assets.reduce((acc, asset) => {
       const livePrice = marketData.find(m => m.currency === asset.currency)?.currentPriceUSD || 0;
       return acc + (asset.amount * livePrice);
@@ -174,7 +175,7 @@ export default function Dashboard() {
                     <span className="text-[9px] font-bold uppercase opacity-60 block">Network Latency</span>
                     <span className="text-xs font-black uppercase tracking-widest text-green-400 flex items-center gap-1.5">
                       <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-                      {mounted ? latency : '--'}ms
+                      {latency}ms
                     </span>
                   </div>
                 </div>

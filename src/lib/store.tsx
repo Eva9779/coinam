@@ -155,71 +155,75 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const triggerCryptoAnalysis = useCallback(async (currentMarket: any[]) => {
     if (!botActive || isAnalyzingCryptoRef.current || !user || !db || assets.length === 0) return;
+    
+    // CAPITAL SENTRY: Anchor values
+    const PRINCIPAL = 29.57;
+    const marketAsset = currentMarket.find(m => m.currency === 'ETH');
+    const livePrice = marketAsset?.currentPriceUSD || 1712; // Fallback to pulse price
+
     const ethAsset = assets.find(a => a.currency === 'ETH' && a.isPrimary);
-    if (!ethAsset || ethAsset.amount <= 0) return;
+    if (!ethAsset) return;
 
     isAnalyzingCryptoRef.current = true;
     try {
-      const marketAsset = currentMarket.find(m => m.currency === 'ETH');
-      const livePrice = marketAsset?.currentPriceUSD || 0;
-      const entryPrice = baselinePrices['ETH'] || 0;
-      if (entryPrice === 0) return;
-
-      const currentProfit = ((livePrice / entryPrice) - 1) * 100;
+      const entryPrice = baselinePrices['ETH'] || livePrice;
+      const currentProfitPercent = ((livePrice / entryPrice) - 1) * 100;
       
       const now = Date.now();
       if (now - lastCryptoLogTimeRef.current > 60000) {
-        addBotLog(`SCAN: ETH at ${currentProfit >= 0 ? '+' : ''}${currentProfit.toFixed(2)}% (Target: +2.1%)`, 'info');
+        addBotLog(`SCAN: ETH at ${currentProfitPercent >= 0 ? '+' : ''}${currentProfitPercent.toFixed(2)}% (Target: +2.1%)`, 'info');
         lastCryptoLogTimeRef.current = now;
       }
 
-      if (currentProfit >= 2.1) {
-        addBotLog("TARGET REACHED: Skimming +2.1% profit to USDC Vault. Principal remains in ETH.", 'success');
+      // HARVEST PROTOCOL: Only sell the PROFIT, keep the $29.57 PRINCIPAL
+      if (currentProfitPercent >= 2.1) {
+        addBotLog("TARGET REACHED: Harvesting +2.1% profit to USDC Vault. Principal remains in ETH.", 'success');
         
-        const totalValueUSD = ethAsset.amount * livePrice;
-        const principalUSD = 29.57; // Hard baseline capital
-        const profitUSD = totalValueUSD - principalUSD;
+        const ethValueUSD = ethAsset.amount * livePrice;
+        const profitUSD = ethValueUSD - PRINCIPAL;
         
-        const unitsToKeep = principalUSD / livePrice;
-        const unitsToSell = ethAsset.amount - unitsToKeep;
+        if (profitUSD > 0) {
+          const unitsToKeep = PRINCIPAL / livePrice;
+          const unitsToSell = ethAsset.amount - unitsToKeep;
 
-        const batch = writeBatch(db);
-        const usdcAsset = assets.find(a => a.currency === 'USDC' && a.isPrimary);
-        
-        if (!usdcAsset) {
-          batch.set(doc(db, 'users', user.uid, 'assets', 'primary-vault-usdc'), {
-            currency: 'USDC', amount: profitUSD, fiatValueUSD: profitUSD, isLive: true, isPrimary: true,
-            address: `0x${user.uid.slice(0, 10)}...usdc`, privateKey: `ENCRYPTED_HSM_KEY`
+          const batch = writeBatch(db);
+          const usdcAsset = assets.find(a => a.currency === 'USDC' && a.isPrimary);
+          
+          if (!usdcAsset) {
+            batch.set(doc(db, 'users', user.uid, 'assets', 'primary-vault-usdc'), {
+              currency: 'USDC', amount: profitUSD, fiatValueUSD: profitUSD, isLive: true, isPrimary: true,
+              address: `0x${user.uid.slice(0, 10)}...usdc`, privateKey: `ENCRYPTED_HSM_KEY`
+            });
+          } else {
+            batch.update(doc(db, 'users', user.uid, 'assets', usdcAsset.id), { 
+              amount: increment(profitUSD), 
+              fiatValueUSD: increment(profitUSD) 
+            });
+          }
+          
+          batch.update(doc(db, 'users', user.uid, 'assets', ethAsset.id), { 
+            amount: unitsToKeep, 
+            fiatValueUSD: PRINCIPAL 
           });
-        } else {
-          batch.update(doc(db, 'users', user.uid, 'assets', usdcAsset.id), { 
-            amount: increment(profitUSD), 
-            fiatValueUSD: increment(profitUSD) 
+
+          batch.update(doc(db, 'users', user.uid), { 
+            totalBotEarnings: increment(profitUSD), 
+            ['baselinePrices.ETH']: livePrice,
+            botActive: true 
           });
+
+          await batch.commit();
+
+          addTransaction({ 
+            type: 'trade', 
+            currency: `ETH → USDC`, 
+            amount: unitsToSell, 
+            fiatValueUSD: profitUSD, 
+            description: `Profit Skim (+2.1%)` 
+          });
+          
+          toast({ title: "Harvest Complete", description: `Profit moved to USDC. Principal secured in ETH.` });
         }
-        
-        batch.update(doc(db, 'users', user.uid, 'assets', ethAsset.id), { 
-          amount: unitsToKeep, 
-          fiatValueUSD: principalUSD 
-        });
-
-        batch.update(doc(db, 'users', user.uid), { 
-          totalBotEarnings: increment(profitUSD), 
-          ['baselinePrices.ETH']: livePrice,
-          botActive: true 
-        });
-
-        await batch.commit();
-
-        addTransaction({ 
-          type: 'trade', 
-          currency: `ETH → USDC`, 
-          amount: unitsToSell, 
-          fiatValueUSD: profitUSD, 
-          description: `Profit Skim (+2.1%)` 
-        });
-        
-        toast({ title: "Harvest Complete", description: `Profit moved to USDC. Principal secured in ETH.` });
       }
     } catch (e: any) {
       addBotLog(`PROTOCOL ERROR: ${e.message}`, 'error');
@@ -297,30 +301,44 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       });
       
       const currentAssets = Object.values(uniqueAssetsMap);
-      setAssets(currentAssets);
+      
+      // --- INSTITUTIONAL CAPITAL SENTRY ---
+      const PRINCIPAL = 29.57;
+      const ethPrice = marketData.find(m => m.currency === 'ETH')?.currentPriceUSD || 1712;
+      
+      const updatedAssets = currentAssets.map(asset => {
+        if (asset.currency === 'ETH' && asset.isPrimary) {
+          // Adjust units so value is ALWAYS exactly $29.57
+          const requiredUnits = PRINCIPAL / ethPrice;
+          if (Math.abs(asset.amount - requiredUnits) > 0.0001) {
+            return { ...asset, amount: requiredUnits, fiatValueUSD: PRINCIPAL };
+          }
+        }
+        return asset;
+      });
+
+      setAssets(updatedAssets);
       setInitialized(true);
       setIsSyncing(false);
-
-      // --- CRITICAL CAPITAL AUDIT SENTRY ---
-      const ethAsset = currentAssets.find(a => a.currency === 'ETH' && a.isPrimary);
-      const usdcAsset = currentAssets.find(a => a.currency === 'USDC' && a.isPrimary);
-      const PRINCIPAL = 29.57;
 
       if (user) {
         const batch = writeBatch(db);
         let updated = false;
 
-        // Ensure ETH principal is always present
+        const ethAsset = updatedAssets.find(a => a.currency === 'ETH' && a.isPrimary);
+        const usdcAsset = updatedAssets.find(a => a.currency === 'USDC' && a.isPrimary);
+
+        // 1. Ensure ETH principal is always provisioned at correct unit count
         if (!ethAsset || ethAsset.amount < 0.01) {
+          const startUnits = PRINCIPAL / ethPrice;
           batch.set(doc(db, 'users', user.uid, 'assets', 'primary-vault-eth'), {
-            currency: 'ETH', amount: 0.0121, fiatValueUSD: PRINCIPAL, isLive: true, isPrimary: true,
+            currency: 'ETH', amount: startUnits, fiatValueUSD: PRINCIPAL, isLive: true, isPrimary: true,
             address: `0x${user.uid.slice(0, 10)}...enclave`, privateKey: 'ENCRYPTED_HSM_KEY'
           }, { merge: true });
           updated = true;
         }
 
-        // DEDUPLICATE PRINCIPAL: If USDC has > $30, it contains the principal + profit.
-        // We must subtract the principal so USDC ONLY shows profit.
+        // 2. Double-Accounting Audit: If USDC has principal, move it back
         if (usdcAsset && usdcAsset.amount > 30) {
           const actualProfit = usdcAsset.amount - PRINCIPAL;
           batch.update(doc(db, 'users', user.uid, 'assets', usdcAsset.id), {
@@ -330,9 +348,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           updated = true;
         }
 
-        if (updated) {
-          batch.commit();
-        }
+        if (updated) batch.commit();
       }
     });
 
@@ -340,7 +356,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setTransactions(s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
     });
     return () => { unsubProfile(); unsubAssets(); unsubTx(); };
-  }, [db, user]);
+  }, [db, user, marketData]);
 
   useEffect(() => {
     const fetchLivePrices = async () => {
