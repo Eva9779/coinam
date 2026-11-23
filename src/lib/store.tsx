@@ -177,16 +177,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         addBotLog("TARGET REACHED: Skimming +2.1% profit to USDC Vault. Principal remains in ETH.", 'success');
         
         const totalValueUSD = ethAsset.amount * livePrice;
-        const principalUSD = ethAsset.amount * entryPrice; // The original $29.57 value
+        const principalUSD = 29.57; // Hard baseline capital
         const profitUSD = totalValueUSD - principalUSD;
         
-        const unitsToKeep = principalUSD / livePrice; // The amount of ETH units worth exactly the principal
+        const unitsToKeep = principalUSD / livePrice;
         const unitsToSell = ethAsset.amount - unitsToKeep;
 
         const batch = writeBatch(db);
         const usdcAsset = assets.find(a => a.currency === 'USDC' && a.isPrimary);
         
-        // 1. Move profit to USDC
         if (!usdcAsset) {
           batch.set(doc(db, 'users', user.uid, 'assets', 'primary-vault-usdc'), {
             currency: 'USDC', amount: profitUSD, fiatValueUSD: profitUSD, isLive: true, isPrimary: true,
@@ -199,17 +198,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }, { merge: true });
         }
         
-        // 2. Keep Principal in ETH
         batch.set(doc(db, 'users', user.uid, 'assets', ethAsset.id), { 
           amount: unitsToKeep, 
           fiatValueUSD: principalUSD 
         }, { merge: true });
 
-        // 3. Update lifetime earnings and reset baseline for NEXT +2.1% trade
         batch.set(doc(db, 'users', user.uid), { 
           totalBotEarnings: increment(profitUSD), 
           ['baselinePrices.ETH']: livePrice,
-          botActive: true // Keep it active for the next gain
+          botActive: true 
         }, { merge: true });
 
         await batch.commit();
@@ -287,10 +284,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), (s) => {
       const allDocs = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
       const uniqueAssetsMap: Record<string, WalletAsset> = {};
+      
       allDocs.forEach(asset => {
         if (!uniqueAssetsMap[asset.currency] || asset.isPrimary) {
-          // If we find a primary asset or the first of its kind, keep it.
-          // Clean up empty duplicates from the database in the background.
           if (uniqueAssetsMap[asset.currency] && !asset.isPrimary) {
             deleteDoc(doc(db, 'users', user.uid, 'assets', asset.id));
           } else {
@@ -304,13 +300,30 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setInitialized(true);
       setIsSyncing(false);
 
-      // Principal Sentry: Always ensure 0.0121 ETH exists in the primary vault
+      // Principal Integrity Sentry: Hard-anchor to $29.57
       const ethAsset = currentAssets.find(a => a.currency === 'ETH' && a.isPrimary);
+      const usdcAsset = currentAssets.find(a => a.currency === 'USDC' && a.isPrimary);
+      
       if (user && (!ethAsset || ethAsset.amount < 0.0121)) {
-        setDoc(doc(db, 'users', user.uid, 'assets', 'primary-vault-eth'), {
-          currency: 'ETH', amount: 0.0121, fiatValueUSD: 29.57, isLive: true, isPrimary: true,
-          address: `0x${user.uid.slice(0, 10)}...enclave`, privateKey: 'ENCRYPTED_HSM_KEY'
-        }, { merge: true });
+        // If USDC accidentally contains the principal (from a previous duplication error), rebalance it
+        if (usdcAsset && usdcAsset.amount > 30) {
+           const batch = writeBatch(db);
+           batch.set(doc(db, 'users', user.uid, 'assets', 'primary-vault-eth'), {
+            currency: 'ETH', amount: 0.0121, fiatValueUSD: 29.57, isLive: true, isPrimary: true,
+            address: `0x${user.uid.slice(0, 10)}...enclave`, privateKey: 'ENCRYPTED_HSM_KEY'
+          }, { merge: true });
+          // Deduplicate: If USDC has the principal, subtract it so only PROFIT remains
+          batch.update(doc(db, 'users', user.uid, 'assets', usdcAsset.id), {
+            amount: Math.max(0, usdcAsset.amount - 29.57),
+            fiatValueUSD: Math.max(0, usdcAsset.fiatValueUSD - 29.57)
+          });
+          batch.commit();
+        } else {
+          setDoc(doc(db, 'users', user.uid, 'assets', 'primary-vault-eth'), {
+            currency: 'ETH', amount: 0.0121, fiatValueUSD: 29.57, isLive: true, isPrimary: true,
+            address: `0x${user.uid.slice(0, 10)}...enclave`, privateKey: 'ENCRYPTED_HSM_KEY'
+          }, { merge: true });
+        }
       }
     });
     const unsubTx = onSnapshot(collection(db, 'users', user.uid, 'transactions'), (s) => {
@@ -340,10 +353,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     fetchLivePrices();
     const fetchInterval = setInterval(fetchLivePrices, 60000);
 
-    // High-Frequency Market Heartbeat (Simulates ticks every 5s for the Pulse UI)
     const heartbeatInterval = setInterval(() => {
       setMarketData(prev => prev.map(m => {
-        // Small micro-fluctuation between -0.05% and +0.05%
         const fluctuation = 1 + (Math.random() * 0.001 - 0.0005);
         return { ...m, currentPriceUSD: m.currentPriceUSD * fluctuation };
       }));
@@ -385,8 +396,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, 
       syncOnChainBalance: async (addr, curr) => {
-        const local = assets.find(a => a.address === addr)?.amount || 0;
-        return { onChain: local, vault: local };
+        const found = assets.find(a => a.address === addr);
+        const bal = found?.amount || 0;
+        return { onChain: bal, vault: bal };
       },
       generateNewWallet: async (curr) => {
         if (!db || !user) return;
