@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -80,6 +79,7 @@ export default function Dashboard() {
     botActive,
     botLogs,
     marketData,
+    totalBotEarnings
   } = useWalletStore();
   
   const [mounted, setMounted] = useState(false);
@@ -88,7 +88,10 @@ export default function Dashboard() {
   useEffect(() => {
     setMounted(true);
     const interval = setInterval(() => {
-      setLatency(Math.floor(Math.random() * 8) + 12);
+      setLatency(prev => {
+        const next = prev + (Math.random() * 4 - 2);
+        return Math.max(10, Math.min(25, Math.floor(next)));
+      });
     }, 3000);
     return () => clearInterval(interval);
   }, []);

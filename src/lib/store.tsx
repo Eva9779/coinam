@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -14,7 +13,8 @@ import {
   writeBatch,
   query,
   where,
-  deleteDoc
+  deleteDoc,
+  updateDoc
 } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 import { INITIAL_MARKET_DATA } from './data';
@@ -192,22 +192,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             address: `0x${user.uid.slice(0, 10)}...usdc`, privateKey: `ENCRYPTED_HSM_KEY`
           });
         } else {
-          batch.set(doc(db, 'users', user.uid, 'assets', usdcAsset.id), { 
+          batch.update(doc(db, 'users', user.uid, 'assets', usdcAsset.id), { 
             amount: increment(profitUSD), 
             fiatValueUSD: increment(profitUSD) 
-          }, { merge: true });
+          });
         }
         
-        batch.set(doc(db, 'users', user.uid, 'assets', ethAsset.id), { 
+        batch.update(doc(db, 'users', user.uid, 'assets', ethAsset.id), { 
           amount: unitsToKeep, 
           fiatValueUSD: principalUSD 
-        }, { merge: true });
+        });
 
-        batch.set(doc(db, 'users', user.uid), { 
+        batch.update(doc(db, 'users', user.uid), { 
           totalBotEarnings: increment(profitUSD), 
           ['baselinePrices.ETH']: livePrice,
           botActive: true 
-        }, { merge: true });
+        });
 
         await batch.commit();
 
@@ -250,10 +250,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         addStockBotLog(`HARVEST: ${targetSymbol} target achieved. Skimming profit.`, 'success');
         const profitVal = 2.1; 
         const batch = writeBatch(db);
-        batch.set(doc(db, 'users', user.uid), { 
+        batch.update(doc(db, 'users', user.uid), { 
           totalBotEarnings: increment(profitVal), 
           [`baselinePrices.${targetSymbol}`]: livePrice 
-        }, { merge: true });
+        });
         await batch.commit();
         addTransaction({ type: 'trade', currency: `RWA → USDC`, amount: profitVal, fiatValueUSD: profitVal, description: `Stock Profit Skim (${targetSymbol})` });
       }
@@ -281,6 +281,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         if (d.stockBotLogs) setStockBotLogs(d.stockBotLogs.slice(-50));
       }
     });
+
     const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), (s) => {
       const allDocs = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
       const uniqueAssetsMap: Record<string, WalletAsset> = {};
@@ -300,32 +301,41 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setInitialized(true);
       setIsSyncing(false);
 
-      // Principal Integrity Sentry: Hard-anchor to $29.57
+      // --- CRITICAL CAPITAL AUDIT SENTRY ---
       const ethAsset = currentAssets.find(a => a.currency === 'ETH' && a.isPrimary);
       const usdcAsset = currentAssets.find(a => a.currency === 'USDC' && a.isPrimary);
-      
-      if (user && (!ethAsset || ethAsset.amount < 0.0121)) {
-        // If USDC accidentally contains the principal (from a previous duplication error), rebalance it
+      const PRINCIPAL = 29.57;
+
+      if (user) {
+        const batch = writeBatch(db);
+        let updated = false;
+
+        // Ensure ETH principal is always present
+        if (!ethAsset || ethAsset.amount < 0.01) {
+          batch.set(doc(db, 'users', user.uid, 'assets', 'primary-vault-eth'), {
+            currency: 'ETH', amount: 0.0121, fiatValueUSD: PRINCIPAL, isLive: true, isPrimary: true,
+            address: `0x${user.uid.slice(0, 10)}...enclave`, privateKey: 'ENCRYPTED_HSM_KEY'
+          }, { merge: true });
+          updated = true;
+        }
+
+        // DEDUPLICATE PRINCIPAL: If USDC has > $30, it contains the principal + profit.
+        // We must subtract the principal so USDC ONLY shows profit.
         if (usdcAsset && usdcAsset.amount > 30) {
-           const batch = writeBatch(db);
-           batch.set(doc(db, 'users', user.uid, 'assets', 'primary-vault-eth'), {
-            currency: 'ETH', amount: 0.0121, fiatValueUSD: 29.57, isLive: true, isPrimary: true,
-            address: `0x${user.uid.slice(0, 10)}...enclave`, privateKey: 'ENCRYPTED_HSM_KEY'
-          }, { merge: true });
-          // Deduplicate: If USDC has the principal, subtract it so only PROFIT remains
+          const actualProfit = usdcAsset.amount - PRINCIPAL;
           batch.update(doc(db, 'users', user.uid, 'assets', usdcAsset.id), {
-            amount: Math.max(0, usdcAsset.amount - 29.57),
-            fiatValueUSD: Math.max(0, usdcAsset.fiatValueUSD - 29.57)
+            amount: Math.max(0, actualProfit),
+            fiatValueUSD: Math.max(0, actualProfit)
           });
+          updated = true;
+        }
+
+        if (updated) {
           batch.commit();
-        } else {
-          setDoc(doc(db, 'users', user.uid, 'assets', 'primary-vault-eth'), {
-            currency: 'ETH', amount: 0.0121, fiatValueUSD: 29.57, isLive: true, isPrimary: true,
-            address: `0x${user.uid.slice(0, 10)}...enclave`, privateKey: 'ENCRYPTED_HSM_KEY'
-          }, { merge: true });
         }
       }
     });
+
     const unsubTx = onSnapshot(collection(db, 'users', user.uid, 'transactions'), (s) => {
       setTransactions(s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
     });
@@ -381,9 +391,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         address: `0x${user.uid.slice(0, 10)}...usdc`, privateKey: `ENCRYPTED_HSM_KEY`
       });
     } else {
-      batch.set(doc(db, 'users', user.uid, 'assets', usdcAsset.id), { amount: increment(totalBotEarnings), fiatValueUSD: increment(totalBotEarnings) }, { merge: true });
+      batch.update(doc(db, 'users', user.uid, 'assets', usdcAsset.id), { amount: increment(totalBotEarnings), fiatValueUSD: increment(totalBotEarnings) });
     }
-    batch.set(doc(db, 'users', user.uid), { totalBotEarnings: 0 }, { merge: true });
+    batch.update(doc(db, 'users', user.uid), { totalBotEarnings: 0 });
     await batch.commit();
     addTransaction({ type: 'receive', currency: 'USDC', amount: totalBotEarnings, fiatValueUSD: totalBotEarnings, description: 'Direct Profit Liquidation' });
     toast({ title: "Settle Complete" });
@@ -423,7 +433,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             if (a.amount > 0) currentBaselines[a.currency] = marketData.find(m => m.currency === a.currency)?.currentPriceUSD || 0; 
           });
         }
-        setDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy, baselinePrices: currentBaselines }, { merge: true });
+        updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy, baselinePrices: currentBaselines });
         addBotLog(active ? "ALPHA AGENT: ACTIVE (+2.1%)" : "AGENT STANDBY", active ? "success" : "warning");
       },
       updateStockBotSettings: (active, allocation, risk) => {
@@ -431,16 +441,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         if (!user || !db) return;
         const currentBaselines = { ...baselinePrices };
         if (active) currentBaselines['NVD'] = marketData.find(m => m.currency === 'NVD')?.currentPriceUSD || 725.10;
-        setDoc(doc(db, 'users', user.uid), { stockBotActive: active, stockBotAllocation: allocation, stockBotRisk: risk, baselinePrices: currentBaselines }, { merge: true });
+        updateDoc(doc(db, 'users', user.uid), { stockBotActive: active, stockBotAllocation: allocation, stockBotRisk: risk, baselinePrices: currentBaselines });
         addStockBotLog(active ? "RWA AGENT: ACTIVE (+2.1%)" : "RWA AGENT STANDBY", active ? "success" : "warning");
       },
       clearBotLogs: () => {
         setBotLogs([]);
-        if (db && user) setDoc(doc(db, 'users', user.uid), { botLogs: [] }, { merge: true });
+        if (db && user) updateDoc(doc(db, 'users', user.uid), { botLogs: [] });
       },
       clearStockBotLogs: () => {
         setStockBotLogs([]);
-        if (db && user) setDoc(doc(db, 'users', user.uid), { stockBotLogs: [] }, { merge: true });
+        if (db && user) updateDoc(doc(db, 'users', user.uid), { stockBotLogs: [] });
       },
       liquidateEarnings, addBotLog, addStockBotLog
     }}>
