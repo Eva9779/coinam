@@ -30,18 +30,24 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 const CustomPulseMarquee = ({ items, label }: { items: any[], label: string }) => {
+  // Double the items for seamless loop
+  const displayItems = [...items, ...items];
+
   return (
     <div className="w-full bg-slate-900 border-y border-white/5 py-4 relative group rounded-2xl shadow-inner h-[110px] overflow-hidden">
-      <div className="absolute top-2 left-4 z-20 text-[9px] font-black text-secondary/40 uppercase tracking-widest">{label}</div>
+      <div className="absolute top-2 left-4 z-20 text-[9px] font-black text-secondary/40 uppercase tracking-widest flex items-center gap-2">
+        <div className="h-1 w-1 rounded-full bg-green-500 animate-pulse" />
+        {label}
+      </div>
       
-      <ScrollArea className="w-full whitespace-nowrap">
-        <div className="flex w-max gap-8 px-6 pt-2">
-          {items.map((item, idx) => {
+      <div className="w-full h-full pt-4">
+        <div className="flex animate-marquee whitespace-nowrap w-max gap-8 px-6">
+          {displayItems.map((item, idx) => {
             const minDec = item.currentPriceUSD < 1 ? 4 : 2;
             const maxDec = Math.max(minDec, 2);
 
             return (
-              <div key={idx} className="flex flex-col items-start min-w-[150px] transition-transform hover:scale-105 py-1">
+              <div key={`${item.currency}-${idx}`} className="flex flex-col items-start min-w-[150px] transition-all hover:bg-white/5 p-2 rounded-xl">
                 <span className="text-[11px] font-black text-secondary uppercase tracking-[0.2em] mb-1">{item.currency}</span>
                 <span className="text-lg font-black text-white leading-tight">
                   ${item.currentPriceUSD.toLocaleString(undefined, { 
@@ -60,8 +66,7 @@ const CustomPulseMarquee = ({ items, label }: { items: any[], label: string }) =
             );
           })}
         </div>
-        <ScrollBar orientation="horizontal" className="bg-white/5 h-1.5" />
-      </ScrollArea>
+      </div>
     </div>
   );
 };

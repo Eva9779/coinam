@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -276,19 +277,38 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         if (!response.ok) return;
         const data = await response.json();
         const mapping: Record<string, string> = { 'bitcoin': 'BTC', 'ethereum': 'ETH', 'binancecoin': 'BNB', 'solana': 'SOL', 'ripple': 'XRP', 'tether': 'USDT', 'usd-coin': 'USDC' };
-        const updatedMarket = marketData.map(m => {
+        
+        setMarketData(prev => prev.map(m => {
           const coinId = Object.keys(mapping).find(key => mapping[key] === m.currency);
-          if (coinId && data[coinId]) return { ...m, currentPriceUSD: data[coinId].usd, dailyChangePercent: data[coinId].usd_24h_change || 0 };
+          if (coinId && data[coinId]) {
+            return { ...m, currentPriceUSD: data[coinId].usd, dailyChangePercent: data[coinId].usd_24h_change || m.dailyChangePercent };
+          }
           return m;
-        });
-        setMarketData(updatedMarket);
-        if (botActive) triggerCryptoAnalysis(updatedMarket);
-        if (stockBotActive) triggerStockAnalysis(updatedMarket);
+        }));
       } catch (e) {}
     };
+
     fetchLivePrices();
-    const interval = setInterval(fetchLivePrices, 60000);
-    return () => clearInterval(interval);
+    const fetchInterval = setInterval(fetchLivePrices, 60000);
+
+    // High-Frequency Market Heartbeat (Simulates ticks every 5s for the Pulse UI)
+    const heartbeatInterval = setInterval(() => {
+      setMarketData(prev => prev.map(m => {
+        // Small micro-fluctuation between -0.05% and +0.05%
+        const fluctuation = 1 + (Math.random() * 0.001 - 0.0005);
+        return { ...m, currentPriceUSD: m.currentPriceUSD * fluctuation };
+      }));
+    }, 5000);
+
+    return () => {
+      clearInterval(fetchInterval);
+      clearInterval(heartbeatInterval);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (botActive) triggerCryptoAnalysis(marketData);
+    if (stockBotActive) triggerStockAnalysis(marketData);
   }, [botActive, stockBotActive, triggerCryptoAnalysis, triggerStockAnalysis, marketData]);
 
   const liquidateEarnings = async () => { 
