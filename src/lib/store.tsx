@@ -157,12 +157,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!botActive || isAnalyzingCryptoRef.current || !user || !db || assets.length === 0) return;
     const ethAsset = assets.find(a => a.currency === 'ETH' && a.isPrimary);
     if (!ethAsset || ethAsset.amount <= 0) return;
+
     isAnalyzingCryptoRef.current = true;
     try {
       const marketAsset = currentMarket.find(m => m.currency === 'ETH');
       const livePrice = marketAsset?.currentPriceUSD || 0;
       const entryPrice = baselinePrices['ETH'] || 0;
       if (entryPrice === 0) return;
+
       const currentProfit = ((livePrice / entryPrice) - 1) * 100;
       
       const now = Date.now();
@@ -172,24 +174,55 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (currentProfit >= 2.1) {
-        addBotLog("TARGET REACHED: Harvesting total value to USDC Vault.", 'success');
+        addBotLog("TARGET REACHED: Skimming +2.1% profit to USDC Vault. Principal remains in ETH.", 'success');
+        
         const totalValueUSD = ethAsset.amount * livePrice;
-        const profitUSD = totalValueUSD - (ethAsset.amount * entryPrice);
+        const principalUSD = ethAsset.amount * entryPrice; // The original $29.57 value
+        const profitUSD = totalValueUSD - principalUSD;
+        
+        const unitsToKeep = principalUSD / livePrice; // The amount of ETH units worth exactly the principal
+        const unitsToSell = ethAsset.amount - unitsToKeep;
+
         const batch = writeBatch(db);
         const usdcAsset = assets.find(a => a.currency === 'USDC' && a.isPrimary);
+        
+        // 1. Move profit to USDC
         if (!usdcAsset) {
           batch.set(doc(db, 'users', user.uid, 'assets', 'primary-vault-usdc'), {
-            currency: 'USDC', amount: totalValueUSD, fiatValueUSD: totalValueUSD, isLive: true, isPrimary: true,
+            currency: 'USDC', amount: profitUSD, fiatValueUSD: profitUSD, isLive: true, isPrimary: true,
             address: `0x${user.uid.slice(0, 10)}...usdc`, privateKey: `ENCRYPTED_HSM_KEY`
           });
         } else {
-          batch.set(doc(db, 'users', user.uid, 'assets', usdcAsset.id), { amount: increment(totalValueUSD), fiatValueUSD: increment(totalValueUSD) }, { merge: true });
+          batch.set(doc(db, 'users', user.uid, 'assets', usdcAsset.id), { 
+            amount: increment(profitUSD), 
+            fiatValueUSD: increment(profitUSD) 
+          }, { merge: true });
         }
-        batch.set(doc(db, 'users', user.uid), { totalBotEarnings: increment(profitUSD), ['baselinePrices.ETH']: livePrice, botActive: false }, { merge: true });
-        batch.set(doc(db, 'users', user.uid, 'assets', ethAsset.id), { amount: 0, fiatValueUSD: 0 }, { merge: true });
+        
+        // 2. Keep Principal in ETH
+        batch.set(doc(db, 'users', user.uid, 'assets', ethAsset.id), { 
+          amount: unitsToKeep, 
+          fiatValueUSD: principalUSD 
+        }, { merge: true });
+
+        // 3. Update lifetime earnings and reset baseline for NEXT +2.1% trade
+        batch.set(doc(db, 'users', user.uid), { 
+          totalBotEarnings: increment(profitUSD), 
+          ['baselinePrices.ETH']: livePrice,
+          botActive: true // Keep it active for the next gain
+        }, { merge: true });
+
         await batch.commit();
-        addTransaction({ type: 'trade', currency: `ETH → USDC`, amount: ethAsset.amount, fiatValueUSD: totalValueUSD, description: `Strategic +2.1% Vault Settlement` });
-        toast({ title: "Harvest Complete", description: `Full value moved to USDC Vault.` });
+
+        addTransaction({ 
+          type: 'trade', 
+          currency: `ETH → USDC`, 
+          amount: unitsToSell, 
+          fiatValueUSD: profitUSD, 
+          description: `Profit Skim (+2.1%)` 
+        });
+        
+        toast({ title: "Harvest Complete", description: `Profit moved to USDC. Principal secured in ETH.` });
       }
     } catch (e: any) {
       addBotLog(`PROTOCOL ERROR: ${e.message}`, 'error');
@@ -217,12 +250,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (currentProfit >= 2.1) {
-        addStockBotLog(`HARVEST: ${targetSymbol} target achieved. Liquidating profit.`, 'success');
+        addStockBotLog(`HARVEST: ${targetSymbol} target achieved. Skimming profit.`, 'success');
         const profitVal = 2.1; 
         const batch = writeBatch(db);
-        batch.set(doc(db, 'users', user.uid), { totalBotEarnings: increment(profitVal), [`baselinePrices.${targetSymbol}`]: livePrice }, { merge: true });
+        batch.set(doc(db, 'users', user.uid), { 
+          totalBotEarnings: increment(profitVal), 
+          [`baselinePrices.${targetSymbol}`]: livePrice 
+        }, { merge: true });
         await batch.commit();
-        addTransaction({ type: 'trade', currency: `RWA → USDC`, amount: profitVal, fiatValueUSD: profitVal, description: `Stock Profit Harvest (${targetSymbol})` });
+        addTransaction({ type: 'trade', currency: `RWA → USDC`, amount: profitVal, fiatValueUSD: profitVal, description: `Stock Profit Skim (${targetSymbol})` });
       }
     } finally {
       isAnalyzingStocksRef.current = false;
@@ -252,12 +288,25 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const allDocs = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
       const uniqueAssetsMap: Record<string, WalletAsset> = {};
       allDocs.forEach(asset => {
-        if (!uniqueAssetsMap[asset.currency]) uniqueAssetsMap[asset.currency] = asset;
+        if (!uniqueAssetsMap[asset.currency] || asset.isPrimary) {
+          // If we find a primary asset or the first of its kind, keep it.
+          // Clean up empty duplicates from the database in the background.
+          if (uniqueAssetsMap[asset.currency] && !asset.isPrimary) {
+            deleteDoc(doc(db, 'users', user.uid, 'assets', asset.id));
+          } else {
+            uniqueAssetsMap[asset.currency] = asset;
+          }
+        }
       });
-      setAssets(Object.values(uniqueAssetsMap));
+      
+      const currentAssets = Object.values(uniqueAssetsMap);
+      setAssets(currentAssets);
       setInitialized(true);
       setIsSyncing(false);
-      if (user && Object.keys(uniqueAssetsMap).length === 0) {
+
+      // Principal Sentry: Always ensure 0.0121 ETH exists in the primary vault
+      const ethAsset = currentAssets.find(a => a.currency === 'ETH' && a.isPrimary);
+      if (user && (!ethAsset || ethAsset.amount < 0.0121)) {
         setDoc(doc(db, 'users', user.uid, 'assets', 'primary-vault-eth'), {
           currency: 'ETH', amount: 0.0121, fiatValueUSD: 29.57, isLive: true, isPrimary: true,
           address: `0x${user.uid.slice(0, 10)}...enclave`, privateKey: 'ENCRYPTED_HSM_KEY'
@@ -335,7 +384,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, 
-      syncOnChainBalance: async (addr) => {
+      syncOnChainBalance: async (addr, curr) => {
         const local = assets.find(a => a.address === addr)?.amount || 0;
         return { onChain: local, vault: local };
       },
@@ -358,7 +407,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         if (!user || !db) return;
         const currentBaselines = { ...baselinePrices };
         if (active) {
-          assets.forEach(a => { if (a.amount > 0) currentBaselines[a.currency] = marketData.find(m => m.currency === a.currency)?.currentPriceUSD || 0; });
+          assets.forEach(a => { 
+            if (a.amount > 0) currentBaselines[a.currency] = marketData.find(m => m.currency === a.currency)?.currentPriceUSD || 0; 
+          });
         }
         setDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy, baselinePrices: currentBaselines }, { merge: true });
         addBotLog(active ? "ALPHA AGENT: ACTIVE (+2.1%)" : "AGENT STANDBY", active ? "success" : "warning");

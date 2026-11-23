@@ -40,8 +40,8 @@ const CustomPulseMarquee = ({ items, label }: { items: any[], label: string }) =
         {label}
       </div>
       
-      <div className="w-full h-full pt-4">
-        <div className="flex animate-marquee whitespace-nowrap w-max gap-8 px-6">
+      <ScrollArea className="w-full h-full pt-4">
+        <div className="flex animate-marquee whitespace-nowrap w-max gap-8 px-6 hover:[animation-play-state:paused]">
           {displayItems.map((item, idx) => {
             const minDec = item.currentPriceUSD < 1 ? 4 : 2;
             const maxDec = Math.max(minDec, 2);
@@ -66,7 +66,8 @@ const CustomPulseMarquee = ({ items, label }: { items: any[], label: string }) =
             );
           })}
         </div>
-      </div>
+        <ScrollBar orientation="horizontal" className="h-1.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+      </ScrollArea>
     </div>
   );
 };
@@ -91,9 +92,8 @@ export default function Dashboard() {
   }, []);
 
   const totalBalance = useMemo(() => {
-    const walletValue = assets.reduce((acc, asset) => acc + (asset.fiatValueUSD || 0), 0);
-    return walletValue + totalBotEarnings;
-  }, [assets, totalBotEarnings]);
+    return assets.reduce((acc, asset) => acc + (asset.fiatValueUSD || 0), 0);
+  }, [assets]);
 
   const cryptoMarketData = useMemo(() => 
     marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USDC'].includes(m.currency)), 
@@ -148,7 +148,7 @@ export default function Dashboard() {
             <Briefcase className="h-48 w-48" />
           </div>
           <CardHeader className="pb-2 relative z-10">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Unified Net Worth (Wallet + Yield)</CardTitle>
+            <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Unified Net Worth (Wallet Assets)</CardTitle>
           </CardHeader>
           <CardContent className="relative z-10">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
@@ -158,15 +158,21 @@ export default function Dashboard() {
                 </div>
                 <div className="mt-4 flex items-center gap-4">
                   <div className="space-y-1">
-                    <span className="text-[9px] font-bold uppercase opacity-60 block">Total Lifetime Profit</span>
-                    <span className="text-xl font-black text-secondary">${totalBotEarnings.toFixed(2)}</span>
+                    <span className="text-[9px] font-bold uppercase opacity-60 block">Strategy Yield Status</span>
+                    <span className={cn(
+                      "text-xs font-black uppercase tracking-widest flex items-center gap-1.5",
+                      botActive ? "text-secondary animate-pulse" : "text-green-400"
+                    )}>
+                      <div className={cn("h-1.5 w-1.5 rounded-full", botActive ? "bg-secondary" : "bg-green-400")} />
+                      {botActive ? "HARVESTING" : "SETTLED"}
+                    </span>
                   </div>
                   <div className="h-8 w-px bg-white/10" />
                   <div className="space-y-1">
-                    <span className="text-[9px] font-bold uppercase opacity-60 block">Network Status</span>
+                    <span className="text-[9px] font-bold uppercase opacity-60 block">Network Latency</span>
                     <span className="text-xs font-black uppercase tracking-widest text-green-400 flex items-center gap-1.5">
-                      <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-                      LIVE
+                      <div className="h-1.5 w-1.5 rounded-full bg-green-400" />
+                      14ms
                     </span>
                   </div>
                 </div>
@@ -178,17 +184,6 @@ export default function Dashboard() {
                     Withdraw to Bank
                   </Link>
                 </Button>
-                {totalBotEarnings > 0 && (
-                  <Button 
-                    variant="outline" 
-                    className="h-10 px-6 font-bold rounded-xl gap-2 border-white/20 bg-white/5 hover:bg-white/10 text-white"
-                    onClick={handleSettle}
-                    disabled={isSettleLoading}
-                  >
-                    {isSettleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                    Settle Yield to Wallet
-                  </Button>
-                )}
               </div>
             </div>
           </CardContent>
