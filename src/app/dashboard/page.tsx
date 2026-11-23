@@ -17,7 +17,9 @@ import {
   ChevronRight,
   Loader2,
   Landmark,
-  DollarSign
+  DollarSign,
+  ArrowRight,
+  Banknote
 } from "lucide-react";
 import { useWalletStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -69,19 +71,19 @@ export default function Dashboard() {
     initialized, 
     botActive,
     botLogs,
-    stockBotActive,
     totalBotEarnings,
     marketData,
+    liquidateEarnings
   } = useWalletStore();
   
   const [mounted, setMounted] = useState(false);
+  const [isSettleLoading, setIsSettleLoading] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   const totalBalance = useMemo(() => {
-    // Sum all asset USD values + current yields
     const walletValue = assets.reduce((acc, asset) => acc + (asset.fiatValueUSD || 0), 0);
     return walletValue + totalBotEarnings;
   }, [assets, totalBotEarnings]);
@@ -90,9 +92,11 @@ export default function Dashboard() {
     marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USDC'].includes(m.currency)), 
   [marketData]);
 
-  const stockMarketData = useMemo(() => 
-    marketData.filter(m => ['NVD', 'SOX', 'TQQQ', 'NVDA', 'AAPL'].includes(m.currency)), 
-  [marketData]);
+  const handleSettle = async () => {
+    setIsSettleLoading(true);
+    await liquidateEarnings();
+    setIsSettleLoading(false);
+  };
 
   if (!initialized || !mounted) {
     return (
@@ -114,10 +118,10 @@ export default function Dashboard() {
           <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Mainnet Connected: Real-World Assets</p>
         </div>
         <div className="flex items-center gap-3">
-          {(botActive || stockBotActive) && (
+          {botActive && (
             <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px] animate-pulse">
               <Zap className="h-3.5 w-3.5" />
-              STRATEGY ACTIVE
+              BOT ACTIVE
             </Badge>
           )}
           <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
@@ -133,42 +137,54 @@ export default function Dashboard() {
             <Briefcase className="h-48 w-48" />
           </div>
           <CardHeader className="pb-2 relative z-10">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Unified Net Worth (Assets + Yield)</CardTitle>
+            <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Unified Net Worth (Wallet + Yield)</CardTitle>
           </CardHeader>
           <CardContent className="relative z-10">
-            <div className="text-6xl font-black tracking-tighter">
-              ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <div className="mt-6 pt-6 border-t border-white/10 flex justify-between items-center">
-               <div className="space-y-1">
-                 <span className="text-[9px] font-bold uppercase opacity-60 block">Institutional Yield</span>
-                 <span className="text-xl font-black text-secondary">${totalBotEarnings.toFixed(2)}</span>
-               </div>
-               <div className="text-right space-y-1">
-                 <span className="text-[9px] font-bold uppercase opacity-60 block">Network Status</span>
-                 <span className="text-xs font-black uppercase tracking-widest text-green-400 flex items-center gap-1.5">
-                   <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-                   LIVE-PRODUCTION
-                 </span>
-               </div>
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
+              <div>
+                <div className="text-6xl font-black tracking-tighter">
+                  ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <div className="mt-4 flex items-center gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-bold uppercase opacity-60 block">Total Lifetime Profit</span>
+                    <span className="text-xl font-black text-secondary">${totalBotEarnings.toFixed(2)}</span>
+                  </div>
+                  <div className="h-8 w-px bg-white/10" />
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-bold uppercase opacity-60 block">Network Status</span>
+                    <span className="text-xs font-black uppercase tracking-widest text-green-400 flex items-center gap-1.5">
+                      <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+                      LIVE
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button variant="secondary" className="h-12 px-6 font-bold rounded-xl gap-2 shadow-xl hover:scale-105 transition-transform" asChild>
+                  <Link href="/withdraw">
+                    <Banknote className="h-5 w-5" />
+                    Withdraw to Bank
+                  </Link>
+                </Button>
+                {totalBotEarnings > 0 && (
+                  <Button 
+                    variant="outline" 
+                    className="h-10 px-6 font-bold rounded-xl gap-2 border-white/20 bg-white/5 hover:bg-white/10 text-white"
+                    onClick={handleSettle}
+                    disabled={isSettleLoading}
+                  >
+                    {isSettleLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                    Settle Yield to Wallet
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-         <Card className="shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden min-h-[140px]">
-          <CardHeader className="pb-2">
-             <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                <Landmark className="h-3 w-3 text-secondary" />
-                REAL-TIME EQUITY & BOND PULSE (MAINNET)
-             </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-4">
-            <CustomPulseMarquee items={stockMarketData} />
-          </CardContent>
-        </Card>
-
         <Card className="shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden min-h-[140px]">
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">

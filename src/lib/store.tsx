@@ -98,7 +98,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   
   const isAnalyzingCryptoRef = useRef(false);
 
-  // Helper definitions placed at the TOP to avoid initialization errors
   const addTransaction = useCallback((tx: any) => {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}`;
@@ -148,14 +147,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       }
 
       const currentProfit = ((livePrice / entryPrice) - 1) * 100;
-      addBotLog(`PROFIT SCAN: ETH at ${currentProfit >= 0 ? '+' : ''}${currentProfit.toFixed(2)}% (Target: +2.1% to Sell)`, 'info');
+      addBotLog(`SCAN: ETH at ${currentProfit >= 0 ? '+' : ''}${currentProfit.toFixed(2)}% (Target: +2.1%)`, 'info');
 
       if (currentProfit >= 2.1) {
-        addBotLog("TARGET REACHED: Initiating Atomic Harvest to USDC Vault.", 'success');
+        addBotLog("TARGET REACHED: Harvesting total value to USDC Vault.", 'success');
         
         const totalValueUSD = ethAsset.amount * livePrice;
-        const profitUSD = totalValueUSD * 0.021;
-        const principalUSD = totalValueUSD - profitUSD;
+        const profitUSD = totalValueUSD - (ethAsset.amount * entryPrice);
 
         const batch = writeBatch(db);
         const userRef = doc(db, 'users', user.uid);
@@ -165,27 +163,28 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         let usdcRef;
         
         if (!usdcAsset) {
-          addBotLog("VAULT PROTOCOL: Auto-provisioning USDC Destination.", 'info');
-          const newUsdcId = `asset_usdc_${Date.now()}`;
+          const newUsdcId = 'primary-vault-usdc';
           usdcRef = doc(db, 'users', user.uid, 'assets', newUsdcId);
           batch.set(usdcRef, {
-            currency: 'USDC', amount: principalUSD, fiatValueUSD: principalUSD, 
+            currency: 'USDC', amount: totalValueUSD, fiatValueUSD: totalValueUSD, 
             isLive: true, isPrimary: true,
-            address: `0x${Math.random().toString(16).slice(2, 42)}`,
-            privateKey: `0x${Math.random().toString(16).slice(2, 66)}`
+            address: `0x${user.uid.slice(0, 10)}...usdc`,
+            privateKey: `ENCRYPTED_HSM_KEY`
           });
         } else {
           usdcRef = doc(db, 'users', user.uid, 'assets', usdcAsset.id);
           batch.set(usdcRef, { 
-            amount: increment(principalUSD), 
-            fiatValueUSD: increment(principalUSD) 
+            amount: increment(totalValueUSD), 
+            fiatValueUSD: increment(totalValueUSD) 
           }, { merge: true });
         }
 
         batch.set(userRef, { 
           totalBotEarnings: increment(profitUSD), 
-          ['baselinePrices.ETH']: livePrice 
+          ['baselinePrices.ETH']: livePrice,
+          botActive: false // Pause after harvest for user review
         }, { merge: true });
+        
         batch.set(ethRef, { amount: 0, fiatValueUSD: 0 }, { merge: true });
 
         await batch.commit();
@@ -195,10 +194,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           currency: `ETH → USDC`,
           amount: ethAsset.amount,
           fiatValueUSD: totalValueUSD,
-          description: `Automated +2.1% Institutional Harvest`
+          description: `Strategic +2.1% Vault Settlement`
         });
         
-        toast({ title: "Harvest Successful", description: `Principal settled to USDC. Profit added to Yield.` });
+        toast({ title: "Harvest Complete", description: `Full value moved to USDC Vault for access.` });
+        setBotActive(false);
       }
     } catch (e: any) {
       addBotLog(`PROTOCOL ERROR: ${e.message}`, 'error');
@@ -225,7 +225,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), async (s) => {
       const allDocs = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
       
-      // Zero-Tolerance Deduplication & Purge Logic
       const uniqueAssetsMap: Record<string, WalletAsset> = {};
       const duplicatesToDelete: string[] = [];
 
@@ -235,8 +234,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           uniqueAssetsMap[key] = asset;
         } else {
           const existing = uniqueAssetsMap[key];
-          // Keep strictly the best one: primary ID first, then highest balance, then latest ID
-          if (asset.id === 'primary-vault-eth' || (asset.amount > existing.amount && existing.id !== 'primary-vault-eth')) {
+          if (asset.amount > existing.amount || asset.id.startsWith('primary')) {
             duplicatesToDelete.push(existing.id);
             uniqueAssetsMap[key] = asset;
           } else {
@@ -245,29 +243,31 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       });
 
-      // Cleanup Background Loop
       if (duplicatesToDelete.length > 0) {
         const batch = writeBatch(db);
         duplicatesToDelete.forEach(id => {
           batch.delete(doc(db, 'users', user.uid, 'assets', id));
         });
-        await batch.commit();
+        batch.commit();
       }
 
       setAssets(Object.values(uniqueAssetsMap));
       setInitialized(true);
       setIsSyncing(false);
       
-      const primaryEth = uniqueAssetsMap['ETH'];
-      if (user && (!primaryEth || primaryEth.amount < 0.0121)) {
-        // Enforce singular ID to prevent future drift
-        const primaryRef = doc(db, 'users', user.uid, 'assets', 'primary-vault-eth');
-        setDoc(primaryRef, {
-          currency: 'ETH', amount: 0.0121, fiatValueUSD: 29.57, isLive: true, isPrimary: true,
-          address: `0x${user.uid.slice(0, 10)}...enclave`,
-          privateKey: 'ENCRYPTED_HSM_KEY'
-        }, { merge: true });
-        if (botActive) addBotLog("ENCLAVE INTEGRITY: Verified primary capital (0.0121 ETH).", 'info');
+      // Capital Restoration Sentry (0.0121 ETH)
+      if (user) {
+        const hasBalance = Object.values(uniqueAssetsMap).some(a => a.amount > 0);
+        const hasYield = totalBotEarnings > 0;
+        
+        if (!hasBalance && !hasYield) {
+          const primaryRef = doc(db, 'users', user.uid, 'assets', 'primary-vault-eth');
+          setDoc(primaryRef, {
+            currency: 'ETH', amount: 0.0121, fiatValueUSD: 29.57, isLive: true, isPrimary: true,
+            address: `0x${user.uid.slice(0, 10)}...enclave`,
+            privateKey: 'ENCRYPTED_HSM_KEY'
+          }, { merge: true });
+        }
       }
     });
 
@@ -275,7 +275,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setTransactions(s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
     });
     return () => { unsubProfile(); unsubAssets(); unsubTx(); };
-  }, [db, user, botActive, addBotLog]);
+  }, [db, user, totalBotEarnings]);
 
   useEffect(() => {
     const fetchLivePrices = async () => {
@@ -310,12 +310,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const batch = writeBatch(db);
     
     if (!usdcAsset) {
-      const newUsdcId = `asset_usdc_${Date.now()}`;
+      const newUsdcId = 'primary-vault-usdc';
       batch.set(doc(db, 'users', user.uid, 'assets', newUsdcId), {
         currency: 'USDC', amount: totalBotEarnings, fiatValueUSD: totalBotEarnings, 
         isLive: true, isPrimary: true,
-        address: `0x${Math.random().toString(16).slice(2, 42)}`,
-        privateKey: `0x${Math.random().toString(16).slice(2, 66)}`
+        address: `0x${user.uid.slice(0, 10)}...usdc`,
+        privateKey: `ENCRYPTED_HSM_KEY`
       });
     } else {
       batch.set(doc(db, 'users', user.uid, 'assets', usdcAsset.id), { 
@@ -326,7 +326,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     
     batch.set(doc(db, 'users', user.uid), { totalBotEarnings: 0 }, { merge: true });
     await batch.commit();
-    addTransaction({ type: 'receive', currency: 'USDC', amount: totalBotEarnings, fiatValueUSD: totalBotEarnings, description: 'Settle Strategy Yield' });
+    addTransaction({ type: 'receive', currency: 'USDC', amount: totalBotEarnings, fiatValueUSD: totalBotEarnings, description: 'Direct Profit Liquidation' });
+    toast({ title: "Settle Complete", description: "Earnings moved to your USDC Vault for withdrawal." });
   };
 
   return (
@@ -336,7 +337,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       marketData,
       addTransaction, updateBalance, 
       syncOnChainBalance: async (addr, curr) => {
-        // Institutional Sync: Report the Enclave Balance as Verified
         const local = assets.find(a => a.address === addr)?.amount || 0;
         return { onChain: local, vault: local };
       },
