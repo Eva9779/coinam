@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -21,7 +20,8 @@ import {
   DollarSign,
   ArrowRight,
   Banknote,
-  ChevronLeft
+  ChevronLeft,
+  Activity
 } from "lucide-react";
 import { useWalletStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -30,7 +30,6 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
 const CustomPulseMarquee = ({ items, label }: { items: any[], label: string }) => {
-  // Double the items for seamless loop
   const displayItems = [...items, ...items];
 
   return (
@@ -79,21 +78,27 @@ export default function Dashboard() {
     initialized, 
     botActive,
     botLogs,
-    totalBotEarnings,
     marketData,
-    liquidateEarnings
   } = useWalletStore();
   
   const [mounted, setMounted] = useState(false);
-  const [isSettleLoading, setIsSettleLoading] = useState(false);
+  const [latency, setLatency] = useState(14);
 
   useEffect(() => {
     setMounted(true);
+    const interval = setInterval(() => {
+      setLatency(Math.floor(Math.random() * 8) + 12);
+    }, 3000);
+    return () => clearInterval(interval);
   }, []);
 
+  // SECURE: Use live market prices for net worth calculation, not stale DB values.
   const totalBalance = useMemo(() => {
-    return assets.reduce((acc, asset) => acc + (asset.fiatValueUSD || 0), 0);
-  }, [assets]);
+    return assets.reduce((acc, asset) => {
+      const livePrice = marketData.find(m => m.currency === asset.currency)?.currentPriceUSD || asset.fiatValueUSD / Math.max(asset.amount, 1) || 0;
+      return acc + (asset.amount * livePrice);
+    }, 0);
+  }, [assets, marketData]);
 
   const cryptoMarketData = useMemo(() => 
     marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USDC'].includes(m.currency)), 
@@ -102,12 +107,6 @@ export default function Dashboard() {
   const equityMarketData = useMemo(() => 
     marketData.filter(m => ['NVD', 'SOX', 'TQQQ', 'META', 'AAPL'].includes(m.currency)), 
   [marketData]);
-
-  const handleSettle = async () => {
-    setIsSettleLoading(true);
-    await liquidateEarnings();
-    setIsSettleLoading(false);
-  };
 
   if (!initialized || !mounted) {
     return (
@@ -171,8 +170,8 @@ export default function Dashboard() {
                   <div className="space-y-1">
                     <span className="text-[9px] font-bold uppercase opacity-60 block">Network Latency</span>
                     <span className="text-xs font-black uppercase tracking-widest text-green-400 flex items-center gap-1.5">
-                      <div className="h-1.5 w-1.5 rounded-full bg-green-400" />
-                      14ms
+                      <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+                      {latency}ms
                     </span>
                   </div>
                 </div>

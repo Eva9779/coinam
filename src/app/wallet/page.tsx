@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export default function WalletPage() {
-  const { assets, initialized, isSyncing, user, generateNewWallet, syncOnChainBalance } = useWalletStore();
+  const { assets, initialized, isSyncing, user, generateNewWallet, syncOnChainBalance, marketData } = useWalletStore();
   const [search, setSearch] = useState("");
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
 
@@ -38,8 +38,12 @@ export default function WalletPage() {
     return assets.filter(a => 
       a.currency.toLowerCase().includes(search.toLowerCase()) || 
       a.address.toLowerCase().includes(search.toLowerCase())
-    ).sort((a, b) => (b.fiatValueUSD || 0) - (a.fiatValueUSD || 0));
-  }, [assets, search]);
+    ).sort((a, b) => {
+      const aPrice = marketData.find(m => m.currency === a.currency)?.currentPriceUSD || 0;
+      const bPrice = marketData.find(m => m.currency === b.currency)?.currentPriceUSD || 0;
+      return (b.amount * bPrice) - (a.amount * aPrice);
+    });
+  }, [assets, search, marketData]);
 
   const handleSyncBalance = async (address: string, currency: string) => {
     setSyncingBalances(prev => ({ ...prev, [address]: true }));
@@ -143,6 +147,9 @@ export default function WalletPage() {
             <CardContent className="p-6">
               <div className="space-y-4">
                 {filteredAssets.length > 0 ? filteredAssets.map((asset) => {
+                  const livePrice = marketData.find(m => m.currency === asset.currency)?.currentPriceUSD || 0;
+                  const liveValue = asset.amount * livePrice;
+
                   return (
                     <div key={asset.id} className="flex flex-col p-6 border-2 border-primary/5 bg-background/30 rounded-3xl transition-all hover:border-primary/20">
                       <div className="flex items-center justify-between">
@@ -171,7 +178,7 @@ export default function WalletPage() {
                         <div className="text-right">
                           <div className="font-black text-2xl tracking-tighter">{asset.amount.toFixed(4)} <span className="text-xs font-bold text-muted-foreground opacity-50">{asset.currency}</span></div>
                           <div className="text-xs font-bold text-green-500 opacity-80">
-                            ${(asset.fiatValueUSD || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            ${liveValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </div>
                         </div>
                       </div>
