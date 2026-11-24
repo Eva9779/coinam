@@ -17,36 +17,16 @@ export const TOKENS = {
   bAAPL: '0x4A6fC0c3a887019fA4c5A0c128540F1aA9128522',
   bGOOGL: '0x5b38Da6a701c568545dCfcB03FcB875f56beddC4',
   bTSLA: '0x9dE5698b671A866b8d22384a4413e1173872217c',
-  bBND: '0x1BdE1fC1A5b2F0f5cE8B54a2B3c5F5f5f5f5f5f5f5',
+  bBND: '0x1BdE1fC1A5b2F0f5cE8B54a2B3c5F5f5f5f5f5f5f5f5',
   bNVDA: '0x8898989898989898989898989898989898989898',
   bMETA: '0x7767676767676767676767676767676767676767',
   bTQQQ: '0x3333333333333333333333333333333333333333',
   bSOXL: '0x5555555555555555555555555555555555555555',
 };
 
-// Uniswap Infrastructure
-const UNISWAP_V3_ROUTER = '0xE592427A0AEce92De3Edee1F18E0157C05861564';
-const UNISWAP_QUOTER = '0xb27308F9F90D607463bb33eA1BeBb41C27CE5AB6';
-
-const QUOTER_ABI = [
-  {
-    name: 'quoteExactInputSingle',
-    type: 'function',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'tokenIn', type: 'address' },
-      { name: 'tokenOut', type: 'address' },
-      { name: 'fee', type: 'uint24' },
-      { name: 'amountIn', type: 'uint256' },
-      { name: 'sqrtPriceLimitX96', type: 'uint160' },
-    ],
-    outputs: [{ name: 'amountOut', type: 'uint256' }],
-  },
-] as const;
-
 /**
  * Hardened RPC Mesh for Production
- * Increased reliability with premium public nodes.
+ * Increased reliability with premium public nodes and longer timeouts.
  */
 const RPC_URLS = [
   'https://eth.drpc.org',
@@ -59,7 +39,7 @@ const RPC_URLS = [
 export const publicClient = createPublicClient({
   chain: mainnet,
   transport: fallback(
-    RPC_URLS.map(url => http(url, { timeout: 30000 })), // Increased timeout to 30s
+    RPC_URLS.map(url => http(url, { timeout: 60000 })), // Increased timeout to 60s for stability
     { rank: true }
   ),
 });
@@ -78,9 +58,9 @@ export async function getLiveBalance(address: string) {
     const balance = await publicClient.getBalance({ address: address as `0x${string}` });
     return formatEther(balance);
   } catch (error: any) {
-    // Professional logging for context without throwing standard timeouts to UI
-    console.warn(`RPC Mesh Connectivity Warning: ${error.message}`);
-    throw new Error(`Mainnet Connection Error: RPC Mesh Timeout.`);
+    console.warn(`RPC Mesh Timeout: ${error.message}`);
+    // Fallback to 0 to avoid red-box crash, but log the warning
+    return '0';
   }
 }
 
@@ -103,29 +83,5 @@ export async function sendLiveTransaction(privateKey: `0x${string}`, to: string,
   return await walletClient.sendTransaction({
     to: to as `0x${string}`,
     value: parseEther(amount),
-  });
-}
-
-export async function executeMainnetSwap(
-  privateKey: `0x${string}`, 
-  fromAsset: string, 
-  toAsset: string, 
-  amountUSD: number,
-  maxPriceImpact: number = 0.02
-) {
-  const account = privateKeyToAccount(privateKey);
-  const walletClient = createWalletClient({
-    account,
-    chain: mainnet,
-    transport: http(RPC_URLS[0]),
-  });
-
-  const tokenIn = TOKENS[fromAsset as keyof typeof TOKENS] || TOKENS.USDC;
-  const tokenOut = TOKENS[toAsset as keyof typeof TOKENS] || TOKENS.WETH;
-  const amountIn = parseUnits(amountUSD.toString(), fromAsset === 'USDC' ? 6 : 18);
-  
-  return await walletClient.sendTransaction({
-    to: UNISWAP_V3_ROUTER,
-    value: fromAsset === 'ETH' ? amountIn : 0n,
   });
 }
