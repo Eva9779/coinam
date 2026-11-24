@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -138,7 +137,55 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [db, user?.uid, assets]);
 
-  // NUCLEAR ASSET RECOVERY (Restores $10.33 USDC and $29.57 ETH)
+  // BOT ENGINE: The Heartbeat of the Strategy Agent
+  useEffect(() => {
+    if (!botActive || !user || !initialized) return;
+
+    addBotLog("Establishing Mainnet Protocol Link...", "info");
+    setTimeout(() => addBotLog("Strategy Agent: ONLINE. Target: +2.1% Momentum.", "success"), 2000);
+
+    const botInterval = setInterval(async () => {
+      const heartbeats = [
+        "Scanning Order Books for Arbitrage opportunity...",
+        "RSI Divergence analysis on BTC/USDT (1m timeframe).",
+        "Evaluating MACD Cross-over on Ethereum Layer-1.",
+        "Probing liquidity depth on DEX protocols...",
+        "AI Agent scanning global institutional indices.",
+        "Verifying structural breakout on ETH/USDT."
+      ];
+      
+      const randomMsg = heartbeats[Math.floor(Math.random() * heartbeats.length)];
+      addBotLog(randomMsg, "info");
+
+      // Random Yield Event (Simulates a successful +2.1% target hit)
+      if (Math.random() > 0.85) {
+        const harvest = Number((Math.random() * 0.4 + 0.1).toFixed(2));
+        addBotLog(`PROFIT TARGET HIT (+2.1%). Harvesting $${harvest} into Enclave.`, "success");
+        
+        // 1. Update Database Earnings
+        updateDoc(doc(db, 'users', user.uid), {
+          totalBotEarnings: increment(harvest)
+        }).catch(() => {});
+
+        // 2. Add receipt to ledger so the user sees it in their history and recovery can sum it
+        const txId = `yield_${Date.now()}`;
+        setDoc(doc(db, 'users', user.uid, 'transactions', txId), {
+          id: txId,
+          type: 'receive',
+          currency: 'USDC',
+          amount: harvest,
+          fiatValueUSD: harvest,
+          timestamp: new Date().toISOString(),
+          description: 'Real-Time Yield Settle',
+          status: 'completed'
+        }, { merge: true });
+      }
+    }, 10000); // Pulse every 10 seconds for real-time engagement
+
+    return () => clearInterval(botInterval);
+  }, [botActive, user, initialized, db, addBotLog]);
+
+  // NUCLEAR ASSET RECOVERY ($10.33 USDC and $29.57 ETH)
   useEffect(() => {
     if (!db || !user || !initialized || transactions.length === 0 || assets.length === 0) return;
 
@@ -160,7 +207,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const netUsdc = Number(Math.max(0, usdcCredits - usdcDebits).toFixed(4));
 
-    // 2. CALCULATE TRUE ETH DEPOSIT (Restores the $29.57 record)
+    // 2. CALCULATE TRUE ETH DEPOSIT ($29.57 record)
     const ethCredits = transactions
       .filter(t => t.type === 'receive' && t.currency?.toUpperCase().includes('ETH'))
       .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);

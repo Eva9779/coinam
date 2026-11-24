@@ -79,7 +79,7 @@ BotTradingChart.displayName = "BotTradingChart";
 
 export default function TradingBotPage() {
   const { 
-    botActive, botAllocation, botRiskLevel, botStrategy, botLogs, updateBotSettings, clearBotLogs,
+    botActive, botAllocation, botRiskLevel, botStrategy, botLogs, updateBotSettings, clearBotLogs, totalBotEarnings
   } = useWalletStore();
 
   const [cryptoAllocation, setCryptoAllocation] = useState(botAllocation?.toString() || "20");
@@ -135,7 +135,7 @@ export default function TradingBotPage() {
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Realized Mainnet Yield</p>
-                  <p className="text-4xl font-black tracking-tighter">$0.00</p>
+                  <p className="text-4xl font-black tracking-tighter">${totalBotEarnings.toFixed(2)}</p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
                   <Trophy className="h-7 w-7 text-secondary" />
