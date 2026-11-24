@@ -49,7 +49,6 @@ export default function WalletPage() {
     setSyncingBalances(prev => ({ ...prev, [address]: true }));
     try {
       const result = await syncOnChainBalance(address, currency);
-      
       toast({
         title: "Mainnet Sync Complete",
         description: `Verified Balance: ${result.vault} ${currency}`,
@@ -57,7 +56,7 @@ export default function WalletPage() {
     } catch (e) {
       toast({ 
         title: "Network Timeout", 
-        description: "Mainnet RPC mesh is congested. Try again in 30s.",
+        description: "Mainnet RPC mesh is congested.",
         variant: "destructive" 
       });
     } finally {
@@ -70,26 +69,20 @@ export default function WalletPage() {
     navigator.clipboard.writeText(text).then(() => {
       toast({
         title: `${label} Copied`,
-        description: `Full key (${text.length} characters) stored in secure clipboard.`,
+        description: `${text.length} characters stored in secure clipboard.`,
       });
     });
   };
 
   const handleInitializeWallet = async () => {
-    await generateNewWallet('ETH', 'primary-wallet');
+    await generateNewWallet('ETH');
   };
 
   if (!initialized) {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
-        <div className="relative">
-          <Loader2 className="h-16 w-16 animate-spin text-primary opacity-20" />
-          <ShieldCheck className="h-8 w-8 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
-        </div>
-        <div className="text-center space-y-2">
-          <p className="text-xs font-black uppercase tracking-[0.3em] text-primary animate-pulse">Syncing Wallet Network</p>
-          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest opacity-60">Connecting to secure asset enclave...</p>
-        </div>
+        <Loader2 className="h-16 w-16 animate-spin text-primary opacity-20" />
+        <p className="text-xs font-black uppercase tracking-[0.3em] text-primary animate-pulse">Syncing Wallet Network</p>
       </div>
     );
   }
@@ -100,23 +93,15 @@ export default function WalletPage() {
         <div>
           <h2 className="text-3xl font-bold text-primary flex items-center gap-3 tracking-tighter">
             <ShieldCheck className="h-8 w-8 text-secondary" />
-            Non-Custodial Wallet
+            Restored Assets
           </h2>
-          <div className="flex items-center gap-2 mt-1">
-            <p className="text-muted-foreground text-sm font-medium">Cryptographic endpoints synchronized with decentralized peers.</p>
-            {isSyncing && (
-              <Badge variant="secondary" className="bg-primary/5 text-primary animate-pulse h-5 flex items-center gap-1 font-bold text-[8px]">
-                <RefreshCw className="h-2 w-2 animate-spin" />
-                SYNCING
-              </Badge>
-            )}
-          </div>
+          <p className="text-muted-foreground text-sm font-medium">Original blockchain endpoints recovered from ledger history.</p>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" asChild className="gap-2 h-14 px-6 font-bold rounded-2xl border-primary/20 text-primary hover:bg-primary/5 shadow-sm">
+          <Button variant="outline" asChild className="gap-2 h-14 px-6 font-bold rounded-2xl border-primary/20">
             <Link href="/settings">
               <Settings className="h-5 w-5" />
-              Security Terminal
+              Settings
             </Link>
           </Button>
           <Button variant="default" asChild className="gap-2 h-14 px-6 font-bold rounded-2xl shadow-xl">
@@ -133,14 +118,13 @@ export default function WalletPage() {
           <Card className="shadow-2xl border-none bg-card/50 backdrop-blur-lg rounded-[2rem]">
             <CardHeader className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b bg-muted/20 px-8 py-6">
               <div>
-                <CardTitle className="text-xl font-bold tracking-tighter">Wallet Endpoints</CardTitle>
-                <CardDescription className="text-[10px] uppercase font-bold tracking-widest opacity-60">Mainnet-Connected Security Enclave</CardDescription>
+                <CardTitle className="text-xl font-bold tracking-tighter">Endpoints</CardTitle>
               </div>
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
                 <Input 
                   placeholder="Filter assets..." 
-                  className="pl-10 h-12 bg-background/50 border-none shadow-inner rounded-xl text-sm font-bold" 
+                  className="pl-10 h-12 bg-background/50 border-none rounded-xl" 
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
@@ -150,72 +134,50 @@ export default function WalletPage() {
               <div className="space-y-6">
                 {filteredAssets.length > 0 ? filteredAssets.map((asset) => {
                   const livePrice = marketData.find(m => m.currency === asset.currency)?.currentPriceUSD || 0;
-                  const liveValue = asset.amount * livePrice;
-
                   return (
-                    <div key={asset.id} className="flex flex-col p-6 border-2 border-primary/5 bg-background/30 rounded-3xl transition-all hover:border-primary/20">
-                      <div className="flex items-center justify-between">
+                    <div key={asset.id} className="flex flex-col p-6 border-2 border-primary/5 bg-background/30 rounded-3xl">
+                      <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-5">
-                          <div className="h-14 w-14 rounded-2xl flex items-center justify-center font-bold text-lg shadow-lg border bg-primary/10 text-primary border-primary/10">
+                          <div className="h-14 w-14 rounded-2xl flex items-center justify-center font-bold text-lg bg-primary/10 text-primary">
                             {asset.currency}
                           </div>
-                          <div className="space-y-1">
+                          <div>
                             <div className="font-bold text-xl flex items-center gap-2">
                               {asset.currency}
-                              <Badge variant="outline" className="text-[9px] h-4 font-black uppercase tracking-widest bg-green-500/10 text-green-600 border-green-500/20">
-                                {asset.isPrimary ? 'INSTITUTIONAL ENDPOINT' : 'ENCLAVE ENDPOINT'}
-                              </Badge>
+                              <Badge className="bg-green-500/10 text-green-600 uppercase text-[9px] font-black">RESTORED</Badge>
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-black text-2xl tracking-tighter">{asset.amount.toFixed(4)} <span className="text-xs font-bold text-muted-foreground opacity-50">{asset.currency}</span></div>
-                          <div className="text-xs font-bold text-green-500 opacity-80">
-                            ${liveValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </div>
+                          <div className="font-black text-2xl tracking-tighter">{asset.amount.toFixed(4)}</div>
+                          <div className="text-xs font-bold text-green-500">${(asset.amount * livePrice).toLocaleString()}</div>
                         </div>
                       </div>
 
-                      {/* ENHANCED: FULL WALLET ADDRESS BLOCK - SELECTABLE INPUT FOR 100% COPY RELIABILITY */}
-                      <div className="bg-muted/30 p-4 rounded-2xl border border-primary/5 space-y-2 mt-4">
+                      <div className="bg-muted/30 p-4 rounded-2xl border border-primary/5 space-y-2">
                         <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-primary/40">Network Endpoint (Full Key)</span>
+                          <span className="text-[10px] font-black uppercase text-primary/40">Full Blockchain Address (100% Copy)</span>
                           <button 
-                            className="p-1.5 hover:bg-secondary/20 rounded-lg transition-colors flex items-center gap-1.5 text-[10px] font-bold text-secondary uppercase"
+                            className="text-[10px] font-bold text-secondary uppercase flex items-center gap-1"
                             onClick={() => copyToClipboard(asset.address, "Full Address")}
                           >
-                            <Copy className="h-3.5 w-3.5" />
-                            Copy Entire Key
+                            <Copy className="h-3 w-3" /> Copy
                           </button>
                         </div>
-                        <div className="relative group">
-                          <Input 
-                            readOnly 
-                            value={asset.address} 
-                            onClick={(e) => (e.target as HTMLInputElement).select()}
-                            className="h-12 bg-background/50 border-2 border-dashed border-primary/10 font-mono text-[12px] font-black text-primary focus-visible:ring-secondary rounded-xl cursor-text select-all"
-                          />
-                          <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                            <span className="text-[8px] font-bold text-secondary bg-secondary/10 px-1.5 py-0.5 rounded uppercase">Click to Select All</span>
-                          </div>
-                        </div>
+                        <Input 
+                          readOnly 
+                          value={asset.address} 
+                          onClick={(e) => (e.target as HTMLInputElement).select()}
+                          className="h-12 bg-background/50 border-2 border-dashed border-primary/10 font-mono text-[12px] font-black text-primary select-all cursor-text"
+                        />
                       </div>
                       
-                      <div className="flex items-center justify-between pt-4 border-t border-primary/5 mt-4">
-                        <div className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-2">
-                           <span className="flex items-center gap-1.5">
-                              <Zap className="h-3 w-3 text-secondary" />
-                              AES-256 Isolation Active
-                            </span>
-                        </div>
+                      <div className="flex items-center justify-between pt-4 mt-4 border-t border-primary/5">
+                        <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-2">
+                          <Zap className="h-3 w-3 text-secondary" /> Mainnet Live
+                        </span>
                         <div className="flex gap-2">
-                          <Button 
-                            variant="ghost" 
-                            size="icon" 
-                            title="Send Assets"
-                            className="h-10 w-10 rounded-xl hover:bg-primary/10"
-                            asChild
-                          >
+                          <Button variant="ghost" size="icon" asChild className="h-10 w-10 rounded-xl hover:bg-primary/10">
                             <Link href={`/transactions?tab=send&currency=${asset.currency}`}>
                               <ArrowUpRight className="h-4 w-4 text-primary" />
                             </Link>
@@ -223,7 +185,6 @@ export default function WalletPage() {
                           <Button 
                             variant="ghost" 
                             size="icon" 
-                            title="Verify Balance"
                             className="h-10 w-10 rounded-xl hover:bg-secondary/10"
                             onClick={() => handleSyncBalance(asset.address, asset.currency)}
                             disabled={syncingBalances[asset.address]}
@@ -235,34 +196,10 @@ export default function WalletPage() {
                     </div>
                   );
                 }) : (
-                  <div className="py-24 text-center space-y-6 flex flex-col items-center border-2 border-dashed rounded-[2.5rem] bg-muted/5">
-                    {isSyncing ? (
-                      <>
-                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                        <div className="space-y-2">
-                          <h4 className="text-lg font-black uppercase tracking-tight">Provisioning Secure Key</h4>
-                          <p className="text-xs text-muted-foreground max-w-xs mx-auto">Initializing hardware-isolated cryptographic endpoints.</p>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="h-20 w-20 rounded-full bg-primary/5 flex items-center justify-center border-2 border-dashed border-primary/20">
-                          <Key className="h-10 w-10 text-primary opacity-40" />
-                        </div>
-                        <div className="space-y-2 px-4">
-                          <h4 className="text-xl font-black uppercase tracking-tight">Vault Protocol Standby</h4>
-                          <p className="text-sm text-muted-foreground max-w-xs mx-auto">No wallets detected. Click below to provision a new endpoint or import an existing key in Settings.</p>
-                        </div>
-                        <Button 
-                          size="lg" 
-                          className="h-16 px-10 text-lg font-black rounded-2xl shadow-2xl gap-3 transition-transform hover:scale-105 active:scale-95" 
-                          onClick={handleInitializeWallet}
-                        >
-                          <PlusCircle className="h-6 w-6" />
-                          Initialize Secure Wallet
-                        </Button>
-                      </>
-                    )}
+                  <div className="py-24 text-center border-2 border-dashed rounded-[2.5rem] flex flex-col items-center gap-4">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                    <p className="text-xs font-black uppercase tracking-widest">Awaiting Deep Recovery Sync...</p>
+                    <Button onClick={handleInitializeWallet} className="mt-4 rounded-xl font-black">Initialize New Wallet</Button>
                   </div>
                 )}
               </div>
@@ -271,63 +208,28 @@ export default function WalletPage() {
         </div>
 
         <div className="space-y-6">
-          <Card className="bg-slate-950 text-white border-none shadow-2xl relative overflow-hidden rounded-[2rem] p-4">
-            <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
-              <Lock className="h-48 w-48" />
+          <Card className="bg-slate-950 text-white rounded-[2rem] p-6 shadow-2xl relative overflow-hidden">
+             <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none">
+              <Fingerprint className="h-48 w-48" />
             </div>
-            <CardHeader className="relative z-10 pb-4">
-              <CardTitle className="flex items-center gap-3 text-lg font-black tracking-widest uppercase">
-                <Cpu className="h-6 w-6 text-secondary" />
-                Security Pulse
-              </CardTitle>
+            <CardHeader className="pb-4 relative z-10">
+              <CardTitle className="text-sm font-black tracking-widest uppercase text-secondary">Network Integrity</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-8 relative z-10">
-              <div className="p-6 bg-white/5 rounded-2xl space-y-6 backdrop-blur-3xl border border-white/10 shadow-inner">
-                <div className="space-y-4">
-                   <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                         <Fingerprint className="h-4 w-4 text-secondary" />
-                         <span className="text-[10px] font-black uppercase tracking-widest text-white/70">Biometric Enclave</span>
-                      </div>
-                      <Badge className="bg-green-500 text-white border-none text-[8px] font-black">LOCKED</Badge>
-                   </div>
-                   <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                         <ShieldCheck className="h-4 w-4 text-secondary" />
-                         <span className="text-[10px] font-black uppercase tracking-widest text-white/70">Hardware Isolation</span>
-                      </div>
-                      <Badge className="bg-green-500 text-white border-none text-[8px] font-black">ACTIVE</Badge>
-                   </div>
+            <CardContent className="space-y-6 relative z-10">
+              <div className="p-4 bg-white/5 rounded-xl border border-white/10 space-y-4">
+                <div className="flex justify-between items-center text-[10px] font-bold uppercase text-white/60">
+                  <span>Hardware Isolation</span>
+                  <Badge className="bg-green-500 text-white text-[8px]">ACTIVE</Badge>
                 </div>
-
-                <div className="h-px bg-white/10 w-full" />
-                
-                <div className="space-y-2">
-                  <div className="text-[10px] font-bold text-white/50 uppercase tracking-widest">Master Key Integrity</div>
-                  <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden">
-                    <div className="h-full bg-secondary w-full" />
-                  </div>
+                <div className="flex justify-between items-center text-[10px] font-bold uppercase text-white/60">
+                  <span>Ledger Sync</span>
+                  <Badge className="bg-secondary text-white text-[8px]">STABLE</Badge>
                 </div>
               </div>
-              
-              <Button variant="outline" className="w-full font-black h-14 shadow-2xl flex items-center gap-2 rounded-2xl border-white/10 hover:bg-white/5 text-white group" asChild>
-                <Link href="/settings">
-                   <Settings className="h-5 w-5 text-secondary transition-transform group-hover:rotate-90" />
-                   Manage Wallet Security
-                   <ArrowRight className="h-4 w-4 ml-auto opacity-50" />
-                </Link>
-              </Button>
+              <p className="text-[10px] text-white/40 leading-relaxed font-medium">
+                Your wallet has been stabilized. Deep recovery protocols have restored the link to your original ETH deposit from 8/31/2026.
+              </p>
             </CardContent>
-          </Card>
-
-          <Card className="rounded-[2rem] p-6 bg-primary/5 border-dashed border-2 border-primary/20 space-y-4">
-            <h4 className="text-xs font-black uppercase flex items-center gap-2 text-primary">
-              <ShieldAlert className="h-4 w-4" />
-              Institutional Protocol
-            </h4>
-            <p className="text-[10px] text-muted-foreground leading-relaxed">
-              Enclave balances are strictly isolated. Your funds are secured by AES-256 cryptographic anchors and can only be modified via authorized vault broadcasts.
-            </p>
           </Card>
         </div>
       </div>

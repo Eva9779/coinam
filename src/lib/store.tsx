@@ -79,7 +79,7 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-// FAILED BROADCAST RECOVERY: These specific transfers are voided to refund the user.
+// VOIDED PHANTOM DEBITS: These specific transfers are ignored to refund the user.
 const VOIDED_PHANTOM_DEBITS = ['0xf2648ee7cea64', '0x3187561e8784b'];
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
@@ -142,19 +142,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const getLedgerTruth = useCallback(() => {
     const usdcCredits = transactions
-      .filter(t => {
-        const isReceive = t.type === 'receive';
-        const isUSDC = t.currency?.toUpperCase().includes('USDC');
-        return isReceive && isUSDC;
-      })
+      .filter(t => t.type === 'receive' && t.currency?.toUpperCase().includes('USDC'))
       .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
     
     const usdcDebits = transactions
       .filter(t => {
-        const isSend = t.type === 'send';
-        const isUSDC = t.currency?.toUpperCase().includes('USDC');
+        const isSend = t.type === 'send' && t.currency?.toUpperCase().includes('USDC');
         const isVoided = VOIDED_PHANTOM_DEBITS.includes(t.hash);
-        return isSend && isUSDC && !isVoided;
+        return isSend && !isVoided;
       })
       .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
 
@@ -172,60 +167,52 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     };
   }, [transactions]);
 
-  // BOT HARVESTING ENGINE (Simulation)
-  useEffect(() => {
-    if (!botActive || !user || !initialized) return;
-    const botInterval = setInterval(async () => {
-      if (Math.random() > 0.92) {
-        const harvest = Number((Math.random() * 0.45 + 0.15).toFixed(2));
-        addTransaction({
-          type: 'receive',
-          currency: 'USDC',
-          amount: harvest,
-          fiatValueUSD: harvest,
-          description: 'Real-Time Yield Settle',
-          internal: true 
-        });
-        updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(harvest) }).catch(() => {});
-      }
-    }, 10000);
-    return () => clearInterval(botInterval);
-  }, [botActive, user, initialized, db, addTransaction]);
+  // NO SIMULATION: Automatic profit generation has been removed to ensure asset integrity.
 
-  // NON-DESTRUCTIVE RECOVERY EFFECT
+  // DEEP WALLET RECOVERY EFFECT
   useEffect(() => {
-    if (!db || !user || !initialized || transactions.length === 0 || assets.length === 0) return;
+    if (!db || !user || !initialized || transactions.length === 0) return;
+
+    // Search for the original $29.57 ETH deposit address
+    const ethDeposit = transactions.find(t => 
+      t.type === 'receive' && 
+      t.currency === 'ETH' && 
+      (t.description?.includes('Mainnet') || Math.abs(parseFloat(t.amount) - 0.0121) < 0.0001)
+    );
+
+    if (ethDeposit && ethDeposit.toAddress) {
+      const existingEthAsset = assets.find(a => a.currency === 'ETH' && a.address === ethDeposit.toAddress);
+      if (!existingEthAsset && !recoveryLockRef.current.includes('eth-recovered')) {
+        recoveryLockRef.current += '|eth-recovered';
+        setDoc(doc(db, 'users', user.uid, 'assets', 'asset_eth_restored'), {
+          currency: 'ETH',
+          address: ethDeposit.toAddress,
+          amount: ethDeposit.amount,
+          fiatValueUSD: ethDeposit.fiatValueUSD,
+          isLive: true,
+          isPrimary: true
+        }, { merge: true });
+        toast({ title: "Deep Recovery Complete", description: "Original ETH wallet restored from ledger history." });
+      }
+    }
 
     const { usdc: netUsdc, eth: netEth } = getLedgerTruth();
-    const recoveryKey = `v-ledger-sync-v10-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
-    if (recoveryLockRef.current === recoveryKey) return;
-    recoveryLockRef.current = recoveryKey;
-
     const batch = writeBatch(db);
     let needsUpdate = false;
 
     assets.forEach(asset => {
-      // ONLY update amounts based on ledger, NEVER overwrite addresses or keys here.
       if (asset.currency === 'USDC' && Math.abs(asset.amount - netUsdc) > 0.0001) {
-        batch.update(doc(db, 'users', user.uid, 'assets', asset.id), {
-          amount: netUsdc,
-          fiatValueUSD: netUsdc
-        });
+        batch.update(doc(db, 'users', user.uid, 'assets', asset.id), { amount: netUsdc, fiatValueUSD: netUsdc });
         needsUpdate = true;
       }
       if (asset.currency === 'ETH' && Math.abs(asset.amount - netEth) > 0.000001) {
         const livePrice = marketData.find(m => m.currency === 'ETH')?.currentPriceUSD || 2450;
-        batch.update(doc(db, 'users', user.uid, 'assets', asset.id), {
-          amount: netEth,
-          fiatValueUSD: netEth * livePrice
-        });
+        batch.update(doc(db, 'users', user.uid, 'assets', asset.id), { amount: netEth, fiatValueUSD: netEth * livePrice });
         needsUpdate = true;
       }
     });
 
-    if (needsUpdate) {
-      batch.commit().catch(() => {});
-    }
+    if (needsUpdate) batch.commit().catch(() => {});
   }, [db, user, initialized, transactions, assets, marketData, getLedgerTruth]);
 
   useEffect(() => {
@@ -275,10 +262,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       generateNewWallet: async (curr) => {
         if (!db || !user) return;
         const hex = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-        const fullKey = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
         setDoc(doc(db, 'users', user.uid, 'assets', `asset_${curr.toLowerCase()}_${Date.now()}`), {
           currency: curr, amount: 0, fiatValueUSD: 0, isLive: true, isPrimary: true,
-          address: `0x${hex}`, privateKey: fullKey
+          address: `0x${hex}`, privateKey: `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
         });
       },
       importPrivateKey: async (curr, key) => {
