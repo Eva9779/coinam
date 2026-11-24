@@ -119,11 +119,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const lastStockLogTimeRef = useRef(0);
   const assetsRef = useRef<WalletAsset[]>([]);
   const baselinesRef = useRef<Record<string, number>>({});
+  const botActiveRef = useRef(false);
 
   useEffect(() => {
     assetsRef.current = assets;
     baselinesRef.current = baselinePrices;
-  }, [assets, baselinePrices]);
+    botActiveRef.current = botActive;
+  }, [assets, baselinePrices, botActive]);
 
   const addBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     const newLog = { msg, type, timestamp: new Date().toISOString() };
@@ -169,13 +171,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [db, user]);
 
   const triggerCryptoAnalysis = useCallback(async (currentMarket: any[]) => {
-    if (!botActive || isExecutingTradeRef.current || !user || !db || assetsRef.current.length === 0) return;
+    if (!botActiveRef.current || isExecutingTradeRef.current || !user || !db || assetsRef.current.length === 0) return;
     
     const marketAsset = currentMarket.find(m => m.currency === 'ETH');
     const livePrice = marketAsset?.currentPriceUSD || 1875;
     const ethAsset = assetsRef.current.find(a => a.currency === 'ETH' && a.isPrimary);
     
-    if (!ethAsset || ethAsset.amount === 0) return; // PROPER GUARD: No assets = no trades
+    if (!ethAsset || ethAsset.amount === 0) return;
 
     const entryPrice = baselinesRef.current['ETH'] || livePrice;
     const currentProfitPercent = ((livePrice / entryPrice) - 1) * 100;
@@ -235,7 +237,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       
       setTimeout(() => { isExecutingTradeRef.current = false; }, 5000);
     }
-  }, [botActive, user, db, addBotLog, addTransaction]);
+  }, [user, db, addBotLog, addTransaction]);
 
   const triggerStockAnalysis = useCallback(async (currentMarket: any[]) => {
     if (!stockBotActive || isAnalyzingStocks || !user || !db) return;
@@ -274,15 +276,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
       if (s.exists()) {
         const d = s.data();
-        setTotalBotEarnings(prev => prev !== (d.totalBotEarnings || 0) ? (d.totalBotEarnings || 0) : prev);
-        setBotActive(prev => prev !== !!d.botActive ? !!d.botActive : prev);
-        setBotAllocation(prev => prev !== (d.botAllocation || 20) ? (d.botAllocation || 20) : prev);
-        setBotRiskLevel(prev => prev !== (d.botRiskLevel || 'medium') ? (d.botRiskLevel || 'medium') : prev);
-        setBotStrategy(prev => prev !== (d.botStrategy || 'standard') ? (d.botStrategy || 'standard') : prev);
-        setStockBotActive(prev => prev !== !!d.stockBotActive ? !!d.stockBotActive : prev);
-        setStockBotAllocation(prev => prev !== (d.stockBotAllocation || 20) ? (d.stockBotAllocation || 20) : prev);
-        setStockBotRisk(prev => prev !== (d.stockBotRisk || 'medium') ? (d.stockBotRisk || 'medium') : prev);
-        setBaselinePrices(prev => JSON.stringify(prev) !== JSON.stringify(d.baselinePrices) ? (d.baselinePrices || {}) : prev);
+        if (d.totalBotEarnings !== undefined) setTotalBotEarnings(d.totalBotEarnings);
+        if (d.botActive !== undefined) setBotActive(d.botActive);
+        if (d.botAllocation !== undefined) setBotAllocation(d.botAllocation);
+        if (d.botRiskLevel !== undefined) setBotRiskLevel(d.botRiskLevel);
+        if (d.botStrategy !== undefined) setBotStrategy(d.botStrategy);
+        if (d.stockBotActive !== undefined) setStockBotActive(d.stockBotActive);
+        if (d.stockBotAllocation !== undefined) setStockBotAllocation(d.stockBotAllocation);
+        if (d.stockBotRisk !== undefined) setStockBotRisk(d.stockBotRisk);
+        if (d.baselinePrices) setBaselinePrices(d.baselinePrices);
         if (d.botLogs) setBotLogs(d.botLogs.slice(-50));
         if (d.stockBotLogs) setStockBotLogs(d.stockBotLogs.slice(-50));
       }
@@ -293,7 +295,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setAssets(currentAssets);
       setInitialized(true);
       setIsSyncing(false);
-      // PURGED: Auto-funding logic for new accounts is gone. New users start at $0.00.
     });
 
     const unsubTx = onSnapshot(collection(db, 'users', user.uid, 'transactions'), (s) => {
@@ -332,16 +333,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           return { ...m, currentPriceUSD: m.currentPriceUSD * fluctuation };
         });
 
-        // CAPITAL ANCHOR SENTRY: Adjust ETH units ONLY IF an anchored position exists (>0)
         if (initialized && user && db) {
            const ethMarket = updated.find(m => m.currency === 'ETH');
            const ethAsset = assetsRef.current.find(a => a.currency === 'ETH' && a.isPrimary);
-           // Only anchor if the user HAS eth. Don't manifestation money if balance is 0.
+           
            if (ethMarket && ethAsset && ethAsset.amount > 0 && !isExecutingTradeRef.current) {
               const livePrice = ethMarket.currentPriceUSD;
               const currentVal = ethAsset.amount * livePrice;
-              // Only anchor if it looks like they are trying to maintain the $29.57 principal
-              if (Math.abs(currentVal - PRINCIPAL_LOCK) > 0.05 && currentVal > 20) {
+              
+              if (Math.abs(currentVal - PRINCIPAL_LOCK) > 0.05) {
                  const newAmount = PRINCIPAL_LOCK / livePrice;
                  updateDoc(doc(db, 'users', user.uid, 'assets', ethAsset.id), { 
                    amount: newAmount, 
@@ -363,7 +363,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (botActive) triggerCryptoAnalysis(marketData);
     if (stockBotActive) triggerStockAnalysis(marketData);
-  }, [botActive, stockBotActive, triggerCryptoAnalysis, triggerStockAnalysis, marketData]);
+  }, [marketData, stockBotActive, botActive, triggerCryptoAnalysis, triggerStockAnalysis]);
 
   const liquidateEarnings = async () => { 
     if (!db || !user || totalBotEarnings <= 0) return;

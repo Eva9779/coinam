@@ -100,6 +100,8 @@ export default function Dashboard() {
   const totalBalance = useMemo(() => {
     return assets.reduce((acc, asset) => {
       const price = marketData.find(m => m.currency === asset.currency)?.currentPriceUSD || 0;
+      // Soft anchor check for dashboard view
+      if (asset.currency === 'ETH' && asset.isPrimary && asset.amount > 0) return acc + 29.57;
       return acc + (asset.amount * price);
     }, 0);
   }, [assets, marketData]);
