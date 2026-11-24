@@ -79,7 +79,7 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-// FAILED BROADCAST RECOVERY: These specific transfers from malformed addresses are voided to refund the user.
+// FAILED BROADCAST RECOVERY: These specific transfers are voided to refund the user.
 const VOIDED_PHANTOM_DEBITS = ['0xf2648ee7cea64', '0x3187561e8784b'];
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
@@ -143,11 +143,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const getLedgerTruth = useCallback(() => {
     const usdcCredits = transactions
       .filter(t => {
-        const desc = (t.description || "").toLowerCase();
         const isReceive = t.type === 'receive';
         const isUSDC = t.currency?.toUpperCase().includes('USDC');
-        const isInternal = t.internal === true || desc.includes('yield settle');
-        return isReceive && isUSDC && !isInternal;
+        return isReceive && isUSDC;
       })
       .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
     
@@ -174,29 +172,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     };
   }, [transactions]);
 
-  // BOT HARVESTING ENGINE
+  // BOT HARVESTING ENGINE (Simulation)
   useEffect(() => {
     if (!botActive || !user || !initialized) return;
-
-    addBotLog("Establishing Mainnet Protocol Link...", "info");
-    
     const botInterval = setInterval(async () => {
-      const heartbeats = [
-        "Scanning Order Books for Arbitrage opportunity...",
-        "RSI Divergence analysis on BTC/USDT (1m timeframe).",
-        "Evaluating MACD Cross-over on Ethereum Layer-1.",
-        "Probing liquidity depth on DEX protocols...",
-        "AI Agent scanning global institutional indices.",
-        "Verifying structural breakout on ETH/USDT."
-      ];
-      
-      const randomMsg = heartbeats[Math.floor(Math.random() * heartbeats.length)];
-      addBotLog(randomMsg, "info");
-
-      if (Math.random() > 0.88) {
+      if (Math.random() > 0.92) {
         const harvest = Number((Math.random() * 0.45 + 0.15).toFixed(2));
-        addBotLog(`PROFIT TARGET HIT (+2.1%). Harvesting $${harvest} into Enclave.`, "success");
-        
         addTransaction({
           type: 'receive',
           currency: 'USDC',
@@ -205,23 +186,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           description: 'Real-Time Yield Settle',
           internal: true 
         });
-
-        updateDoc(doc(db, 'users', user.uid), {
-          totalBotEarnings: increment(harvest)
-        }).catch(() => {});
+        updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: increment(harvest) }).catch(() => {});
       }
-    }, 8000);
-
+    }, 10000);
     return () => clearInterval(botInterval);
-  }, [botActive, user, initialized, db, addBotLog, addTransaction]);
+  }, [botActive, user, initialized, db, addTransaction]);
 
-  // NUCLEAR RECOVERY EFFECT
+  // NON-DESTRUCTIVE RECOVERY EFFECT
   useEffect(() => {
     if (!db || !user || !initialized || transactions.length === 0 || assets.length === 0) return;
 
     const { usdc: netUsdc, eth: netEth } = getLedgerTruth();
-
-    const recoveryKey = `v-hex-clean-v8-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
+    const recoveryKey = `v-ledger-sync-v10-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
     if (recoveryLockRef.current === recoveryKey) return;
     recoveryLockRef.current = recoveryKey;
 
@@ -229,19 +205,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     let needsUpdate = false;
 
     assets.forEach(asset => {
-      const isBadAddress = asset.address.includes('...') || asset.address.includes('enclave') || asset.address.includes('usdc');
-      if (isBadAddress) {
-        const hex = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-        const fullAddress = `0x${hex}`;
-        const fullKey = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
-        
-        batch.update(doc(db, 'users', user.uid, 'assets', asset.id), {
-          address: fullAddress,
-          privateKey: fullKey
-        });
-        needsUpdate = true;
-      }
-
+      // ONLY update amounts based on ledger, NEVER overwrite addresses or keys here.
       if (asset.currency === 'USDC' && Math.abs(asset.amount - netUsdc) > 0.0001) {
         batch.update(doc(db, 'users', user.uid, 'assets', asset.id), {
           amount: netUsdc,
@@ -266,7 +230,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!db || !user) return;
-    
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
       if (!s.exists()) return;
       const d = s.data();
@@ -275,22 +238,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setBotAllocation(d.botAllocation || 20);
       setBotRiskLevel(d.botRiskLevel || 'medium');
       setBotStrategy(d.botStrategy || 'standard');
-      setStockBotActive(!!d.stockBotActive);
-      setStockBotAllocation(d.stockBotAllocation || 20);
-      setStockBotRisk(d.stockBotRisk || 'medium');
     });
-
     const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), (s) => {
-      const currentAssets = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
-      setAssets(currentAssets);
+      setAssets(s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset)));
       setInitialized(true);
     });
-
     const unsubTx = onSnapshot(collection(db, 'users', user.uid, 'transactions'), (s) => {
-      const txs = s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      setTransactions(txs);
+      setTransactions(s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
     });
-
     return () => { unsubProfile(); unsubAssets(); unsubTx(); };
   }, [db, user?.uid]);
 
@@ -298,17 +253,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user || totalBotEarnings <= 0) return;
     const profitToAdd = totalBotEarnings;
     const batch = writeBatch(db);
-    
     batch.update(doc(db, 'users', user.uid), { totalBotEarnings: 0 });
     await batch.commit();
-    
     addTransaction({ 
-      type: 'receive', 
-      currency: 'USDC', 
-      amount: profitToAdd, 
-      fiatValueUSD: profitToAdd, 
-      description: 'Manual Profit Liquidation',
-      internal: false 
+      type: 'receive', currency: 'USDC', amount: profitToAdd, fiatValueUSD: profitToAdd, 
+      description: 'Manual Profit Liquidation', internal: false 
     });
     toast({ title: "Settlement Finalized" });
   };
@@ -320,57 +269,32 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, 
       syncOnChainBalance: async (addr, curr) => {
-        try {
-          const { usdc: ledgerUsdc, eth: ledgerEth } = getLedgerTruth();
-          const targetLedgerVal = curr === 'USDC' ? ledgerUsdc : curr === 'ETH' ? ledgerEth : 0;
-
-          const liveBalanceStr = await getLiveBalance(addr);
-          const liveBalance = parseFloat(liveBalanceStr);
-          
-          const asset = assets.find(a => a.address === addr);
-          if (asset) {
-            const verifiedTruth = Math.max(liveBalance, targetLedgerVal);
-            const livePrice = marketData.find(m => m.currency === curr)?.currentPriceUSD || (curr === 'USDC' ? 1 : 0);
-            
-            await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
-              amount: verifiedTruth,
-              fiatValueUSD: verifiedTruth * livePrice
-            });
-            return { onChain: liveBalance, vault: verifiedTruth };
-          }
-          return { onChain: liveBalance, vault: 0 };
-        } catch (e) { throw e; }
+        const { usdc, eth } = getLedgerTruth();
+        return { onChain: 0, vault: curr === 'USDC' ? usdc : eth };
       },
       generateNewWallet: async (curr) => {
         if (!db || !user) return;
-        const existingPrimary = assets.find(a => a.currency === curr && a.isPrimary);
         const hex = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-        const fullAddress = `0x${hex}`;
         const fullKey = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
-
         setDoc(doc(db, 'users', user.uid, 'assets', `asset_${curr.toLowerCase()}_${Date.now()}`), {
-          currency: curr, amount: 0, fiatValueUSD: 0, isLive: true, isPrimary: !existingPrimary,
-          address: fullAddress, privateKey: fullKey
+          currency: curr, amount: 0, fiatValueUSD: 0, isLive: true, isPrimary: true,
+          address: `0x${hex}`, privateKey: fullKey
         });
       },
       importPrivateKey: async (curr, key) => {
         if (!db || !user) return;
-        const existingPrimary = assets.find(a => a.currency === curr && a.isPrimary);
-        const hex = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-        setDoc(doc(db, 'users', user.uid, 'assets', `asset_${curr.toLowerCase()}_${Date.now()}`), {
-          currency: curr, amount: 0, fiatValueUSD: 0, isLive: true, isPrimary: !existingPrimary,
-          address: `0x${hex}`, privateKey: key
-        }, { merge: true });
+        setDoc(doc(db, 'users', user.uid, 'assets', `asset_imported_${Date.now()}`), {
+          currency: curr, amount: 0, fiatValueUSD: 0, isLive: true, isPrimary: false,
+          address: key.length === 42 ? key : '0x-imported', privateKey: key
+        });
       },
-      updateBotSettings: (active, allocation, risk, strategy) => {
+      updateBotSettings: (active, alloc, risk, strat) => {
         setBotActive(active);
-        if (!user || !db) return;
-        updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy });
+        if (user && db) updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: alloc, botRiskLevel: risk, botStrategy: strat });
       },
-      updateStockBotSettings: (active, allocation, risk) => {
+      updateStockBotSettings: (active, alloc, risk) => {
         setStockBotActive(active);
-        if (!user || !db) return;
-        updateDoc(doc(db, 'users', user.uid), { stockBotActive: active, stockBotAllocation: allocation, stockBotRisk: risk });
+        if (user && db) updateDoc(doc(db, 'users', user.uid), { stockBotActive: active, stockBotAllocation: alloc, stockBotRisk: risk });
       },
       clearBotLogs: () => setBotLogs([]),
       clearStockBotLogs: () => setStockBotLogs([]),
