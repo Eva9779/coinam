@@ -138,7 +138,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [db, user?.uid, assets]);
 
-  // BOT ENGINE: The Heartbeat of the Strategy Agent
   useEffect(() => {
     if (!botActive || !user || !initialized) return;
 
@@ -157,13 +156,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const randomMsg = heartbeats[Math.floor(Math.random() * heartbeats.length)];
       addBotLog(randomMsg, "info");
 
-      // Institutional Holding Protocol: Harvest to displays, NOT wallet ledger
       if (Math.random() > 0.88) {
         const harvest = Number((Math.random() * 0.45 + 0.15).toFixed(2));
         addBotLog(`PROFIT TARGET HIT (+2.1%). Harvesting $${harvest} into Enclave.`, "success");
         
-        // 1. Update Database realized earnings pool (Holding Pool)
-        // This keeps the profit in the "Harvested Yield" box until manually settled
+        // Internal record only - does NOT update wallet balance until Settle clicked
+        addTransaction({
+          type: 'receive',
+          currency: 'USDC',
+          amount: harvest,
+          fiatValueUSD: harvest,
+          description: 'Real-Time Yield Settle',
+          internal: true // Mark as internal to ignore in spendable balance
+        });
+
         updateDoc(doc(db, 'users', user.uid), {
           totalBotEarnings: increment(harvest)
         }).catch(() => {});
@@ -171,22 +177,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }, 8000);
 
     return () => clearInterval(botInterval);
-  }, [botActive, user, initialized, db, addBotLog]);
+  }, [botActive, user, initialized, db, addBotLog, addTransaction]);
 
-  // NUCLEAR LEDGER RECONSTRUCTION ($48.86 Portfolio Anchor)
+  // ATOMIC LEDGER RECONSTRUCTION (Excluding phantom yield)
   useEffect(() => {
     if (!db || !user || !initialized || transactions.length === 0 || assets.length === 0) return;
 
-    // 1. CALCULATE TOTAL REALIZED USDC (Exhaustive Scan of every confirmed receipt)
+    // Sum real spendable credits (Exclude the "Yield Settle" phantom entries)
     const usdcCredits = transactions
-      .filter(t => t.type === 'receive' && (
+      .filter(t => t.type === 'receive' && !t.internal && (
         t.currency?.toUpperCase().includes('USDC') || 
-        t.description?.toLowerCase().includes('profit') || 
-        t.description?.toLowerCase().includes('skim') ||
         t.description?.toLowerCase().includes('liquidation') ||
-        t.description?.toLowerCase().includes('settle') ||
-        t.description?.toLowerCase().includes('sweep') ||
-        t.description?.toLowerCase().includes('yield')
+        t.description?.toLowerCase().includes('settlement') ||
+        t.description?.toLowerCase().includes('deposit')
       ))
       .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
     
@@ -196,7 +199,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const netUsdc = Number(Math.max(0, usdcCredits - usdcDebits).toFixed(4));
 
-    // 2. CALCULATE ETH PRINCIPAL (Restoring the $29.57 deposit)
+    // Restore ETH principal
     const ethCredits = transactions
       .filter(t => t.type === 'receive' && t.currency?.toUpperCase().includes('ETH'))
       .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
@@ -207,8 +210,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const netEth = Number(Math.max(0, ethCredits - ethDebits).toFixed(6));
 
-    // 3. RECOVERY SENTRY (Prevents browser freeze)
-    const recoveryKey = `v4-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
+    const recoveryKey = `v-clean-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
     if (recoveryLockRef.current === recoveryKey) return;
     recoveryLockRef.current = recoveryKey;
 
@@ -216,7 +218,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     let needsUpdate = false;
 
     assets.forEach(asset => {
-      // Atomic Restoration of USDC (Currently $10.33 remaining + any manual settlements)
       if (asset.currency === 'USDC' && Math.abs(asset.amount - netUsdc) > 0.0001) {
         batch.update(doc(db, 'users', user.uid, 'assets', asset.id), {
           amount: netUsdc,
@@ -224,8 +225,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         });
         needsUpdate = true;
       }
-
-      // Atomic Restoration of ETH ($29.57 principal)
       if (asset.currency === 'ETH' && Math.abs(asset.amount - netEth) > 0.000001) {
         const livePrice = marketData.find(m => m.currency === 'ETH')?.currentPriceUSD || 2450;
         batch.update(doc(db, 'users', user.uid, 'assets', asset.id), {
@@ -242,12 +241,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [db, user, initialized, transactions, assets, marketData]);
 
   useEffect(() => {
-    if (!db || !user) {
-      setAssets([]);
-      setTransactions([]);
-      setInitialized(false);
-      return;
-    }
+    if (!db || !user) return;
     
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
       if (!s.exists()) return;
@@ -281,17 +275,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const profitToAdd = totalBotEarnings;
     const batch = writeBatch(db);
     
-    // Clear the holding pool in database
     batch.update(doc(db, 'users', user.uid), { totalBotEarnings: 0 });
     await batch.commit();
     
-    // Create the ONE AND ONLY receipt for the wallet increase
+    // Create the ONE OFFICIAL receipt that adds to wallet balance
     addTransaction({ 
       type: 'receive', 
       currency: 'USDC', 
       amount: profitToAdd, 
       fiatValueUSD: profitToAdd, 
-      description: 'Manual Profit Liquidation' 
+      description: 'Manual Profit Liquidation',
+      internal: false // Crucial: This one ADDS to the wallet
     });
     toast({ title: "Settlement Finalized" });
   };
@@ -307,7 +301,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const asset = assets.find(a => a.address === addr);
           return { onChain: asset?.amount || 0, vault: asset?.amount || 0 };
         }
-
         try {
           const liveBalanceStr = await getLiveBalance(addr);
           const liveBalance = parseFloat(liveBalanceStr);
@@ -320,9 +313,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             });
           }
           return { onChain: liveBalance, vault: liveBalance };
-        } catch (e) {
-          throw e;
-        }
+        } catch (e) { throw e; }
       },
       generateNewWallet: async (curr) => {
         if (!db || !user) return;

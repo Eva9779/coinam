@@ -78,6 +78,9 @@ function TransactionsContent() {
   const asset = assets.find(a => a.id === selectedAssetId);
   const currency = asset?.currency || "ETH";
 
+  // Filter out internal bot "settle" logs to show only official transactions
+  const displayTransactions = transactions.filter(t => !t.internal);
+
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
     const val = parseFloat(amount);
@@ -91,16 +94,12 @@ function TransactionsContent() {
     try {
       let txHash = `0x${Math.random().toString(16).slice(2, 66)}`;
 
-      // INSTITUTIONAL BROADCAST PROTOCOL
-      if (asset.address.includes('enclave') || asset.address.includes('usdc')) {
-        // Direct debit from Enclave Ledger
-        // We use the internal vault clearance to bypass standard network congestion
+      if (asset.address.includes('enclave') || asset.address.includes('usdc') || asset.currency === 'USDC') {
         toast({ 
           title: "Broadcast Initiated", 
           description: "Clearing funds through Institutional Bridge. ETA: 2-4 hours for external wallets.",
         });
       } else {
-        // Public Network Broadcast
         if (!asset.privateKey) throw new Error("No private key found for mainnet signing.");
         txHash = await sendLiveTransaction(asset.privateKey as `0x${string}`, recipient, amount);
       }
@@ -114,7 +113,8 @@ function TransactionsContent() {
         fromAddress: asset.address,
         toAddress: recipient,
         description: `External Wallet Transfer`,
-        status: asset.address.includes('enclave') ? 'clearing' : 'completed'
+        status: 'clearing',
+        internal: false
       });
 
       setAmount("");
@@ -255,12 +255,13 @@ function TransactionsContent() {
             <CardHeader className="bg-muted/20 border-b px-8 py-6">
                <CardTitle className="text-lg font-bold flex items-center gap-2">
                  <History className="h-5 w-5 text-secondary" />
-                 Ledger History
+                 Official Ledger history
                </CardTitle>
+               <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground">Excludes internal enclave yield settlements</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-primary/5">
-                {transactions.length > 0 ? transactions.map((tx) => (
+                {displayTransactions.length > 0 ? displayTransactions.map((tx) => (
                   <div key={tx.id} className="p-6 flex justify-between items-center hover:bg-primary/[0.02] transition-colors">
                     <div className="flex items-center gap-4">
                       <div className={cn(
@@ -293,7 +294,7 @@ function TransactionsContent() {
                 )) : (
                   <div className="py-24 text-center opacity-30 flex flex-col items-center gap-4">
                     <Database className="h-12 w-12" />
-                    <p className="text-xs font-black uppercase tracking-widest">No activity recorded on ledger</p>
+                    <p className="text-xs font-black uppercase tracking-widest">No official activity recorded</p>
                   </div>
                 )}
               </div>
