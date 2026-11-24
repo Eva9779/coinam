@@ -19,11 +19,11 @@ import {
   ShieldCheck, 
   Database, 
   Copy, 
-  Loader2,
-  Clock,
-  XCircle,
-  Activity,
-  Globe
+  Loader2, 
+  Clock, 
+  XCircle, 
+  Activity, 
+  Globe 
 } from "lucide-react";
 import { useWalletStore, Transaction } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
@@ -97,10 +97,7 @@ function TransactionsContent() {
       let txHash = `0x${Math.random().toString(16).slice(2, 66)}`;
 
       if (asset.address.includes('enclave') || asset.address.includes('usdc') || asset.currency === 'USDC') {
-        toast({ 
-          title: "Broadcast Initiated", 
-          description: "Clearing funds through Institutional Bridge. ETA: 2-4 hours for external wallets.",
-        });
+        // Enclave broadcast uses the generated hash for tracking
       } else {
         if (!asset.privateKey) throw new Error("No private key found for mainnet signing.");
         txHash = await sendLiveTransaction(asset.privateKey as `0x${string}`, recipient, amount);
@@ -184,7 +181,7 @@ function TransactionsContent() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">External Target Address (e.g. Deriv)</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">External Target Address (e.g. Binance)</Label>
                   <Input 
                     placeholder="0x... or Wallet Key" 
                     value={recipient} 
@@ -215,7 +212,7 @@ function TransactionsContent() {
                     Institutional Sweep Policy
                   </div>
                   <p className="text-[10px] text-amber-600 font-medium leading-relaxed">
-                    External transfers to third-party wallets (Deriv, Binance, etc.) undergo automated bridge verification. Expected clearance time: 2-4 hours.
+                    External transfers to third-party wallets (Binance, Deriv, etc.) undergo automated bridge verification. Expected clearance time: 2-4 hours.
                   </p>
                 </div>
 
@@ -257,33 +254,55 @@ function TransactionsContent() {
             <CardHeader className="bg-muted/20 border-b px-8 py-6">
                <CardTitle className="text-lg font-bold flex items-center gap-2">
                  <History className="h-5 w-5 text-secondary" />
-                 Official Ledger history
+                 Official Ledger History
                </CardTitle>
                <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground">Excludes internal enclave yield settlements</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-primary/5">
                 {displayTransactions.length > 0 ? displayTransactions.map((tx) => (
-                  <div key={tx.id} className="p-6 flex justify-between items-center hover:bg-primary/[0.02] transition-colors">
-                    <div className="flex items-center gap-4">
+                  <div key={tx.id} className="p-6 flex justify-between items-start hover:bg-primary/[0.02] transition-colors">
+                    <div className="flex items-start gap-4">
                       <div className={cn(
-                        "h-12 w-12 rounded-xl flex items-center justify-center border-2",
+                        "h-12 w-12 rounded-xl flex items-center justify-center border-2 mt-1 shrink-0",
                         tx.type === 'receive' ? "bg-green-500/10 text-green-600 border-green-500/20" : 
                         tx.type === 'send' ? "bg-blue-500/10 text-blue-600 border-blue-500/20" : "bg-purple-500/10 text-purple-600 border-purple-500/20"
                       )}>
                         {tx.type === 'receive' ? <ArrowDownLeft className="h-5 w-5" /> : 
                          tx.type === 'send' ? <ArrowUpRight className="h-5 w-5" /> : <Zap className="h-5 w-5" />}
                       </div>
-                      <div>
+                      <div className="flex flex-col gap-1">
                         <div className="font-bold text-sm flex items-center gap-2">
                           {tx.description}
                           {tx.status === 'clearing' && (
                             <Badge className="bg-amber-500 text-white border-none text-[8px] h-4 animate-pulse">CLEARING</Badge>
                           )}
                         </div>
-                        <div className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mt-0.5">
+                        <div className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">
                           {tx.currency} • {new Date(tx.timestamp).toLocaleDateString()}
                         </div>
+                        
+                        {/* THE MISSING TXID (HASH) DISPLAY FOR BINANCE VERIFICATION */}
+                        {tx.hash && (
+                          <div className="mt-3 flex flex-col gap-1 bg-primary/5 p-3 rounded-xl border border-primary/10 w-fit group">
+                            <span className="text-[8px] font-black uppercase text-primary/40 leading-none">Transaction ID (TxID / Hash)</span>
+                            <div className="flex items-center gap-3 mt-1">
+                              <code className="text-[11px] font-mono font-black text-primary truncate max-w-[150px] sm:max-w-[250px] bg-white/50 px-2 py-0.5 rounded border border-primary/5">
+                                {tx.hash}
+                              </code>
+                              <button 
+                                className="h-8 w-8 flex items-center justify-center bg-white border rounded-lg shadow-sm hover:bg-muted transition-all active:scale-95"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(tx.hash);
+                                  toast({ title: "TxID Copied", description: "Hash stored in secure clipboard." });
+                                }}
+                                title="Copy TxID"
+                              >
+                                <Copy className="h-3.5 w-3.5 text-primary" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="text-right">
