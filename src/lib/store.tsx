@@ -142,18 +142,25 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!db || !user || !initialized || transactions.length === 0 || assets.length === 0) return;
 
-    // 1. CALCULATE TRUE USDC BALANCE (Total Profits - Total Sends)
+    // 1. CALCULATE TRUE USDC BALANCE (Exhaustive Receipt Scan)
     const usdcCredits = transactions
-      .filter(t => t.type === 'receive' && (t.currency?.includes('USDC') || t.description?.toLowerCase().includes('profit') || t.description?.toLowerCase().includes('skim')))
-      .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+      .filter(t => t.type === 'receive' && (
+        t.currency?.toUpperCase().includes('USDC') || 
+        t.description?.toLowerCase().includes('profit') || 
+        t.description?.toLowerCase().includes('skim') ||
+        t.description?.toLowerCase().includes('yield') ||
+        t.description?.toLowerCase().includes('settle') ||
+        t.description?.toLowerCase().includes('sweep')
+      ))
+      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
     
     const usdcDebits = transactions
-      .filter(t => t.type === 'send' && t.currency?.includes('USDC'))
-      .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+      .filter(t => t.type === 'send' && t.currency?.toUpperCase().includes('USDC'))
+      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
 
-    const netUsdc = Number(Math.max(0, usdcCredits - usdcDebits).toFixed(2));
+    const netUsdc = Number(Math.max(0, usdcCredits - usdcDebits).toFixed(4));
 
-    // 2. CHECK ETH PRINCIPAL (Only restore if ledger confirmed for specific address)
+    // 2. RECOVERY SENTRY
     const recoveryKey = `${netUsdc}-${user.uid}-${transactions.length}-${assets.length}`;
     if (recoveryLockRef.current === recoveryKey) return;
     recoveryLockRef.current = recoveryKey;
@@ -162,8 +169,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     let needsUpdate = false;
 
     assets.forEach(asset => {
-      if (asset.currency === 'USDC' && asset.isPrimary) {
-        if (Math.abs(asset.amount - netUsdc) > 0.01) {
+      // Restore USDC Profits
+      if (asset.currency === 'USDC') {
+        if (Math.abs(asset.amount - netUsdc) > 0.0001) {
           batch.update(doc(db, 'users', user.uid, 'assets', asset.id), {
             amount: netUsdc,
             fiatValueUSD: netUsdc
@@ -172,16 +180,23 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      // Restore ETH Principal (Strict Address Match Only - Stops Ghost Money)
       if (asset.currency === 'ETH') {
         const addressDeposits = transactions
-          .filter(t => t.type === 'receive' && (t.toAddress === asset.address || t.description?.includes('Auto-Sync')) && t.currency === 'ETH')
-          .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+          .filter(t => t.type === 'receive' && t.toAddress === asset.address && t.currency === 'ETH')
+          .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
         
-        if (Math.abs(asset.amount - addressDeposits) > 0.000001) {
+        const addressWithdrawals = transactions
+          .filter(t => t.type === 'send' && t.fromAddress === asset.address && t.currency === 'ETH')
+          .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+
+        const netEth = Math.max(0, addressDeposits - addressWithdrawals);
+        
+        if (Math.abs(asset.amount - netEth) > 0.000001) {
           const livePrice = marketData.find(m => m.currency === 'ETH')?.currentPriceUSD || 2450;
           batch.update(doc(db, 'users', user.uid, 'assets', asset.id), {
-            amount: addressDeposits,
-            fiatValueUSD: addressDeposits * livePrice
+            amount: netEth,
+            fiatValueUSD: netEth * livePrice
           });
           needsUpdate = true;
         }
