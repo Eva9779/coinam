@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -19,7 +18,6 @@ import {
 } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 import { INITIAL_MARKET_DATA } from './data';
-import { getLiveBalance } from './blockchain';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -120,6 +118,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const assetsRef = useRef<WalletAsset[]>([]);
   const baselinesRef = useRef<Record<string, number>>({});
   const botActiveRef = useRef(false);
+  const isUpdatingRef = useRef(false);
 
   useEffect(() => {
     assetsRef.current = assets;
@@ -174,7 +173,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!botActiveRef.current || isExecutingTradeRef.current || !user || !db || assetsRef.current.length === 0) return;
     
     const marketAsset = currentMarket.find(m => m.currency === 'ETH');
-    const livePrice = marketAsset?.currentPriceUSD || 1875;
+    const livePrice = marketAsset?.currentPriceUSD || 2450;
     const ethAsset = assetsRef.current.find(a => a.currency === 'ETH' && a.isPrimary);
     
     if (!ethAsset || ethAsset.amount === 0) return;
@@ -195,7 +194,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const ethValueUSD = ethAsset.amount * livePrice;
       const profitUSD = ethValueUSD - PRINCIPAL_LOCK;
       
-      if (profitUSD > 0.01) {
+      if (profitUSD > 0.05) {
         const requiredEthForPrincipal = PRINCIPAL_LOCK / livePrice;
         const batch = writeBatch(db);
         const usdcAsset = assetsRef.current.find(a => a.currency === 'USDC' && a.isPrimary);
@@ -231,11 +230,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           fiatValueUSD: profitUSD, 
           description: `Profit Skim (+2.1%)` 
         });
-        
-        toast({ title: "Harvest Complete", description: `Profit moved to USDC. Principal secured at $29.57.` });
       }
       
-      setTimeout(() => { isExecutingTradeRef.current = false; }, 5000);
+      setTimeout(() => { isExecutingTradeRef.current = false; }, 10000);
     }
   }, [user, db, addBotLog, addTransaction]);
 
@@ -266,7 +263,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       });
       await batch.commit();
       addTransaction({ type: 'trade', currency: `RWA → USDC`, amount: profitVal, fiatValueUSD: profitVal, description: `Stock Profit Skim (${targetSymbol})` });
-      setTimeout(() => { isExecutingTradeRef.current = false; }, 5000);
+      setTimeout(() => { isExecutingTradeRef.current = false; }, 10000);
     }
   }, [stockBotActive, isAnalyzingStocks, user, db, addStockBotLog, addTransaction]);
 
@@ -276,30 +273,31 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
       if (s.exists()) {
         const d = s.data();
-        if (d.totalBotEarnings !== undefined) setTotalBotEarnings(d.totalBotEarnings);
-        if (d.botActive !== undefined) setBotActive(d.botActive);
-        if (d.botAllocation !== undefined) setBotAllocation(d.botAllocation);
-        if (d.botRiskLevel !== undefined) setBotRiskLevel(d.botRiskLevel);
-        if (d.botStrategy !== undefined) setBotStrategy(d.botStrategy);
-        if (d.stockBotActive !== undefined) setStockBotActive(d.stockBotActive);
-        if (d.stockBotAllocation !== undefined) setStockBotAllocation(d.stockBotAllocation);
-        if (d.stockBotRisk !== undefined) setStockBotRisk(d.stockBotRisk);
-        if (d.baselinePrices) setBaselinePrices(d.baselinePrices);
-        if (d.botLogs) setBotLogs(d.botLogs.slice(-50));
-        if (d.stockBotLogs) setStockBotLogs(d.stockBotLogs.slice(-50));
+        // Prevent infinite loops by only setting if values differ
+        setTotalBotEarnings(prev => prev !== d.totalBotEarnings ? (d.totalBotEarnings || 0) : prev);
+        setBotActive(prev => prev !== d.botActive ? (!!d.botActive) : prev);
+        setBotAllocation(prev => prev !== d.botAllocation ? (d.botAllocation || 20) : prev);
+        setBotRiskLevel(prev => prev !== d.botRiskLevel ? (d.botRiskLevel || 'medium') : prev);
+        setBotStrategy(prev => prev !== d.botStrategy ? (d.botStrategy || 'standard') : prev);
+        setStockBotActive(prev => prev !== d.stockBotActive ? (!!d.stockBotActive) : prev);
+        setStockBotAllocation(prev => prev !== d.stockBotAllocation ? (d.stockBotAllocation || 20) : prev);
+        setStockBotRisk(prev => prev !== d.stockBotRisk ? (d.stockBotRisk || 'medium') : prev);
+        setBaselinePrices(prev => JSON.stringify(prev) !== JSON.stringify(d.baselinePrices) ? (d.baselinePrices || {}) : prev);
+        setBotLogs(prev => JSON.stringify(prev) !== JSON.stringify(d.botLogs) ? (d.botLogs?.slice(-50) || []) : prev);
+        setStockBotLogs(prev => JSON.stringify(prev) !== JSON.stringify(d.stockBotLogs) ? (d.stockBotLogs?.slice(-50) || []) : prev);
       }
     });
 
     const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), (s) => {
       const currentAssets = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
-      setAssets(currentAssets);
+      setAssets(prev => JSON.stringify(prev) !== JSON.stringify(currentAssets) ? currentAssets : prev);
       setInitialized(true);
       setIsSyncing(false);
     });
 
     const unsubTx = onSnapshot(collection(db, 'users', user.uid, 'transactions'), (s) => {
       const txs = s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      setTransactions(txs);
+      setTransactions(prev => JSON.stringify(prev) !== JSON.stringify(txs) ? txs : prev);
     });
 
     return () => { unsubProfile(); unsubAssets(); unsubTx(); };
@@ -329,11 +327,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const heartbeatInterval = setInterval(() => {
       setMarketData(prev => {
         const updated = prev.map(m => {
-          const fluctuation = 1 + (Math.random() * 0.001 - 0.0005);
+          const fluctuation = 1 + (Math.random() * 0.0004 - 0.0002);
           return { ...m, currentPriceUSD: m.currentPriceUSD * fluctuation };
         });
 
-        if (initialized && user && db) {
+        if (initialized && user && db && !isUpdatingRef.current) {
            const ethMarket = updated.find(m => m.currency === 'ETH');
            const ethAsset = assetsRef.current.find(a => a.currency === 'ETH' && a.isPrimary);
            
@@ -341,12 +339,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
               const livePrice = ethMarket.currentPriceUSD;
               const currentVal = ethAsset.amount * livePrice;
               
-              if (Math.abs(currentVal - PRINCIPAL_LOCK) > 0.05) {
+              if (Math.abs(currentVal - PRINCIPAL_LOCK) > 0.15) {
+                 isUpdatingRef.current = true;
                  const newAmount = PRINCIPAL_LOCK / livePrice;
                  updateDoc(doc(db, 'users', user.uid, 'assets', ethAsset.id), { 
                    amount: newAmount, 
                    fiatValueUSD: PRINCIPAL_LOCK 
-                 });
+                 }).finally(() => { isUpdatingRef.current = false; });
               }
            }
         }

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -29,6 +28,8 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+
+const PRINCIPAL_LOCK = 29.57;
 
 const CustomPulseMarquee = ({ items, label }: { items: any[], label: string }) => {
   const displayItems = [...items, ...items];
@@ -79,8 +80,7 @@ export default function Dashboard() {
     initialized, 
     botActive,
     botLogs,
-    marketData,
-    totalBotEarnings
+    marketData
   } = useWalletStore();
   
   const [mounted, setMounted] = useState(false);
@@ -98,13 +98,15 @@ export default function Dashboard() {
   }, []);
 
   const totalBalance = useMemo(() => {
-    return assets.reduce((acc, asset) => {
-      const price = marketData.find(m => m.currency === asset.currency)?.currentPriceUSD || 0;
-      // Soft anchor check for dashboard view
-      if (asset.currency === 'ETH' && asset.isPrimary && asset.amount > 0) return acc + 29.57;
-      return acc + (asset.amount * price);
-    }, 0);
-  }, [assets, marketData]);
+    const profitSum = transactions
+      .filter(tx => tx.description.includes('Profit') || tx.description.includes('Liquidation'))
+      .reduce((acc, tx) => acc + (tx.fiatValueUSD || 0), 0);
+    
+    const ethAsset = assets.find(a => a.currency === 'ETH' && a.isPrimary);
+    const baseValue = (ethAsset && ethAsset.amount > 0) ? PRINCIPAL_LOCK : 0;
+    
+    return baseValue + profitSum;
+  }, [assets, transactions]);
 
   const cryptoMarketData = useMemo(() => 
     marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USDC'].includes(m.currency)), 
@@ -177,7 +179,7 @@ export default function Dashboard() {
                     <span className="text-[9px] font-bold uppercase opacity-60 block">Network Latency</span>
                     <span className="text-xs font-black uppercase tracking-widest text-green-400 flex items-center gap-1.5">
                       <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-                      {mounted ? `${latency}ms` : '...'}
+                      {latency}ms
                     </span>
                   </div>
                 </div>
