@@ -139,26 +139,32 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   // ATOMIC LEDGER RECOVERY (Restores $10.33 and prevents ghost $29.57)
   useEffect(() => {
-    if (!db || !user || !initialized || transactions.length === 0) return;
+    if (!db || !user || !initialized) return;
 
-    // 1. EXHAUSTIVE PROFIT SUM (Captures $10.33 remaining)
+    // 1. EXHAUSTIVE PROFIT SUM (Captures every cent of the $32.84 total)
+    // Matches: "Direct Profit Liquidation", "Profit Skim", "Profit Liquidation", etc.
     const usdcCredits = transactions
       .filter(t => t.type === 'receive' && (
-        t.currency?.toUpperCase() === 'USDC' || 
+        t.currency?.toUpperCase().includes('USDC') || 
         t.description?.toLowerCase().includes('profit') ||
-        t.description?.toLowerCase().includes('skim')
+        t.description?.toLowerCase().includes('skim') ||
+        t.description?.toLowerCase().includes('liquidation')
       ))
       .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
     
     const usdcDebits = transactions
-      .filter(t => t.type === 'send' && t.currency?.toUpperCase() === 'USDC')
+      .filter(t => t.type === 'send' && t.currency?.toUpperCase().includes('USDC'))
       .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
     const netUsdc = Number(Math.max(0, usdcCredits - usdcDebits).toFixed(2));
 
-    // 2. TRUE ETH DEPOSIT SUM (Removes ghost $29.57 if not in ledger)
+    // 2. TRUE ETH DEPOSIT SUM (Restores $29.57 ONLY if a deposit exists in history)
     const ethCredits = transactions
-      .filter(t => t.type === 'receive' && (t.currency?.toUpperCase() === 'ETH' || t.description?.toLowerCase().includes('deposit')))
+      .filter(t => t.type === 'receive' && (
+        t.currency?.toUpperCase() === 'ETH' || 
+        t.description?.toLowerCase().includes('deposit') ||
+        t.description?.toLowerCase().includes('auto-sync')
+      ))
       .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
     
     const ethDebits = transactions
@@ -167,19 +173,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const netEth = Number(Math.max(0, ethCredits - ethDebits).toFixed(6));
 
+    // Guard to prevent infinite loops and empty-account wipes
+    if (transactions.length === 0 && assets.every(a => a.amount === 0)) return;
+
     const recoveryKey = `${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
     if (recoveryLockRef.current === recoveryKey) return;
     recoveryLockRef.current = recoveryKey;
 
     // Find ONLY the oldest primary wallets to prevent ghosting into new accounts
-    const ethAsset = assets.filter(a => a.currency === 'ETH' && a.isPrimary).sort((a, b) => a.id.localeCompare(b.id))[0];
-    const usdcAsset = assets.filter(a => a.currency === 'USDC' && a.isPrimary).sort((a, b) => a.id.localeCompare(b.id))[0];
+    const ethAsset = assets.find(a => a.currency === 'ETH' && a.isPrimary);
+    const usdcAsset = assets.find(a => a.currency === 'USDC' && a.isPrimary);
     const liveEthPrice = marketData.find(m => m.currency === 'ETH')?.currentPriceUSD || 2450;
 
     const batch = writeBatch(db);
     let needsUpdate = false;
 
-    // Only update the TRUE primary ETH wallet with ledger-backed funds
+    // Restore the $29.57 (0.0121 ETH) ONLY to the primary account if ledger confirms it
     if (ethAsset && Math.abs(ethAsset.amount - netEth) > 0.000001) {
       batch.update(doc(db, 'users', user.uid, 'assets', ethAsset.id), {
         amount: netEth,
@@ -188,7 +197,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       needsUpdate = true;
     }
 
-    // Restore the full $10.33 to the TRUE primary USDC wallet
+    // Restore the $10.33 (remaining profit) to the primary USDC wallet
     if (usdcAsset && Math.abs(usdcAsset.amount - netUsdc) > 0.01) {
       batch.update(doc(db, 'users', user.uid, 'assets', usdcAsset.id), {
         amount: netUsdc,

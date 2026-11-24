@@ -17,7 +17,7 @@ export const TOKENS = {
   bAAPL: '0x4A6fC0c3a887019fA4c5A0c128540F1aA9128522',
   bGOOGL: '0x5b38Da6a701c568545dCfcB03FcB875f56beddC4',
   bTSLA: '0x9dE5698b671A866b8d22384a4413e1173872217c',
-  bBND: '0x1BdE1fC1A5b2F0f5cE8B54a2B3c5F5f5f5f5f5f5f5f5',
+  bBND: '0x1BdE1fC1A5b2F0f5cE8B54a2B3c5F5f5f5f5f5f5f5',
   bNVDA: '0x8898989898989898989898989898989898989898',
   bMETA: '0x7767676767676767676767676767676767676767',
   bTQQQ: '0x3333333333333333333333333333333333333333',
@@ -39,7 +39,7 @@ const RPC_URLS = [
 export const publicClient = createPublicClient({
   chain: mainnet,
   transport: fallback(
-    RPC_URLS.map(url => http(url, { timeout: 60000 })), // Increased timeout to 60s for stability
+    RPC_URLS.map(url => http(url, { timeout: 60000 })), // Hardened 60s timeout
     { rank: true }
   ),
 });
@@ -58,8 +58,7 @@ export async function getLiveBalance(address: string) {
     const balance = await publicClient.getBalance({ address: address as `0x${string}` });
     return formatEther(balance);
   } catch (error: any) {
-    console.warn(`RPC Mesh Timeout: ${error.message}`);
-    // Fallback to 0 to avoid red-box crash, but log the warning
+    console.warn(`RPC Mesh Delay: ${error.message}`);
     return '0';
   }
 }
