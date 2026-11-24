@@ -141,7 +141,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!db || !user || !initialized || transactions.length === 0) return;
 
-    // EXHAUSTIVE SUM: Capture ALL profit entries (Direct, Skim, Liquidation, Yield)
+    // EXHAUSTIVE SUM: Capture every single credit from the ledger (Direct, Skim, Liquidation, Yield, Harvest)
     const totalCalculatedProfit = transactions
       .filter(t => 
         t.type === 'receive' && 
@@ -150,17 +150,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           t.description?.toLowerCase().includes('profit') || 
           t.description?.toLowerCase().includes('skim') || 
           t.description?.toLowerCase().includes('liquidation') ||
-          t.description?.toLowerCase().includes('yield')
+          t.description?.toLowerCase().includes('yield') ||
+          t.description?.toLowerCase().includes('harvest') ||
+          t.description?.toLowerCase().includes('settle')
         )
       )
-      .reduce((acc, t) => acc + (t.amount || 0), 0);
+      .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
-    // Filter for all 'send' transactions to calculate real remaining balance
+    // Sum every debit to calculate the current net balance
     const totalSentProfit = transactions
       .filter(t => t.type === 'send' && t.currency === 'USDC')
-      .reduce((acc, t) => acc + (t.amount || 0), 0);
+      .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
-    const netProfit = Math.max(0, totalCalculatedProfit - totalSentProfit);
+    const netProfit = Number(Math.max(0, totalCalculatedProfit - totalSentProfit).toFixed(2));
 
     const ethAsset = assets.find(a => a.currency === 'ETH');
     const usdcAsset = assets.find(a => a.currency === 'USDC');
@@ -174,7 +176,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const batch = writeBatch(db);
     let needsUpdate = false;
 
-    // 1. Restore ETH Principal to EXACTLY $29.57 (Auto-Adjust Units)
+    // 1. Restore ETH Principal to EXACTLY $29.57 (Auto-Adjust Units for institutional precision)
     const targetEthUnits = 29.57 / liveEthPrice;
     if (!ethAsset || Math.abs(ethAsset.amount - targetEthUnits) > 0.0001) {
       const ethRef = doc(db, 'users', user.uid, 'assets', ethAsset?.id || 'primary-vault-eth');
@@ -185,7 +187,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       needsUpdate = true;
     }
 
-    // 2. Restore Full USDC Earnings ($32.84 net total)
+    // 2. Restore Exhaustive USDC Earnings (Summing all Direct, Skim, and Yield entries)
     if (netProfit > 0 && (!usdcAsset || Math.abs(usdcAsset.amount - netProfit) > 0.01)) {
       const usdcRef = doc(db, 'users', user.uid, 'assets', usdcAsset?.id || 'primary-vault-usdc');
       batch.set(usdcRef, {
