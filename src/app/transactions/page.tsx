@@ -79,7 +79,10 @@ function TransactionsContent() {
   const currency = asset?.currency || "ETH";
 
   // Filter out internal bot "settle" logs to show only official transactions
-  const displayTransactions = transactions.filter(t => !t.internal);
+  const displayTransactions = transactions.filter(t => {
+    const desc = (t.description || "").toLowerCase();
+    return !t.internal && !desc.includes('yield settle');
+  });
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -185,12 +185,21 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     // Sum real spendable credits (Exclude the "Yield Settle" phantom entries)
     const usdcCredits = transactions
-      .filter(t => t.type === 'receive' && !t.internal && (
-        t.currency?.toUpperCase().includes('USDC') || 
-        t.description?.toLowerCase().includes('liquidation') ||
-        t.description?.toLowerCase().includes('settlement') ||
-        t.description?.toLowerCase().includes('deposit')
-      ))
+      .filter(t => {
+        const desc = (t.description || "").toLowerCase();
+        const isReceive = t.type === 'receive';
+        const isUSDC = t.currency?.toUpperCase().includes('USDC');
+        const isInternal = t.internal === true || desc.includes('yield settle') || desc.includes('internal');
+        
+        // Only include official credits: Liquidation, Settlement (Manual), or Deposits
+        const isOfficial = desc.includes('liquidation') || 
+                           desc.includes('profit') || 
+                           desc.includes('settlement') ||
+                           desc.includes('deposit') || 
+                           desc.includes('auto-sync');
+
+        return isReceive && isUSDC && !isInternal && isOfficial;
+      })
       .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
     
     const usdcDebits = transactions
@@ -210,7 +219,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const netEth = Number(Math.max(0, ethCredits - ethDebits).toFixed(6));
 
-    const recoveryKey = `v-clean-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
+    const recoveryKey = `v-atomic-clean-v2-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
     if (recoveryLockRef.current === recoveryKey) return;
     recoveryLockRef.current = recoveryKey;
 
