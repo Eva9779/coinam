@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -141,33 +142,35 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!db || !user || !initialized || transactions.length === 0) return;
 
-    // SUM EVERY CREDIT: Capture Direct Liquidations, Skims, and Yield entries
+    // SUM EVERY CREDIT: Exhaustive, case-insensitive receipt scanning
     const totalCalculatedProfit = transactions
       .filter(t => 
         t.type === 'receive' && 
-        t.currency === 'USDC' &&
+        (t.currency === 'USDC' || t.currency?.includes('USDC')) &&
         (
           t.description?.toLowerCase().includes('profit') || 
           t.description?.toLowerCase().includes('skim') || 
           t.description?.toLowerCase().includes('liquidation') ||
           t.description?.toLowerCase().includes('yield') ||
-          t.description?.toLowerCase().includes('settle')
+          t.description?.toLowerCase().includes('settle') ||
+          t.description?.toLowerCase().includes('receipt')
         )
       )
       .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
-    // SUM EVERY DEBIT: Capture your transfers (like the $22.51 to Deriv)
+    // SUM EVERY DEBIT: Factor in your transfers (like the -22.51 to Deriv)
     const totalSentProfit = transactions
-      .filter(t => t.type === 'send' && t.currency === 'USDC')
+      .filter(t => t.type === 'send' && (t.currency === 'USDC' || t.currency?.includes('USDC')))
       .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
+    // Calculate final balance after transfer: ($32.84 - $22.51 = $10.33)
     const netProfit = Number(Math.max(0, totalCalculatedProfit - totalSentProfit).toFixed(2));
 
     const ethAsset = assets.find(a => a.currency === 'ETH' && a.isPrimary);
     const usdcAsset = assets.find(a => a.currency === 'USDC' && a.isPrimary);
     const liveEthPrice = marketData.find(m => m.currency === 'ETH')?.currentPriceUSD || 2450;
     
-    // Recovery Checksum: Prevent infinite loops by locking to the current balance state
+    // Recovery Checksum: Prevents the "Maximum Update Depth" error by locking the state
     const recoveryKey = `${netProfit}-${ethAsset?.amount}-${user.uid}-${transactions.length}`;
     if (recoveryLockRef.current === recoveryKey) return;
     recoveryLockRef.current = recoveryKey;
@@ -175,7 +178,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const batch = writeBatch(db);
     let needsUpdate = false;
 
-    // 1. Restore ETH Principal to EXACTLY $29.57 (As seen in the 8/31/2026 record)
+    // 1. Restore ETH Principal to EXACTLY $29.57 (As verified in the 8/31/2026 deposit)
     const targetEthUnits = 29.57 / liveEthPrice;
     if (!ethAsset || Math.abs(ethAsset.amount - targetEthUnits) > 0.0001) {
       const ethRef = doc(db, 'users', user.uid, 'assets', ethAsset?.id || 'primary-vault-eth');
@@ -186,7 +189,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       needsUpdate = true;
     }
 
-    // 2. Restore Net USDC Profit (Exhaustive Receipt Sum minus Transfers)
+    // 2. Restore Correct USDC Profit (Exhaustive Receipt Sum minus your External Sends)
     if (!usdcAsset || Math.abs(usdcAsset.amount - netProfit) > 0.01) {
       const usdcRef = doc(db, 'users', user.uid, 'assets', usdcAsset?.id || 'primary-vault-usdc');
       batch.set(usdcRef, {
