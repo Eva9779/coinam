@@ -79,10 +79,11 @@ export default function Dashboard() {
   } = useWalletStore();
   
   const [mounted, setMounted] = useState(false);
-  const [latency, setLatency] = useState(14);
+  const [latency, setLatency] = useState(0);
 
   useEffect(() => {
     setMounted(true);
+    setLatency(14); // Initial production latency
     const interval = setInterval(() => {
       setLatency(prev => {
         const next = prev + (Math.random() * 4 - 2);
