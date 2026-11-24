@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -80,12 +79,14 @@ export default function Dashboard() {
   } = useWalletStore();
   
   const [mounted, setMounted] = useState(false);
-  const [latency, setLatency] = useState(14);
+  const [latency, setLatency] = useState<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
+    setLatency(14);
     const interval = setInterval(() => {
       setLatency(prev => {
+        if (prev === null) return 14;
         const next = prev + (Math.random() * 4 - 2);
         return Math.max(10, Math.min(25, Math.floor(next)));
       });
@@ -171,7 +172,7 @@ export default function Dashboard() {
                     <span className="text-[9px] font-bold uppercase opacity-60 block">Network Latency</span>
                     <span className="text-xs font-black uppercase tracking-widest text-green-400 flex items-center gap-1.5">
                       <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-                      {latency}ms
+                      {latency || 14}ms
                     </span>
                   </div>
                 </div>
