@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo } from "react";
@@ -145,7 +146,7 @@ export default function WalletPage() {
               </div>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {filteredAssets.length > 0 ? filteredAssets.map((asset) => {
                   const livePrice = marketData.find(m => m.currency === asset.currency)?.currentPriceUSD || 0;
                   const liveValue = asset.amount * livePrice;
@@ -164,15 +165,6 @@ export default function WalletPage() {
                                 {asset.isPrimary ? 'INSTITUTIONAL ENDPOINT' : 'ENCLAVE ENDPOINT'}
                               </Badge>
                             </div>
-                            <div className="text-[10px] text-muted-foreground font-mono font-bold flex items-center gap-2 opacity-80">
-                              {asset.address}
-                              <button 
-                                className="p-1 hover:bg-secondary/20 rounded transition-colors"
-                                onClick={() => copyToClipboard(asset.address, "Address")}
-                              >
-                                <Copy className="h-3.5 w-3.5 text-muted-foreground hover:text-secondary" />
-                              </button>
-                            </div>
                           </div>
                         </div>
                         <div className="text-right">
@@ -180,6 +172,25 @@ export default function WalletPage() {
                           <div className="text-xs font-bold text-green-500 opacity-80">
                             ${liveValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </div>
+                        </div>
+                      </div>
+
+                      {/* THE FULL WALLET ADDRESS BLOCK - EASY TO COPY AND SELECT */}
+                      <div className="bg-muted/30 p-4 rounded-2xl border border-primary/5 space-y-2 mt-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-primary/40">Network Endpoint (Full Key)</span>
+                          <button 
+                            className="p-1.5 hover:bg-secondary/20 rounded-lg transition-colors flex items-center gap-1.5 text-[10px] font-bold text-secondary uppercase"
+                            onClick={() => copyToClipboard(asset.address, "Full Address")}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            Copy Entire Key
+                          </button>
+                        </div>
+                        <div className="bg-background/50 p-3 rounded-xl border-2 border-dashed border-primary/10 select-all overflow-x-auto no-scrollbar">
+                          <code className="text-[11px] text-muted-foreground font-mono font-black break-all leading-relaxed whitespace-pre-wrap">
+                            {asset.address}
+                          </code>
                         </div>
                       </div>
                       

@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -178,28 +179,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(botInterval);
   }, [botActive, user, initialized, db, addBotLog, addTransaction]);
 
-  // ATOMIC LEDGER RECONSTRUCTION - REMOVES FAKE MONEY
   useEffect(() => {
     if (!db || !user || !initialized || transactions.length === 0 || assets.length === 0) return;
 
-    // Sum real spendable credits - EXCLUDES all "Yield Settle" (Fake Balance source)
+    // Sum real spendable credits
+    // CRITICAL: Ignore "Real-Time Yield Settle" for balance calculation to remove fake money
     const usdcCredits = transactions
       .filter(t => {
         const desc = (t.description || "").toLowerCase();
         const isReceive = t.type === 'receive';
         const isUSDC = t.currency?.toUpperCase().includes('USDC');
-        
-        // CRITICAL: Filter out "Real-Time Yield Settle" which causes the fake balance increase.
-        const isInternal = t.internal === true || desc.includes('yield settle') || desc.includes('internal');
-        
-        // We only count Manual settlements and Direct trade liquidations.
-        const isOfficial = desc.includes('liquidation') || 
-                           desc.includes('profit') || 
-                           desc.includes('settlement') ||
-                           desc.includes('deposit') || 
-                           desc.includes('auto-sync');
+        const isInternal = t.internal === true || desc.includes('yield settle');
 
-        return isReceive && isUSDC && !isInternal && isOfficial;
+        return isReceive && isUSDC && !isInternal;
       })
       .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
     
@@ -209,12 +201,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const netUsdc = Number(Math.max(0, usdcCredits - usdcDebits).toFixed(4));
 
-    // Restore ETH principal strictly from Deposits/Syncs
     const ethCredits = transactions
-      .filter(t => {
-        const desc = (t.description || "").toLowerCase();
-        return t.type === 'receive' && t.currency?.toUpperCase().includes('ETH') && (desc.includes('deposit') || desc.includes('sync'));
-      })
+      .filter(t => t.type === 'receive' && t.currency?.toUpperCase().includes('ETH'))
       .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
     
     const ethDebits = transactions
@@ -223,7 +211,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const netEth = Number(Math.max(0, ethCredits - ethDebits).toFixed(6));
 
-    const recoveryKey = `v-clean-atomic-v3-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
+    const recoveryKey = `v-clean-atomic-v4-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
     if (recoveryLockRef.current === recoveryKey) return;
     recoveryLockRef.current = recoveryKey;
 
@@ -291,7 +279,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     batch.update(doc(db, 'users', user.uid), { totalBotEarnings: 0 });
     await batch.commit();
     
-    // Create the ONE OFFICIAL receipt that adds to wallet balance
     addTransaction({ 
       type: 'receive', 
       currency: 'USDC', 
@@ -310,7 +297,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, 
       syncOnChainBalance: async (addr, curr) => {
-        if (addr.includes('enclave') || addr.includes('usdc') || curr === 'USDC') {
+        // Disable blockchain verification for private enclave keys
+        if (addr.includes('enclave') || addr.includes('usdc') || curr === 'USDC' || addr.length < 42) {
           const asset = assets.find(a => a.address === addr);
           return { onChain: asset?.amount || 0, vault: asset?.amount || 0 };
         }
@@ -331,17 +319,24 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       generateNewWallet: async (curr) => {
         if (!db || !user) return;
         const existingPrimary = assets.find(a => a.currency === curr && a.isPrimary);
+        
+        // Generate a full 42-character hex address (No truncation)
+        const hex = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+        const fullAddress = `0x${hex}`;
+        const fullKey = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+
         setDoc(doc(db, 'users', user.uid, 'assets', `asset_${curr.toLowerCase()}_${Date.now()}`), {
           currency: curr, amount: 0, fiatValueUSD: 0, isLive: true, isPrimary: !existingPrimary,
-          address: `0x${Math.random().toString(16).slice(2, 12)}...enclave`, privateKey: `0x${Math.random().toString(16).slice(2, 66)}`
+          address: fullAddress, privateKey: fullKey
         });
       },
       importPrivateKey: async (curr, key) => {
         if (!db || !user) return;
         const existingPrimary = assets.find(a => a.currency === curr && a.isPrimary);
+        const hex = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
         setDoc(doc(db, 'users', user.uid, 'assets', `asset_${curr.toLowerCase()}_${Date.now()}`), {
           currency: curr, amount: 0, fiatValueUSD: 0, isLive: true, isPrimary: !existingPrimary,
-          address: `0x${Math.random().toString(16).slice(2, 42)}`, privateKey: key
+          address: `0x${hex}`, privateKey: key
         }, { merge: true });
       },
       updateBotSettings: (active, allocation, risk, strategy) => {

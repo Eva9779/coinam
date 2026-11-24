@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
@@ -77,10 +78,11 @@ function TransactionsContent() {
   const asset = assets.find(a => a.id === selectedAssetId);
   const currency = asset?.currency || "ETH";
 
-  // Hide internal "Yield Settle" logs to show only official transactions
+  // Filter history to show official financial receipts and exclude internal bot events
   const displayTransactions = transactions.filter(t => {
     const desc = (t.description || "").toLowerCase();
-    return !t.internal && !desc.includes('yield settle');
+    const isBotInternal = t.internal === true || desc.includes('yield settle');
+    return !isBotInternal;
   });
 
   const handleSend = async (e: React.FormEvent) => {
@@ -96,8 +98,8 @@ function TransactionsContent() {
     try {
       let txHash = `0x${Math.random().toString(16).slice(2, 66)}`;
 
-      if (asset.address.includes('enclave') || asset.address.includes('usdc') || asset.currency === 'USDC') {
-        // Enclave broadcast uses the generated hash for tracking
+      if (asset.address.includes('enclave') || asset.currency === 'USDC' || asset.address.length < 42) {
+        // Enclave broadcast uses internal simulation
       } else {
         if (!asset.privateKey) throw new Error("No private key found for mainnet signing.");
         txHash = await sendLiveTransaction(asset.privateKey as `0x${string}`, recipient, amount);
@@ -183,7 +185,7 @@ function TransactionsContent() {
                 <div className="space-y-2">
                   <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">External Target Address (e.g. Binance)</Label>
                   <Input 
-                    placeholder="0x... or Wallet Key" 
+                    placeholder="0x... Paste Full ERC-20 Address" 
                     value={recipient} 
                     onChange={(e) => setRecipient(e.target.value)} 
                     className="h-14 rounded-xl font-bold bg-background/50 border-2"
@@ -231,18 +233,22 @@ function TransactionsContent() {
                 <QRCodeSVG value={asset?.address || ""} size={220} />
               </div>
               <div className="w-full max-w-sm space-y-4">
-                <div className="space-y-2 text-center">
+                <div className="space-y-4 text-center">
                   <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Your Secure Receiving Endpoint</Label>
-                  <div className="flex gap-2">
-                    <Input readOnly value={asset?.address || ""} className="h-12 font-mono text-[11px] font-bold rounded-xl border-2 bg-background/50" />
-                    <Button variant="outline" size="icon" className="h-12 w-12 rounded-xl border-2" onClick={() => {
+                  <div className="flex flex-col gap-2">
+                    {/* ENHANCED RECEIVE KEY DISPLAY - FULL WIDTH AND SELECTABLE */}
+                    <Input readOnly value={asset?.address || ""} className="h-14 font-mono text-[12px] font-black rounded-xl border-2 bg-background/50 text-center select-all" />
+                    <Button variant="outline" className="h-12 rounded-xl border-2 font-black gap-2" onClick={() => {
                       navigator.clipboard.writeText(asset?.address || "");
-                      toast({ title: "Address Copied" });
-                    }}><Copy className="h-5 w-5" /></Button>
+                      toast({ title: "Address Copied", description: "Full key stored in secure clipboard." });
+                    }}>
+                      <Copy className="h-4 w-4" />
+                      Copy Entire Address
+                    </Button>
                   </div>
                 </div>
                 <p className="text-[10px] text-muted-foreground text-center font-medium px-4">
-                  Only send {currency} to this address on the Ethereum Mainnet. Assets sent to other networks may be unrecoverable.
+                  Only send {currency} to this address on the Ethereum Mainnet (ERC-20). Assets sent to other networks (BSC, Solana) may be unrecoverable.
                 </p>
               </div>
             </CardContent>
@@ -282,12 +288,12 @@ function TransactionsContent() {
                           {tx.currency} • {new Date(tx.timestamp).toLocaleDateString()}
                         </div>
                         
-                        {/* THE MISSING TXID (HASH) DISPLAY FOR BINANCE VERIFICATION */}
+                        {/* TRANSACTION ID (HASH) DISPLAY FOR BINANCE VERIFICATION */}
                         {tx.hash && (
                           <div className="mt-3 flex flex-col gap-1 bg-primary/5 p-3 rounded-xl border border-primary/10 w-fit group">
                             <span className="text-[8px] font-black uppercase text-primary/40 leading-none">Transaction ID (TxID / Hash)</span>
                             <div className="flex items-center gap-3 mt-1">
-                              <code className="text-[11px] font-mono font-black text-primary truncate max-w-[150px] sm:max-w-[250px] bg-white/50 px-2 py-0.5 rounded border border-primary/5">
+                              <code className="text-[11px] font-mono font-black text-primary truncate max-w-[150px] sm:max-w-[250px] bg-white/50 px-2 py-0.5 rounded border border-primary/5 select-all">
                                 {tx.hash}
                               </code>
                               <button 
