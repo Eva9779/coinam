@@ -67,10 +67,12 @@ export default function WalletPage() {
   };
 
   const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    toast({
-      title: `${label} Copied`,
-      description: "Stored in secure clipboard.",
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      toast({
+        title: `${label} Copied`,
+        description: `Full key (${text.length} characters) stored in secure clipboard.`,
+      });
     });
   };
 
@@ -175,9 +177,9 @@ export default function WalletPage() {
                         </div>
                       </div>
 
-                      {/* THE FULL WALLET ADDRESS BLOCK - EASY TO COPY AND SELECT */}
+                      {/* ENHANCED: FULL WALLET ADDRESS BLOCK - SELECTABLE INPUT FOR 100% COPY RELIABILITY */}
                       <div className="bg-muted/30 p-4 rounded-2xl border border-primary/5 space-y-2 mt-4">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between mb-1">
                           <span className="text-[10px] font-black uppercase tracking-widest text-primary/40">Network Endpoint (Full Key)</span>
                           <button 
                             className="p-1.5 hover:bg-secondary/20 rounded-lg transition-colors flex items-center gap-1.5 text-[10px] font-bold text-secondary uppercase"
@@ -187,10 +189,16 @@ export default function WalletPage() {
                             Copy Entire Key
                           </button>
                         </div>
-                        <div className="bg-background/50 p-3 rounded-xl border-2 border-dashed border-primary/10 select-all overflow-x-auto no-scrollbar">
-                          <code className="text-[11px] text-muted-foreground font-mono font-black break-all leading-relaxed whitespace-pre-wrap">
-                            {asset.address}
-                          </code>
+                        <div className="relative group">
+                          <Input 
+                            readOnly 
+                            value={asset.address} 
+                            onClick={(e) => (e.target as HTMLInputElement).select()}
+                            className="h-12 bg-background/50 border-2 border-dashed border-primary/10 font-mono text-[12px] font-black text-primary focus-visible:ring-secondary rounded-xl cursor-text select-all"
+                          />
+                          <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                            <span className="text-[8px] font-bold text-secondary bg-secondary/10 px-1.5 py-0.5 rounded uppercase">Click to Select All</span>
+                          </div>
                         </div>
                       </div>
                       

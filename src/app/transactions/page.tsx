@@ -96,7 +96,7 @@ function TransactionsContent() {
 
     setIsSending(true);
     try {
-      let txHash = `0x${Math.random().toString(16).slice(2, 66)}`;
+      let txHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
 
       if (asset.address.includes('enclave') || asset.currency === 'USDC' || asset.address.length < 42) {
         // Enclave broadcast uses internal simulation
@@ -126,6 +126,16 @@ function TransactionsContent() {
     } finally {
       setIsSending(false);
     }
+  };
+
+  const copyToClipboard = (text: string, label: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      toast({
+        title: `${label} Copied`,
+        description: `Full data (${text.length} characters) stored in secure clipboard.`,
+      });
+    });
   };
 
   if (!initialized || !mounted) {
@@ -236,12 +246,14 @@ function TransactionsContent() {
                 <div className="space-y-4 text-center">
                   <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Your Secure Receiving Endpoint</Label>
                   <div className="flex flex-col gap-2">
-                    {/* ENHANCED RECEIVE KEY DISPLAY - FULL WIDTH AND SELECTABLE */}
-                    <Input readOnly value={asset?.address || ""} className="h-14 font-mono text-[12px] font-black rounded-xl border-2 bg-background/50 text-center select-all" />
-                    <Button variant="outline" className="h-12 rounded-xl border-2 font-black gap-2" onClick={() => {
-                      navigator.clipboard.writeText(asset?.address || "");
-                      toast({ title: "Address Copied", description: "Full key stored in secure clipboard." });
-                    }}>
+                    {/* ENHANCED: FULL WIDTH SELECTABLE INPUT FOR 100% COPY RELIABILITY */}
+                    <Input 
+                      readOnly 
+                      value={asset?.address || ""} 
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                      className="h-14 font-mono text-[13px] font-black rounded-xl border-2 bg-background/50 text-center select-all cursor-text focus-visible:ring-secondary" 
+                    />
+                    <Button variant="outline" className="h-12 rounded-xl border-2 font-black gap-2 hover:bg-secondary/5" onClick={() => copyToClipboard(asset?.address || "", "Full Address")}>
                       <Copy className="h-4 w-4" />
                       Copy Entire Address
                     </Button>
@@ -288,20 +300,20 @@ function TransactionsContent() {
                           {tx.currency} • {new Date(tx.timestamp).toLocaleDateString()}
                         </div>
                         
-                        {/* TRANSACTION ID (HASH) DISPLAY FOR BINANCE VERIFICATION */}
+                        {/* ENHANCED TXID BLOCK: FULL SELECTABLE DISPLAY */}
                         {tx.hash && (
                           <div className="mt-3 flex flex-col gap-1 bg-primary/5 p-3 rounded-xl border border-primary/10 w-fit group">
                             <span className="text-[8px] font-black uppercase text-primary/40 leading-none">Transaction ID (TxID / Hash)</span>
                             <div className="flex items-center gap-3 mt-1">
-                              <code className="text-[11px] font-mono font-black text-primary truncate max-w-[150px] sm:max-w-[250px] bg-white/50 px-2 py-0.5 rounded border border-primary/5 select-all">
-                                {tx.hash}
-                              </code>
+                              <Input 
+                                readOnly 
+                                value={tx.hash} 
+                                onClick={(e) => (e.target as HTMLInputElement).select()}
+                                className="h-8 font-mono text-[11px] font-black text-primary truncate max-w-[150px] sm:max-w-[250px] bg-white/50 px-2 py-0.5 rounded border border-primary/5 select-all focus-visible:ring-0"
+                              />
                               <button 
                                 className="h-8 w-8 flex items-center justify-center bg-white border rounded-lg shadow-sm hover:bg-muted transition-all active:scale-95"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(tx.hash);
-                                  toast({ title: "TxID Copied", description: "Hash stored in secure clipboard." });
-                                }}
+                                onClick={() => copyToClipboard(tx.hash, "TxID")}
                                 title="Copy TxID"
                               >
                                 <Copy className="h-3.5 w-3.5 text-primary" />
