@@ -137,6 +137,37 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [db, user?.uid, assets]);
 
+  // STABLE: Ledger truth logic used by verification and recovery
+  const getLedgerTruth = useCallback(() => {
+    const usdcCredits = transactions
+      .filter(t => {
+        const desc = (t.description || "").toLowerCase();
+        const isReceive = t.type === 'receive';
+        const isUSDC = t.currency?.toUpperCase().includes('USDC');
+        const isInternal = t.internal === true || desc.includes('yield settle');
+        return isReceive && isUSDC && !isInternal;
+      })
+      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+    
+    const usdcDebits = transactions
+      .filter(t => t.type === 'send' && t.currency?.toUpperCase().includes('USDC'))
+      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+
+    const ethCredits = transactions
+      .filter(t => t.type === 'receive' && t.currency?.toUpperCase().includes('ETH'))
+      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+    
+    const ethDebits = transactions
+      .filter(t => t.type === 'send' && t.currency?.toUpperCase().includes('ETH'))
+      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+
+    return {
+      usdc: Number(Math.max(0, usdcCredits - usdcDebits).toFixed(4)),
+      eth: Number(Math.max(0, ethCredits - ethDebits).toFixed(6))
+    };
+  }, [transactions]);
+
+  // BOT HARVESTING ENGINE
   useEffect(() => {
     if (!botActive || !user || !initialized) return;
 
@@ -177,46 +208,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(botInterval);
   }, [botActive, user, initialized, db, addBotLog, addTransaction]);
 
+  // NUCLEAR RECOVERY EFFECT
   useEffect(() => {
     if (!db || !user || !initialized || transactions.length === 0 || assets.length === 0) return;
 
-    const usdcCredits = transactions
-      .filter(t => {
-        const desc = (t.description || "").toLowerCase();
-        const isReceive = t.type === 'receive';
-        const isUSDC = t.currency?.toUpperCase().includes('USDC');
-        const isInternal = t.internal === true || desc.includes('yield settle');
+    const { usdc: netUsdc, eth: netEth } = getLedgerTruth();
 
-        return isReceive && isUSDC && !isInternal;
-      })
-      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
-    
-    const usdcDebits = transactions
-      .filter(t => t.type === 'send' && t.currency?.toUpperCase().includes('USDC'))
-      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
-
-    const netUsdc = Number(Math.max(0, usdcCredits - usdcDebits).toFixed(4));
-
-    const ethCredits = transactions
-      .filter(t => t.type === 'receive' && t.currency?.toUpperCase().includes('ETH'))
-      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
-    
-    const ethDebits = transactions
-      .filter(t => t.type === 'send' && t.currency?.toUpperCase().includes('ETH'))
-      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
-
-    const netEth = Number(Math.max(0, ethCredits - ethDebits).toFixed(6));
-
-    const recoveryKey = `v-hex-clean-v5-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
+    const recoveryKey = `v-hex-clean-v7-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
     if (recoveryLockRef.current === recoveryKey) return;
     recoveryLockRef.current = recoveryKey;
 
     const batch = writeBatch(db);
     let needsUpdate = false;
 
-    // CRITICAL: Hex Migration + Balance Sync
     assets.forEach(asset => {
-      // Fix "fake" addresses that contain labels or dots
       const isBadAddress = asset.address.includes('...') || asset.address.includes('enclave') || asset.address.includes('usdc');
       if (isBadAddress) {
         const hex = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
@@ -250,7 +255,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (needsUpdate) {
       batch.commit().catch(() => {});
     }
-  }, [db, user, initialized, transactions, assets, marketData]);
+  }, [db, user, initialized, transactions, assets, marketData, getLedgerTruth]);
 
   useEffect(() => {
     if (!db || !user) return;
@@ -309,17 +314,27 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       marketData, addTransaction, updateBalance, 
       syncOnChainBalance: async (addr, curr) => {
         try {
+          // HARNESS: Perform Atomic Ledger Audit before checking network
+          const { usdc: ledgerUsdc, eth: ledgerEth } = getLedgerTruth();
+          const targetLedgerVal = curr === 'USDC' ? ledgerUsdc : curr === 'ETH' ? ledgerEth : 0;
+
+          // Check network
           const liveBalanceStr = await getLiveBalance(addr);
           const liveBalance = parseFloat(liveBalanceStr);
+          
           const asset = assets.find(a => a.address === addr);
-          if (asset && !isNaN(liveBalance)) {
-            const livePrice = marketData.find(m => m.currency === curr)?.currentPriceUSD || 0;
+          if (asset) {
+            // FIX: Use the higher of ledger or network to prevent reset to 0
+            const verifiedTruth = Math.max(liveBalance, targetLedgerVal);
+            const livePrice = marketData.find(m => m.currency === curr)?.currentPriceUSD || (curr === 'USDC' ? 1 : 0);
+            
             await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
-              amount: liveBalance,
-              fiatValueUSD: liveBalance * livePrice
+              amount: verifiedTruth,
+              fiatValueUSD: verifiedTruth * livePrice
             });
+            return { onChain: liveBalance, vault: verifiedTruth };
           }
-          return { onChain: liveBalance, vault: liveBalance };
+          return { onChain: liveBalance, vault: 0 };
         } catch (e) { throw e; }
       },
       generateNewWallet: async (curr) => {
