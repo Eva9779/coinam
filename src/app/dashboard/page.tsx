@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -266,7 +267,7 @@ export default function Dashboard() {
         <div className="space-y-6">
           <h3 className="text-lg font-black text-primary flex items-center gap-2 px-2">
             <Terminal className="h-5 w-5 text-secondary" />
-            Strategy Feed (+2.1%)
+            Strategy Feed
           </h3>
           <Card className="shadow-2xl border-none bg-slate-950 text-white rounded-[2rem] overflow-hidden min-h-[400px]">
              <CardHeader className="border-b border-white/10">
