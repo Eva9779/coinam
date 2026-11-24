@@ -9,11 +9,7 @@ import {
   onSnapshot, 
   increment,
   arrayUnion,
-  getDoc,
   writeBatch,
-  query,
-  where,
-  deleteDoc,
   updateDoc
 } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
@@ -273,7 +269,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
       if (s.exists()) {
         const d = s.data();
-        // Prevent infinite loops by only setting if values differ
         setTotalBotEarnings(prev => prev !== d.totalBotEarnings ? (d.totalBotEarnings || 0) : prev);
         setBotActive(prev => prev !== d.botActive ? (!!d.botActive) : prev);
         setBotAllocation(prev => prev !== d.botAllocation ? (d.botAllocation || 20) : prev);

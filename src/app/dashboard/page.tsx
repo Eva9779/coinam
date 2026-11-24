@@ -17,10 +17,7 @@ import {
   ChevronRight,
   Loader2,
   Landmark,
-  DollarSign,
-  ArrowRight,
   Banknote,
-  ChevronLeft,
   Activity
 } from "lucide-react";
 import { useWalletStore } from "@/lib/store";
