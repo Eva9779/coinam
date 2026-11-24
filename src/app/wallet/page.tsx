@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useMemo } from "react";
@@ -29,8 +28,6 @@ import { toast } from "@/hooks/use-toast";
 import { useWalletStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-
-const PRINCIPAL_LOCK = 29.57;
 
 export default function WalletPage() {
   const { assets, initialized, isSyncing, user, generateNewWallet, syncOnChainBalance, marketData } = useWalletStore();
@@ -151,8 +148,7 @@ export default function WalletPage() {
               <div className="space-y-4">
                 {filteredAssets.length > 0 ? filteredAssets.map((asset) => {
                   const livePrice = marketData.find(m => m.currency === asset.currency)?.currentPriceUSD || 0;
-                  // Forced anchor UI: if ETH is primary, always show 29.57
-                  const liveValue = (asset.currency === 'ETH' && asset.isPrimary) ? PRINCIPAL_LOCK : asset.amount * livePrice;
+                  const liveValue = asset.amount * livePrice;
 
                   return (
                     <div key={asset.id} className="flex flex-col p-6 border-2 border-primary/5 bg-background/30 rounded-3xl transition-all hover:border-primary/20">

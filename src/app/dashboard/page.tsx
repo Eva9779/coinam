@@ -26,8 +26,6 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
-const PRINCIPAL_LOCK = 29.57;
-
 const CustomPulseMarquee = ({ items, label }: { items: any[], label: string }) => {
   const displayItems = [...items, ...items];
 
@@ -95,15 +93,11 @@ export default function Dashboard() {
   }, []);
 
   const totalBalance = useMemo(() => {
-    const profitSum = transactions
-      .filter(tx => tx.description.includes('Profit') || tx.description.includes('Liquidation'))
-      .reduce((acc, tx) => acc + (tx.fiatValueUSD || 0), 0);
-    
-    const ethAsset = assets.find(a => a.currency === 'ETH' && a.isPrimary);
-    const baseValue = (ethAsset && ethAsset.amount > 0) ? PRINCIPAL_LOCK : 0;
-    
-    return baseValue + profitSum;
-  }, [assets, transactions]);
+    return assets.reduce((acc, asset) => {
+      const livePrice = marketData.find(m => m.currency === asset.currency)?.currentPriceUSD || 0;
+      return acc + (asset.amount * livePrice);
+    }, 0);
+  }, [assets, marketData]);
 
   const cryptoMarketData = useMemo(() => 
     marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USDC'].includes(m.currency)), 
