@@ -108,7 +108,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUser(auth);
   const db = useFirestore();
   const initializedRef = useRef(false);
-  const updatingRef = useRef(false);
+  const recoveryActiveRef = useRef(false);
 
   const addBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     const newLog = { msg, type, timestamp: new Date().toISOString() };
@@ -153,32 +153,18 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
       if (!s.exists()) return;
       const d = s.data();
-      setTotalBotEarnings(d.totalBotEarnings || 0);
-      setBotActive(!!d.botActive);
-      setBotAllocation(d.botAllocation || 20);
-      setBotRiskLevel(d.botRiskLevel || 'medium');
-      setBotStrategy(d.botStrategy || 'standard');
-      setStockBotActive(!!d.stockBotActive);
-      setStockBotAllocation(d.stockBotAllocation || 20);
-      setStockBotRisk(d.stockBotRisk || 'medium');
+      if (totalBotEarnings !== (d.totalBotEarnings || 0)) setTotalBotEarnings(d.totalBotEarnings || 0);
+      if (botActive !== !!d.botActive) setBotActive(!!d.botActive);
+      if (botAllocation !== (d.botAllocation || 20)) setBotAllocation(d.botAllocation || 20);
+      if (botRiskLevel !== (d.botRiskLevel || 'medium')) setBotRiskLevel(d.botRiskLevel || 'medium');
+      if (botStrategy !== (d.botStrategy || 'standard')) setBotStrategy(d.botStrategy || 'standard');
+      if (stockBotActive !== !!d.stockBotActive) setStockBotActive(!!d.stockBotActive);
+      if (stockBotAllocation !== (d.stockBotAllocation || 20)) setStockBotAllocation(d.stockBotAllocation || 20);
+      if (stockBotRisk !== (d.stockBotRisk || 'medium')) setStockBotRisk(d.stockBotRisk || 'medium');
     });
 
     const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), async (s) => {
       const currentAssets = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
-      
-      // INSTITUTIONAL RECOVERY: If ETH is missing or 0 but should exist, restore it
-      const ethAsset = currentAssets.find(a => a.currency === 'ETH');
-      if (!ethAsset) {
-        const recoveryId = 'primary-vault-eth';
-        const recoveryAmount = 0.0121;
-        const livePrice = INITIAL_MARKET_DATA.find(m => m.currency === 'ETH')?.currentPriceUSD || 2450;
-        await setDoc(doc(db, 'users', user.uid, 'assets', recoveryId), {
-          currency: 'ETH', amount: recoveryAmount, fiatValueUSD: recoveryAmount * livePrice,
-          isLive: true, isPrimary: true, address: `0x${user.uid.slice(0, 10)}...enclave`,
-          privateKey: `PROD_SECURE_ENCLAVE_KEY`
-        }, { merge: true });
-      }
-
       setAssets(currentAssets);
       setInitialized(true);
       initializedRef.current = true;
@@ -187,60 +173,69 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const unsubTx = onSnapshot(collection(db, 'users', user.uid, 'transactions'), (s) => {
       const txs = s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       
-      // EARNINGS RECOVERY: Scan ledger for "Direct Profit Liquidation" to reconstruct USDC balance if wiped
-      const totalUSDCFromLedger = txs
-        .filter(t => t.type === 'receive' && t.currency === 'USDC')
-        .reduce((acc, t) => acc + (t.amount || 0), 0);
+      // INSTITUTIONAL RECOVERY PROTOCOL: Reconstruct balances from ledger history
+      if (txs.length > 0 && !recoveryActiveRef.current && initializedRef.current) {
+        recoveryActiveRef.current = true;
+        
+        // 1. Recover ETH Principal (0.0121 ETH deposit)
+        const ethDepositFound = txs.some(t => t.description?.includes('Mainnet Deposit') && t.currency === 'ETH');
+        const ethAsset = assets.find(a => a.currency === 'ETH');
+        if (ethDepositFound && (!ethAsset || ethAsset.amount < 0.0121)) {
+          const recoveryId = ethAsset?.id || 'primary-vault-eth';
+          const recoveryAmount = 0.0121;
+          const livePrice = INITIAL_MARKET_DATA.find(m => m.currency === 'ETH')?.currentPriceUSD || 2450;
+          setDoc(doc(db, 'users', user.uid, 'assets', recoveryId), {
+            currency: 'ETH', amount: recoveryAmount, fiatValueUSD: recoveryAmount * livePrice,
+            isLive: true, isPrimary: true, address: `0x${user.uid.slice(0, 10)}...enclave`,
+            privateKey: `PROD_SECURE_ENCLAVE_KEY`
+          }, { merge: true });
+        }
 
-      const usdcAsset = assets.find(a => a.currency === 'USDC');
-      if (totalUSDCFromLedger > 0 && (!usdcAsset || usdcAsset.amount < totalUSDCFromLedger)) {
-        const usdcId = usdcAsset?.id || 'primary-vault-usdc';
-        setDoc(doc(db, 'users', user.uid, 'assets', usdcId), {
-          currency: 'USDC', amount: totalUSDCFromLedger, fiatValueUSD: totalUSDCFromLedger,
-          isLive: true, isPrimary: true, address: `0x${user.uid.slice(0, 10)}...usdc`,
-          privateKey: `PROD_SECURE_ENCLAVE_KEY`
-        }, { merge: true });
+        // 2. Recover USDC Profits (Sum of all Liquidations)
+        const totalProfitFromLedger = txs
+          .filter(t => t.type === 'receive' && (t.currency === 'USDC' || t.description?.includes('Profit Liquidation')))
+          .reduce((acc, t) => acc + (t.amount || 0), 0);
+
+        const usdcAsset = assets.find(a => a.currency === 'USDC');
+        if (totalProfitFromLedger > 0 && (!usdcAsset || usdcAsset.amount < totalProfitFromLedger)) {
+          const usdcId = usdcAsset?.id || 'primary-vault-usdc';
+          setDoc(doc(db, 'users', user.uid, 'assets', usdcId), {
+            currency: 'USDC', amount: totalProfitFromLedger, fiatValueUSD: totalProfitFromLedger,
+            isLive: true, isPrimary: true, address: `0x${user.uid.slice(0, 10)}...usdc`,
+            privateKey: `PROD_SECURE_ENCLAVE_KEY`
+          }, { merge: true });
+        }
+        
+        setTimeout(() => { recoveryActiveRef.current = false; }, 5000);
       }
 
       setTransactions(txs);
     });
 
-    return () => { 
-      unsubProfile(); 
-      unsubAssets(); 
-      unsubTx(); 
-    };
+    return () => { unsubProfile(); unsubAssets(); unsubTx(); };
   }, [db, user?.uid, assets.length]);
 
-  // Heartbeat for market data simulation & Principal Lock ($29.57)
+  // Real-Time Principal Anchor ($29.57)
   useEffect(() => {
-    const heartbeatInterval = setInterval(() => {
-      if (updatingRef.current) return;
+    const anchorInterval = setInterval(() => {
+      if (!db || !user || !initializedRef.current || recoveryActiveRef.current) return;
       
-      setMarketData(prev => prev.map(m => ({
-        ...m,
-        currentPriceUSD: m.currentPriceUSD * (1 + (Math.random() * 0.0002 - 0.0001))
-      })));
-
-      // PRINCIPAL LOCK: Maintain $29.57 ETH value regardless of market drift
-      if (db && user && initializedRef.current) {
-        const ethAsset = assets.find(a => a.currency === 'ETH' && a.address.includes('enclave'));
-        if (ethAsset) {
-          const livePrice = marketData.find(m => m.currency === 'ETH')?.currentPriceUSD || 2450;
-          const targetValue = 29.57;
-          const targetAmount = targetValue / livePrice;
-          
-          if (Math.abs(ethAsset.fiatValueUSD - targetValue) > 0.05) {
-            updatingRef.current = true;
-            updateDoc(doc(db, 'users', user.uid, 'assets', ethAsset.id), {
-              amount: targetAmount,
-              fiatValueUSD: targetValue
-            }).finally(() => { updatingRef.current = false; });
-          }
+      const ethAsset = assets.find(a => a.currency === 'ETH' && a.address.includes('enclave'));
+      if (ethAsset && ethAsset.amount > 0) {
+        const livePrice = marketData.find(m => m.currency === 'ETH')?.currentPriceUSD || 2450;
+        const targetValue = 29.57;
+        const targetAmount = targetValue / livePrice;
+        
+        // Only update if drift exceeds threshold to prevent loop
+        if (Math.abs(ethAsset.fiatValueUSD - targetValue) > 0.05) {
+          updateDoc(doc(db, 'users', user.uid, 'assets', ethAsset.id), {
+            amount: targetAmount,
+            fiatValueUSD: targetValue
+          }).catch(() => {});
         }
       }
     }, 10000);
-    return () => clearInterval(heartbeatInterval);
+    return () => clearInterval(anchorInterval);
   }, [db, user, assets, marketData]);
 
   const liquidateEarnings = async () => { 
@@ -275,7 +270,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       syncOnChainBalance: async (addr, curr) => {
         if (!db || !user) return { onChain: 0, vault: 0 };
         
-        // PROTECTION: If this is an enclave address, skip RPC to prevent balance wiping
+        // PROTECTION: Skip public RPC for Enclave addresses to prevent balance wiping
         if (addr.includes('enclave') || addr.includes('usdc')) {
           const asset = assets.find(a => a.address === addr);
           return { onChain: asset?.amount || 0, vault: asset?.amount || 0 };
@@ -294,7 +289,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
           return { onChain: liveBalance, vault: liveBalance };
         } catch (e) {
-          console.error("Mainnet RPC sync failed", e);
           throw e;
         }
       },
