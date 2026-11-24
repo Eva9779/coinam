@@ -77,8 +77,6 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-const PRINCIPAL_LOCK = 29.57;
-
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
@@ -114,7 +112,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const assetsRef = useRef<WalletAsset[]>([]);
   const baselinesRef = useRef<Record<string, number>>({});
   const botActiveRef = useRef(false);
-  const isUpdatingRef = useRef(false);
 
   useEffect(() => {
     assetsRef.current = assets;
@@ -188,10 +185,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       addBotLog("TARGET REACHED: Harvesting +2.1% profit to USDC Vault.", 'success');
       
       const ethValueUSD = ethAsset.amount * livePrice;
-      const profitUSD = ethValueUSD - PRINCIPAL_LOCK;
+      const profitUSD = ethValueUSD * 0.021; // Skim exactly 2.1%
       
       if (profitUSD > 0.01) {
-        const requiredEthForPrincipal = PRINCIPAL_LOCK / livePrice;
+        const skimAmount = profitUSD / livePrice;
         const batch = writeBatch(db);
         const usdcAsset = assetsRef.current.find(a => a.currency === 'USDC' && a.isPrimary);
         
@@ -208,8 +205,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         }
         
         batch.update(doc(db, 'users', user.uid, 'assets', ethAsset.id), { 
-          amount: requiredEthForPrincipal, 
-          fiatValueUSD: PRINCIPAL_LOCK 
+          amount: increment(-skimAmount), 
+          fiatValueUSD: increment(-profitUSD) 
         });
 
         batch.update(doc(db, 'users', user.uid), { 
@@ -222,7 +219,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         addTransaction({ 
           type: 'trade', 
           currency: `ETH → USDC`, 
-          amount: ethAsset.amount - requiredEthForPrincipal, 
+          amount: skimAmount, 
           fiatValueUSD: profitUSD, 
           description: `Profit Skim (+2.1%)` 
         });
@@ -264,12 +261,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [stockBotActive, isAnalyzingStocks, user, db, addStockBotLog, addTransaction]);
 
   useEffect(() => {
-    if (!db || !user) return;
+    if (!db || !user) {
+      setAssets([]);
+      setTransactions([]);
+      setBotLogs([]);
+      setTotalBotEarnings(0);
+      setBotActive(false);
+      setInitialized(false);
+      return;
+    }
     
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
       if (s.exists()) {
         const d = s.data();
-        // SECURE: Only update if value actually changed to prevent infinite loop
         setTotalBotEarnings(prev => prev !== d.totalBotEarnings ? (d.totalBotEarnings || 0) : prev);
         setBotActive(prev => prev !== d.botActive ? (!!d.botActive) : prev);
         setBotAllocation(prev => prev !== d.botAllocation ? (d.botAllocation || 20) : prev);
@@ -297,7 +301,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => { unsubProfile(); unsubAssets(); unsubTx(); };
-  }, [db, user?.uid]); // Use stable UID dependency
+  }, [db, user?.uid]);
 
   useEffect(() => {
     const fetchLivePrices = async () => {
@@ -322,31 +326,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const heartbeatInterval = setInterval(() => {
       setMarketData(prev => {
-        const updated = prev.map(m => {
+        return prev.map(m => {
           const fluctuation = 1 + (Math.random() * 0.0004 - 0.0002);
           return { ...m, currentPriceUSD: m.currentPriceUSD * fluctuation };
         });
-
-        // PRODUCTION: Only adjust balance if the asset actually exists and has real money (> 0)
-        if (initialized && user && db && !isUpdatingRef.current) {
-           const ethMarket = updated.find(m => m.currency === 'ETH');
-           const ethAsset = assetsRef.current.find(a => a.currency === 'ETH' && a.isPrimary);
-           
-           if (ethMarket && ethAsset && ethAsset.amount > 0 && !isExecutingTradeRef.current) {
-              const livePrice = ethMarket.currentPriceUSD;
-              const currentVal = ethAsset.amount * livePrice;
-              
-              if (Math.abs(currentVal - PRINCIPAL_LOCK) > 0.10) {
-                 isUpdatingRef.current = true;
-                 const newAmount = PRINCIPAL_LOCK / livePrice;
-                 updateDoc(doc(db, 'users', user.uid, 'assets', ethAsset.id), { 
-                   amount: newAmount, 
-                   fiatValueUSD: PRINCIPAL_LOCK 
-                 }).finally(() => { isUpdatingRef.current = false; });
-              }
-           }
-        }
-        return updated;
       });
     }, 5000);
 
