@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
@@ -78,7 +77,7 @@ function TransactionsContent() {
   const asset = assets.find(a => a.id === selectedAssetId);
   const currency = asset?.currency || "ETH";
 
-  // Filter out internal bot "settle" logs to show only official transactions
+  // Hide internal "Yield Settle" logs to show only official transactions
   const displayTransactions = transactions.filter(t => {
     const desc = (t.description || "").toLowerCase();
     return !t.internal && !desc.includes('yield settle');

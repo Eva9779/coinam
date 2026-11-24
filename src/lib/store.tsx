@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -160,14 +159,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const harvest = Number((Math.random() * 0.45 + 0.15).toFixed(2));
         addBotLog(`PROFIT TARGET HIT (+2.1%). Harvesting $${harvest} into Enclave.`, "success");
         
-        // Internal record only - does NOT update wallet balance until Settle clicked
+        // Internal record only - strictly does NOT update wallet balance
         addTransaction({
           type: 'receive',
           currency: 'USDC',
           amount: harvest,
           fiatValueUSD: harvest,
           description: 'Real-Time Yield Settle',
-          internal: true // Mark as internal to ignore in spendable balance
+          internal: true 
         });
 
         updateDoc(doc(db, 'users', user.uid), {
@@ -179,19 +178,21 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     return () => clearInterval(botInterval);
   }, [botActive, user, initialized, db, addBotLog, addTransaction]);
 
-  // ATOMIC LEDGER RECONSTRUCTION (Excluding phantom yield)
+  // ATOMIC LEDGER RECONSTRUCTION - REMOVES FAKE MONEY
   useEffect(() => {
     if (!db || !user || !initialized || transactions.length === 0 || assets.length === 0) return;
 
-    // Sum real spendable credits (Exclude the "Yield Settle" phantom entries)
+    // Sum real spendable credits - EXCLUDES all "Yield Settle" (Fake Balance source)
     const usdcCredits = transactions
       .filter(t => {
         const desc = (t.description || "").toLowerCase();
         const isReceive = t.type === 'receive';
         const isUSDC = t.currency?.toUpperCase().includes('USDC');
+        
+        // CRITICAL: Filter out "Real-Time Yield Settle" which causes the fake balance increase.
         const isInternal = t.internal === true || desc.includes('yield settle') || desc.includes('internal');
         
-        // Only include official credits: Liquidation, Settlement (Manual), or Deposits
+        // We only count Manual settlements and Direct trade liquidations.
         const isOfficial = desc.includes('liquidation') || 
                            desc.includes('profit') || 
                            desc.includes('settlement') ||
@@ -208,9 +209,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const netUsdc = Number(Math.max(0, usdcCredits - usdcDebits).toFixed(4));
 
-    // Restore ETH principal
+    // Restore ETH principal strictly from Deposits/Syncs
     const ethCredits = transactions
-      .filter(t => t.type === 'receive' && t.currency?.toUpperCase().includes('ETH'))
+      .filter(t => {
+        const desc = (t.description || "").toLowerCase();
+        return t.type === 'receive' && t.currency?.toUpperCase().includes('ETH') && (desc.includes('deposit') || desc.includes('sync'));
+      })
       .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
     
     const ethDebits = transactions
@@ -219,7 +223,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const netEth = Number(Math.max(0, ethCredits - ethDebits).toFixed(6));
 
-    const recoveryKey = `v-atomic-clean-v2-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
+    const recoveryKey = `v-clean-atomic-v3-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
     if (recoveryLockRef.current === recoveryKey) return;
     recoveryLockRef.current = recoveryKey;
 
@@ -294,7 +298,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       amount: profitToAdd, 
       fiatValueUSD: profitToAdd, 
       description: 'Manual Profit Liquidation',
-      internal: false // Crucial: This one ADDS to the wallet
+      internal: false 
     });
     toast({ title: "Settlement Finalized" });
   };
