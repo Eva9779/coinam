@@ -108,6 +108,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUser(auth);
   const db = useFirestore();
   const initializedRef = useRef(false);
+  const updatingRef = useRef(false);
 
   const addBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     const newLog = { msg, type, timestamp: new Date().toISOString() };
@@ -214,6 +215,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   // Heartbeat for market data simulation & Principal Lock ($29.57)
   useEffect(() => {
     const heartbeatInterval = setInterval(() => {
+      if (updatingRef.current) return;
+      
       setMarketData(prev => prev.map(m => ({
         ...m,
         currentPriceUSD: m.currentPriceUSD * (1 + (Math.random() * 0.0002 - 0.0001))
@@ -228,10 +231,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           const targetAmount = targetValue / livePrice;
           
           if (Math.abs(ethAsset.fiatValueUSD - targetValue) > 0.05) {
+            updatingRef.current = true;
             updateDoc(doc(db, 'users', user.uid, 'assets', ethAsset.id), {
               amount: targetAmount,
               fiatValueUSD: targetValue
-            }).catch(() => {});
+            }).finally(() => { updatingRef.current = false; });
           }
         }
       }
