@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -107,20 +106,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUser(auth);
   const db = useFirestore();
 
-  // Ref to prevent infinite loops during bot cycles
-  const lastUpdateRef = useRef<number>(0);
-
   const addBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-    if (!db || !user) return;
     const newLog = { msg, type, timestamp: new Date().toISOString() };
     setBotLogs(prev => [...prev.slice(-49), newLog]);
-  }, [db, user?.uid]);
+  }, []);
 
   const addStockBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-    if (!db || !user) return;
     const newLog = { msg, type, timestamp: new Date().toISOString() };
     setStockBotLogs(prev => [...prev.slice(-49), newLog]);
-  }, [db, user?.uid]);
+  }, []);
 
   const addTransaction = useCallback((tx: any) => {
     if (!db || !user) return;
@@ -165,7 +159,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     });
 
     const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), async (s) => {
-      let currentAssets = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
+      const currentAssets = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
       
       // INSTITUTIONAL RECOVERY: If ETH is 0 and it's an enclave wallet, restore the 0.0121 ETH deposit
       const ethAsset = currentAssets.find(a => a.currency === 'ETH' && a.address.includes('enclave'));
@@ -232,7 +226,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       syncOnChainBalance: async (addr, curr) => {
         if (!db || !user) return { onChain: 0, vault: 0 };
         
-        // PROTECTION: If this is an enclave mock address, verify against internal vault balance
+        // PROTECTION: If this is an enclave mock address, verify against internal vault balance only
         if (addr.includes('enclave')) {
           const asset = assets.find(a => a.address === addr);
           return { onChain: asset?.amount || 0, vault: asset?.amount || 0 };
