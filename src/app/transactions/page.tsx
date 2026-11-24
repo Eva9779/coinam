@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
@@ -78,7 +77,6 @@ function TransactionsContent() {
   const asset = assets.find(a => a.id === selectedAssetId);
   const currency = asset?.currency || "ETH";
 
-  // Filter history to show official financial receipts and exclude internal bot events
   const displayTransactions = transactions.filter(t => {
     const desc = (t.description || "").toLowerCase();
     const isBotInternal = t.internal === true || desc.includes('yield settle');
@@ -99,7 +97,6 @@ function TransactionsContent() {
       let txHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
 
       if (asset.address.includes('enclave') || asset.currency === 'USDC' || asset.address.length < 42) {
-        // Enclave broadcast uses internal simulation
       } else {
         if (!asset.privateKey) throw new Error("No private key found for mainnet signing.");
         txHash = await sendLiveTransaction(asset.privateKey as `0x${string}`, recipient, amount);
@@ -246,7 +243,6 @@ function TransactionsContent() {
                 <div className="space-y-4 text-center">
                   <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Your Secure Receiving Endpoint</Label>
                   <div className="flex flex-col gap-2">
-                    {/* ENHANCED: FULL WIDTH SELECTABLE INPUT FOR 100% COPY RELIABILITY */}
                     <Input 
                       readOnly 
                       value={asset?.address || ""} 
@@ -300,7 +296,6 @@ function TransactionsContent() {
                           {tx.currency} • {new Date(tx.timestamp).toLocaleDateString()}
                         </div>
                         
-                        {/* ENHANCED TXID BLOCK: FULL SELECTABLE DISPLAY */}
                         {tx.hash && (
                           <div className="mt-3 flex flex-col gap-1 bg-primary/5 p-3 rounded-xl border border-primary/10 w-fit group">
                             <span className="text-[8px] font-black uppercase text-primary/40 leading-none">Transaction ID (TxID / Hash)</span>

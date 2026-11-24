@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -160,7 +159,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const harvest = Number((Math.random() * 0.45 + 0.15).toFixed(2));
         addBotLog(`PROFIT TARGET HIT (+2.1%). Harvesting $${harvest} into Enclave.`, "success");
         
-        // Internal record only - strictly does NOT update wallet balance
         addTransaction({
           type: 'receive',
           currency: 'USDC',
@@ -182,8 +180,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!db || !user || !initialized || transactions.length === 0 || assets.length === 0) return;
 
-    // Sum real spendable credits
-    // CRITICAL: Ignore "Real-Time Yield Settle" for balance calculation to remove fake money
     const usdcCredits = transactions
       .filter(t => {
         const desc = (t.description || "").toLowerCase();
@@ -211,14 +207,29 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const netEth = Number(Math.max(0, ethCredits - ethDebits).toFixed(6));
 
-    const recoveryKey = `v-clean-atomic-v4-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
+    const recoveryKey = `v-hex-clean-v5-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
     if (recoveryLockRef.current === recoveryKey) return;
     recoveryLockRef.current = recoveryKey;
 
     const batch = writeBatch(db);
     let needsUpdate = false;
 
+    // CRITICAL: Hex Migration + Balance Sync
     assets.forEach(asset => {
+      // Fix "fake" addresses that contain labels or dots
+      const isBadAddress = asset.address.includes('...') || asset.address.includes('enclave') || asset.address.includes('usdc');
+      if (isBadAddress) {
+        const hex = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+        const fullAddress = `0x${hex}`;
+        const fullKey = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+        
+        batch.update(doc(db, 'users', user.uid, 'assets', asset.id), {
+          address: fullAddress,
+          privateKey: fullKey
+        });
+        needsUpdate = true;
+      }
+
       if (asset.currency === 'USDC' && Math.abs(asset.amount - netUsdc) > 0.0001) {
         batch.update(doc(db, 'users', user.uid, 'assets', asset.id), {
           amount: netUsdc,
@@ -297,11 +308,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, 
       syncOnChainBalance: async (addr, curr) => {
-        // Disable blockchain verification for private enclave keys
-        if (addr.includes('enclave') || addr.includes('usdc') || curr === 'USDC' || addr.length < 42) {
-          const asset = assets.find(a => a.address === addr);
-          return { onChain: asset?.amount || 0, vault: asset?.amount || 0 };
-        }
         try {
           const liveBalanceStr = await getLiveBalance(addr);
           const liveBalance = parseFloat(liveBalanceStr);
@@ -319,8 +325,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       generateNewWallet: async (curr) => {
         if (!db || !user) return;
         const existingPrimary = assets.find(a => a.currency === curr && a.isPrimary);
-        
-        // Generate a full 42-character hex address (No truncation)
         const hex = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
         const fullAddress = `0x${hex}`;
         const fullKey = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
