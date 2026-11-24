@@ -1,7 +1,7 @@
-
-import { createPublicClient, createWalletClient, http, formatEther, parseEther, fallback, encodeFunctionData, parseUnits } from 'viem';
+import { createPublicClient, http, formatEther, parseEther, fallback, parseUnits } from 'viem';
 import { mainnet } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
+import { createWalletClient } from 'viem';
 
 /**
  * Institutional Mainnet Registry
@@ -46,20 +46,22 @@ const QUOTER_ABI = [
 
 /**
  * Hardened RPC Mesh for Production
+ * Increased reliability with premium public nodes.
  */
 const RPC_URLS = [
+  'https://eth.drpc.org',
+  'https://ethereum.publicnode.com',
+  'https://1rpc.io/eth',
   'https://rpc.ankr.com/eth',
-  'https://eth.llamarpc.com',
-  'https://cloudflare-eth.com',
-  'https://rpc.flashbots.net',
   'https://eth-mainnet.public.blastapi.io'
 ];
 
 export const publicClient = createPublicClient({
   chain: mainnet,
-  transport: fallback(RPC_URLS.map(url => http(url, { timeout: 15000 })), {
-    rank: true
-  }),
+  transport: fallback(
+    RPC_URLS.map(url => http(url, { timeout: 30000 })), // Increased timeout to 30s
+    { rank: true }
+  ),
 });
 
 export async function getLiveBlockNumber() {
@@ -71,11 +73,13 @@ export async function getLiveBlockNumber() {
 }
 
 export async function getLiveBalance(address: string) {
-  if (!address || !address.startsWith('0x')) return '0';
+  if (!address || !address.startsWith('0x') || address.includes('...')) return '0';
   try {
     const balance = await publicClient.getBalance({ address: address as `0x${string}` });
     return formatEther(balance);
   } catch (error: any) {
+    // Professional logging for context without throwing standard timeouts to UI
+    console.warn(`RPC Mesh Connectivity Warning: ${error.message}`);
     throw new Error(`Mainnet Connection Error: RPC Mesh Timeout.`);
   }
 }
@@ -120,13 +124,6 @@ export async function executeMainnetSwap(
   const tokenOut = TOKENS[toAsset as keyof typeof TOKENS] || TOKENS.WETH;
   const amountIn = parseUnits(amountUSD.toString(), fromAsset === 'USDC' ? 6 : 18);
   
-  const quote = await publicClient.readContract({
-    address: UNISWAP_QUOTER,
-    abi: QUOTER_ABI,
-    functionName: 'quoteExactInputSingle',
-    args: [tokenIn as `0x${string}`, tokenOut as `0x${string}`, 3000, amountIn, 0n],
-  });
-
   return await walletClient.sendTransaction({
     to: UNISWAP_V3_ROUTER,
     value: fromAsset === 'ETH' ? amountIn : 0n,

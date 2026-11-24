@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
@@ -111,18 +110,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) return;
     const newLog = { msg, type, timestamp: new Date().toISOString() };
     setBotLogs(prev => [...prev.slice(-49), newLog]);
-    if (type !== 'info') {
-      updateDoc(doc(db, 'users', user.uid), { botLogs: arrayUnion(newLog) }).catch(() => {});
-    }
   }, [db, user?.uid]);
 
   const addStockBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     if (!db || !user) return;
     const newLog = { msg, type, timestamp: new Date().toISOString() };
     setStockBotLogs(prev => [...prev.slice(-49), newLog]);
-    if (type !== 'info') {
-      updateDoc(doc(db, 'users', user.uid), { stockBotLogs: arrayUnion(newLog) }).catch(() => {});
-    }
   }, [db, user?.uid]);
 
   const addTransaction = useCallback((tx: any) => {
@@ -157,21 +150,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
       if (!s.exists()) return;
       const d = s.data();
-      setTotalBotEarnings(d.totalBotEarnings || 0);
-      setBotActive(!!d.botActive);
-      setBotAllocation(d.botAllocation || 20);
-      setBotRiskLevel(d.botRiskLevel || 'medium');
-      setBotStrategy(d.botStrategy || 'standard');
-      setStockBotActive(!!d.stockBotActive);
-      setStockBotAllocation(d.stockBotAllocation || 20);
-      setStockBotRisk(d.stockBotRisk || 'medium');
-      setBotLogs(d.botLogs?.slice(-50) || []);
-      setStockBotLogs(d.stockBotLogs?.slice(-50) || []);
+      // Use state checks to prevent infinite re-render loops
+      setTotalBotEarnings(prev => prev !== d.totalBotEarnings ? (d.totalBotEarnings || 0) : prev);
+      setBotActive(prev => prev !== !!d.botActive ? !!d.botActive : prev);
+      setBotAllocation(prev => prev !== d.botAllocation ? (d.botAllocation || 20) : prev);
+      setBotRiskLevel(prev => prev !== d.botRiskLevel ? (d.botRiskLevel || 'medium') : prev);
+      setBotStrategy(prev => prev !== d.botStrategy ? (d.botStrategy || 'standard') : prev);
+      setStockBotActive(prev => prev !== !!d.stockBotActive ? !!d.stockBotActive : prev);
+      setStockBotAllocation(prev => prev !== d.stockBotAllocation ? (d.stockBotAllocation || 20) : prev);
+      setStockBotRisk(prev => prev !== d.stockBotRisk ? (d.stockBotRisk || 'medium') : prev);
     });
 
     const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), (s) => {
       const currentAssets = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
-      setAssets(currentAssets);
+      // Filter out ghost assets from UI to ensure production precision
+      const realAssets = currentAssets.filter(a => !a.address.includes('...enclave') || a.amount > 0);
+      setAssets(realAssets);
       setInitialized(true);
     });
 
@@ -258,21 +252,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setBotActive(active);
         if (!user || !db) return;
         updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy });
-        addBotLog(active ? "PROD AGENT: ACTIVE" : "AGENT STANDBY", active ? "success" : "warning");
       },
       updateStockBotSettings: (active, allocation, risk) => {
         setStockBotActive(active);
         if (!user || !db) return;
         updateDoc(doc(db, 'users', user.uid), { stockBotActive: active, stockBotAllocation: allocation, stockBotRisk: risk });
-        addStockBotLog(active ? "RWA AGENT: ACTIVE" : "RWA AGENT STANDBY", active ? "success" : "warning");
       },
       clearBotLogs: () => {
         setBotLogs([]);
-        if (db && user) updateDoc(doc(db, 'users', user.uid), { botLogs: [] });
       },
       clearStockBotLogs: () => {
         setStockBotLogs([]);
-        if (db && user) updateDoc(doc(db, 'users', user.uid), { stockBotLogs: [] });
       },
       liquidateEarnings, addBotLog, addStockBotLog
     }}>
