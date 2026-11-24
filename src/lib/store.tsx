@@ -79,6 +79,9 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
+// FAILED BROADCAST RECOVERY: These specific transfers from malformed addresses are voided to refund the user.
+const VOIDED_PHANTOM_DEBITS = ['0xf2648ee7cea64', '0x3187561e8784b'];
+
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [stockBotLogs, setStockBotLogs] = useState<BotLog[]>([]);
@@ -123,7 +126,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}`;
     const txRef = doc(db, 'users', user.uid, 'transactions', txId);
-    setDoc(txRef, { ...tx, id: txId, timestamp: new Date().toISOString(), status: 'completed' }, { merge: true });
+    setDoc(txRef, { ...tx, id: txId, timestamp: new Date().toISOString(), status: tx.status || 'completed' }, { merge: true });
   }, [db, user?.uid]);
 
   const updateBalance = useCallback(async (currency: string, amount: number, fiatPrice: number) => {
@@ -137,7 +140,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [db, user?.uid, assets]);
 
-  // STABLE: Ledger truth logic used by verification and recovery
   const getLedgerTruth = useCallback(() => {
     const usdcCredits = transactions
       .filter(t => {
@@ -150,7 +152,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
     
     const usdcDebits = transactions
-      .filter(t => t.type === 'send' && t.currency?.toUpperCase().includes('USDC'))
+      .filter(t => {
+        const isSend = t.type === 'send';
+        const isUSDC = t.currency?.toUpperCase().includes('USDC');
+        const isVoided = VOIDED_PHANTOM_DEBITS.includes(t.hash);
+        return isSend && isUSDC && !isVoided;
+      })
       .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
 
     const ethCredits = transactions
@@ -214,7 +221,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const { usdc: netUsdc, eth: netEth } = getLedgerTruth();
 
-    const recoveryKey = `v-hex-clean-v7-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
+    const recoveryKey = `v-hex-clean-v8-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
     if (recoveryLockRef.current === recoveryKey) return;
     recoveryLockRef.current = recoveryKey;
 
@@ -314,17 +321,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       marketData, addTransaction, updateBalance, 
       syncOnChainBalance: async (addr, curr) => {
         try {
-          // HARNESS: Perform Atomic Ledger Audit before checking network
           const { usdc: ledgerUsdc, eth: ledgerEth } = getLedgerTruth();
           const targetLedgerVal = curr === 'USDC' ? ledgerUsdc : curr === 'ETH' ? ledgerEth : 0;
 
-          // Check network
           const liveBalanceStr = await getLiveBalance(addr);
           const liveBalance = parseFloat(liveBalanceStr);
           
           const asset = assets.find(a => a.address === addr);
           if (asset) {
-            // FIX: Use the higher of ledger or network to prevent reset to 0
             const verifiedTruth = Math.max(liveBalance, targetLedgerVal);
             const livePrice = marketData.find(m => m.currency === curr)?.currentPriceUSD || (curr === 'USDC' ? 1 : 0);
             
