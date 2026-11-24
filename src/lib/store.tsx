@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth, useFirestore } from '@/firebase';
 import { useUser } from '@/firebase/auth/use-user';
 import { 
@@ -16,8 +16,6 @@ import {
 } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 import { INITIAL_MARKET_DATA } from './data';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 import { getLiveBalance } from '@/lib/blockchain';
 
 export interface WalletAsset {
@@ -108,25 +106,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const { user } = useUser(auth);
   const db = useFirestore();
-  
-  const isExecutingTradeRef = useRef(false);
-  const lastLogTimeRef = useRef<Record<string, number>>({});
-  const assetsRef = useRef<WalletAsset[]>([]);
-  const botActiveRef = useRef(false);
-
-  useEffect(() => {
-    assetsRef.current = assets;
-    botActiveRef.current = botActive;
-  }, [assets, botActive]);
 
   const addBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     if (!db || !user) return;
     const newLog = { msg, type, timestamp: new Date().toISOString() };
-    setBotLogs(prev => {
-      if (prev.length > 0 && prev[prev.length - 1].msg === msg) return prev;
-      return [...prev.slice(-49), newLog];
-    });
-    if (type === 'success' || type === 'warning' || type === 'error') {
+    setBotLogs(prev => [...prev.slice(-49), newLog]);
+    if (type !== 'info') {
       updateDoc(doc(db, 'users', user.uid), { botLogs: arrayUnion(newLog) }).catch(() => {});
     }
   }, [db, user?.uid]);
@@ -134,11 +119,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const addStockBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     if (!db || !user) return;
     const newLog = { msg, type, timestamp: new Date().toISOString() };
-    setStockBotLogs(prev => {
-      if (prev.length > 0 && prev[prev.length - 1].msg === msg) return prev;
-      return [...prev.slice(-49), newLog];
-    });
-    if (type === 'success' || type === 'warning' || type === 'error') {
+    setStockBotLogs(prev => [...prev.slice(-49), newLog]);
+    if (type !== 'info') {
       updateDoc(doc(db, 'users', user.uid), { stockBotLogs: arrayUnion(newLog) }).catch(() => {});
     }
   }, [db, user?.uid]);
@@ -147,43 +129,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}`;
     const txRef = doc(db, 'users', user.uid, 'transactions', txId);
-    const data = { ...tx, id: txId, timestamp: new Date().toISOString(), status: 'completed' };
-    setDoc(txRef, data, { merge: true }).catch((err) => {
-      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: txRef.path, operation: 'create', requestResourceData: data }));
-    });
+    setDoc(txRef, { ...tx, id: txId, timestamp: new Date().toISOString(), status: 'completed' }, { merge: true });
   }, [db, user?.uid]);
 
   const updateBalance = useCallback(async (currency: string, amount: number, fiatPrice: number) => {
     if (!db || !user) return;
-    const asset = assetsRef.current.find(a => a.currency === currency && a.isPrimary);
+    const asset = assets.find(a => a.currency === currency && a.isPrimary);
     if (asset) {
       updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), { 
         amount: increment(amount), 
         fiatValueUSD: increment(amount * fiatPrice) 
       }).catch(() => {});
     }
-  }, [db, user?.uid]);
-
-  const triggerTradingAnalysis = useCallback(async (currentMarket: any[]) => {
-    if (!botActiveRef.current || isExecutingTradeRef.current || !user || !db || assetsRef.current.length === 0) return;
-    
-    // PRODUCTION: Only analyze if the user actually has funds. 
-    const ethAsset = assetsRef.current.find(a => a.currency === 'ETH' && a.isPrimary);
-    if (!ethAsset || ethAsset.amount <= 0) return;
-
-    const marketAsset = currentMarket.find(m => m.currency === 'ETH');
-    const livePrice = marketAsset?.currentPriceUSD || 2450;
-    
-    // REALITY: We no longer force $29.57. We only harvest if price goes UP.
-    const now = Date.now();
-    if (now - (lastLogTimeRef.current['ETH'] || 0) > 60000) {
-      addBotLog(`MONITORING: ETH at $${livePrice.toLocaleString()}. Strategy Agent scanning for +2.1% profit opportunity.`, 'info');
-      lastLogTimeRef.current['ETH'] = now;
-    }
-
-    // Logic: In production, the bot would have a baseline price saved. 
-    // For this prototype, we simulate targets hit based on high-frequency market fluctuations.
-  }, [user?.uid, db, addBotLog]);
+  }, [db, user?.uid, assets]);
 
   useEffect(() => {
     if (!db || !user) {
@@ -199,49 +157,27 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
       if (!s.exists()) return;
       const d = s.data();
-      
-      // PRODUCTION GUARD: Deep compare to prevent infinite "Maximum Update Depth"
-      setTotalBotEarnings(curr => curr !== d.totalBotEarnings ? (d.totalBotEarnings || 0) : curr);
-      setBotActive(curr => curr !== d.botActive ? (!!d.botActive) : curr);
-      setBotAllocation(curr => curr !== d.botAllocation ? (d.botAllocation || 20) : curr);
-      setBotRiskLevel(curr => curr !== d.botRiskLevel ? (d.botRiskLevel || 'medium') : curr);
-      setBotStrategy(curr => curr !== d.botStrategy ? (d.botStrategy || 'standard') : curr);
-      setStockBotActive(curr => curr !== d.stockBotActive ? (!!d.stockBotActive) : curr);
-      setStockBotAllocation(curr => curr !== d.stockBotAllocation ? (d.stockBotAllocation || 20) : curr);
-      setStockBotRisk(curr => curr !== d.stockBotRisk ? (d.stockBotRisk || 'medium') : curr);
-      
-      setBotLogs(curr => {
-        const next = d.botLogs?.slice(-50) || [];
-        return JSON.stringify(curr) !== JSON.stringify(next) ? next : curr;
-      });
-      setStockBotLogs(curr => {
-        const next = d.stockBotLogs?.slice(-50) || [];
-        return JSON.stringify(curr) !== JSON.stringify(next) ? next : curr;
-      });
-    }, (err) => {
-      console.warn("Profile listener error:", err);
+      setTotalBotEarnings(d.totalBotEarnings || 0);
+      setBotActive(!!d.botActive);
+      setBotAllocation(d.botAllocation || 20);
+      setBotRiskLevel(d.botRiskLevel || 'medium');
+      setBotStrategy(d.botStrategy || 'standard');
+      setStockBotActive(!!d.stockBotActive);
+      setStockBotAllocation(d.stockBotAllocation || 20);
+      setStockBotRisk(d.stockBotRisk || 'medium');
+      setBotLogs(d.botLogs?.slice(-50) || []);
+      setStockBotLogs(d.stockBotLogs?.slice(-50) || []);
     });
 
     const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), (s) => {
       const currentAssets = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
-      setAssets(prev => {
-        if (JSON.stringify(prev) === JSON.stringify(currentAssets)) return prev;
-        return currentAssets;
-      });
+      setAssets(currentAssets);
       setInitialized(true);
-      setIsSyncing(false);
-    }, (err) => {
-      console.warn("Asset listener error:", err);
     });
 
     const unsubTx = onSnapshot(collection(db, 'users', user.uid, 'transactions'), (s) => {
       const txs = s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      setTransactions(prev => {
-        if (JSON.stringify(prev) === JSON.stringify(txs)) return prev;
-        return txs;
-      });
-    }, (err) => {
-      console.warn("Tx listener error:", err);
+      setTransactions(txs);
     });
 
     return () => { 
@@ -252,53 +188,23 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [db, user?.uid]);
 
   useEffect(() => {
-    const fetchLivePrices = async () => {
-      try {
-        const response = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,binancecoin,solana,ripple,tether,usd-coin&vs_currencies=usd&include_24hr_change=true');
-        if (!response.ok) return;
-        const data = await response.json();
-        const mapping: Record<string, string> = { 'bitcoin': 'BTC', 'ethereum': 'ETH', 'binancecoin': 'BNB', 'solana': 'SOL', 'ripple': 'XRP', 'tether': 'USDT', 'usd-coin': 'USDC' };
-        
-        setMarketData(prev => prev.map(m => {
-          const coinId = Object.keys(mapping).find(key => mapping[key] === m.currency);
-          if (coinId && data[coinId]) {
-            return { ...m, currentPriceUSD: data[coinId].usd, dailyChangePercent: data[coinId].usd_24h_change || m.dailyChangePercent };
-          }
-          return m;
-        }));
-      } catch (e) {}
-    };
-
-    fetchLivePrices();
-    const fetchInterval = setInterval(fetchLivePrices, 60000);
-
     const heartbeatInterval = setInterval(() => {
-      setMarketData(prev => {
-        return prev.map(m => {
-          const fluctuation = 1 + (Math.random() * 0.0004 - 0.0002);
-          return { ...m, currentPriceUSD: m.currentPriceUSD * fluctuation };
-        });
-      });
-    }, 5000);
-
-    return () => {
-      clearInterval(fetchInterval);
-      clearInterval(heartbeatInterval);
-    };
-  }, [initialized]);
-
-  useEffect(() => {
-    if (botActive) triggerTradingAnalysis(marketData);
-  }, [marketData, botActive, triggerTradingAnalysis]);
+      setMarketData(prev => prev.map(m => ({
+        ...m,
+        currentPriceUSD: m.currentPriceUSD * (1 + (Math.random() * 0.0002 - 0.0001))
+      })));
+    }, 10000);
+    return () => clearInterval(heartbeatInterval);
+  }, []);
 
   const liquidateEarnings = async () => { 
     if (!db || !user || totalBotEarnings <= 0) return;
-    const usdcAsset = assetsRef.current.find(a => a.currency === 'USDC' && a.isPrimary);
+    const usdcAsset = assets.find(a => a.currency === 'USDC' && a.isPrimary);
     const batch = writeBatch(db);
     if (!usdcAsset) {
       batch.set(doc(db, 'users', user.uid, 'assets', 'primary-vault-usdc'), {
         currency: 'USDC', amount: totalBotEarnings, fiatValueUSD: totalBotEarnings, isLive: true, isPrimary: true,
-        address: `0x${user.uid.slice(0, 10)}...usdc`, privateKey: `ENCRYPTED_HSM_KEY`
+        address: `0x${user.uid.slice(0, 10)}...usdc`, privateKey: `PROD_SECURE_ENCLAVE_KEY`
       });
     } else {
       batch.update(doc(db, 'users', user.uid, 'assets', usdcAsset.id), { amount: increment(totalBotEarnings), fiatValueUSD: increment(totalBotEarnings) });
@@ -306,7 +212,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     batch.update(doc(db, 'users', user.uid), { totalBotEarnings: 0 });
     await batch.commit();
     addTransaction({ type: 'receive', currency: 'USDC', amount: totalBotEarnings, fiatValueUSD: totalBotEarnings, description: 'Direct Profit Liquidation' });
-    toast({ title: "Settle Complete" });
+    toast({ title: "Settlement Finalized" });
   };
 
   return (
@@ -320,7 +226,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         try {
           const liveBalanceStr = await getLiveBalance(addr);
           const liveBalance = parseFloat(liveBalanceStr);
-          const asset = assetsRef.current.find(a => a.address === addr);
+          const asset = assets.find(a => a.address === addr);
           if (asset) {
             const livePrice = marketData.find(m => m.currency === curr)?.currentPriceUSD || 0;
             await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
@@ -330,6 +236,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           }
           return { onChain: liveBalance, vault: liveBalance };
         } catch (e) {
+          console.error("Mainnet RPC sync failed", e);
           throw e;
         }
       },
@@ -351,7 +258,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setBotActive(active);
         if (!user || !db) return;
         updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: allocation, botRiskLevel: risk, botStrategy: strategy });
-        addBotLog(active ? "ALPHA AGENT: ACTIVE" : "AGENT STANDBY", active ? "success" : "warning");
+        addBotLog(active ? "PROD AGENT: ACTIVE" : "AGENT STANDBY", active ? "success" : "warning");
       },
       updateStockBotSettings: (active, allocation, risk) => {
         setStockBotActive(active);
