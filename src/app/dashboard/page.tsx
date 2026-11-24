@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -75,7 +76,8 @@ export default function Dashboard() {
     initialized, 
     botActive,
     botLogs,
-    marketData
+    marketData,
+    totalBotEarnings
   } = useWalletStore();
   
   const [mounted, setMounted] = useState(false);
@@ -93,11 +95,13 @@ export default function Dashboard() {
   }, []);
 
   const totalBalance = useMemo(() => {
-    return assets.reduce((acc, asset) => {
+    const walletTotal = assets.reduce((acc, asset) => {
       const livePrice = marketData.find(m => m.currency === asset.currency)?.currentPriceUSD || 0;
       return acc + (asset.amount * livePrice);
     }, 0);
-  }, [assets, marketData]);
+    // Institutional Unified Net Worth: Wallet + Held Yield
+    return walletTotal + totalBotEarnings;
+  }, [assets, marketData, totalBotEarnings]);
 
   const cryptoMarketData = useMemo(() => 
     marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USDC'].includes(m.currency)), 
@@ -146,7 +150,7 @@ export default function Dashboard() {
             <Briefcase className="h-48 w-48" />
           </div>
           <CardHeader className="pb-2 relative z-10">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Unified Net Worth (Wallet Assets)</CardTitle>
+            <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Unified Net Worth (Wallet + Yield)</CardTitle>
           </CardHeader>
           <CardContent className="relative z-10">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">

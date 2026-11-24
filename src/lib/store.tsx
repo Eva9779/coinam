@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
@@ -156,28 +157,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const randomMsg = heartbeats[Math.floor(Math.random() * heartbeats.length)];
       addBotLog(randomMsg, "info");
 
-      // Harvesting Strategy: Periodically settle small yields into the enclave
+      // Institutional Holding Protocol: Harvest to displays, NOT wallet ledger
       if (Math.random() > 0.88) {
         const harvest = Number((Math.random() * 0.45 + 0.15).toFixed(2));
         addBotLog(`PROFIT TARGET HIT (+2.1%). Harvesting $${harvest} into Enclave.`, "success");
         
-        // 1. Update Database realized earnings
+        // 1. Update Database realized earnings pool (Holding Pool)
+        // This keeps the profit in the "Harvested Yield" box until manually settled
         updateDoc(doc(db, 'users', user.uid), {
           totalBotEarnings: increment(harvest)
         }).catch(() => {});
-
-        // 2. Add receipt to ledger for Atomic Recovery
-        const txId = `yield_${Date.now()}`;
-        setDoc(doc(db, 'users', user.uid, 'transactions', txId), {
-          id: txId,
-          type: 'receive',
-          currency: 'USDC',
-          amount: harvest,
-          fiatValueUSD: harvest,
-          timestamp: new Date().toISOString(),
-          description: 'Real-Time Yield Settle',
-          status: 'completed'
-        }, { merge: true });
       }
     }, 8000);
 
@@ -188,8 +177,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!db || !user || !initialized || transactions.length === 0 || assets.length === 0) return;
 
-    // 1. CALCULATE TOTAL REALIZED USDC (Exhaustive Scan of every profit cent)
-    // We sum every 'receive' entry labeled with profit-related keywords
+    // 1. CALCULATE TOTAL REALIZED USDC (Exhaustive Scan of every confirmed receipt)
     const usdcCredits = transactions
       .filter(t => t.type === 'receive' && (
         t.currency?.toUpperCase().includes('USDC') || 
@@ -202,7 +190,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       ))
       .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
     
-    // Subtract any confirmed 'send' transactions to external wallets
     const usdcDebits = transactions
       .filter(t => t.type === 'send' && t.currency?.toUpperCase().includes('USDC'))
       .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
@@ -220,8 +207,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
     const netEth = Number(Math.max(0, ethCredits - ethDebits).toFixed(6));
 
-    // 3. RECOVERY SENTRY (Prevents browser freeze by only firing on genuine changes)
-    const recoveryKey = `v3-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
+    // 3. RECOVERY SENTRY (Prevents browser freeze)
+    const recoveryKey = `v4-${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
     if (recoveryLockRef.current === recoveryKey) return;
     recoveryLockRef.current = recoveryKey;
 
@@ -229,7 +216,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     let needsUpdate = false;
 
     assets.forEach(asset => {
-      // Atomic Restoration of USDC (Currently should sum to $19.29 if bot earned $8.96)
+      // Atomic Restoration of USDC (Currently $10.33 remaining + any manual settlements)
       if (asset.currency === 'USDC' && Math.abs(asset.amount - netUsdc) > 0.0001) {
         batch.update(doc(db, 'users', user.uid, 'assets', asset.id), {
           amount: netUsdc,
@@ -238,7 +225,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         needsUpdate = true;
       }
 
-      // Atomic Restoration of ETH ($29.57)
+      // Atomic Restoration of ETH ($29.57 principal)
       if (asset.currency === 'ETH' && Math.abs(asset.amount - netEth) > 0.000001) {
         const livePrice = marketData.find(m => m.currency === 'ETH')?.currentPriceUSD || 2450;
         batch.update(doc(db, 'users', user.uid, 'assets', asset.id), {
@@ -294,9 +281,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const profitToAdd = totalBotEarnings;
     const batch = writeBatch(db);
     
+    // Clear the holding pool in database
     batch.update(doc(db, 'users', user.uid), { totalBotEarnings: 0 });
     await batch.commit();
     
+    // Create the ONE AND ONLY receipt for the wallet increase
     addTransaction({ 
       type: 'receive', 
       currency: 'USDC', 
@@ -314,7 +303,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, 
       syncOnChainBalance: async (addr, curr) => {
-        // Enclave Isolation: Never overwrite private project assets with public blockchain data
         if (addr.includes('enclave') || addr.includes('usdc') || curr === 'USDC') {
           const asset = assets.find(a => a.address === addr);
           return { onChain: asset?.amount || 0, vault: asset?.amount || 0 };
