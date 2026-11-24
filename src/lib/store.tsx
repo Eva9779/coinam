@@ -138,71 +138,65 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [db, user?.uid, assets]);
 
-  // INSTITUTIONAL LEDGER RECOVERY (Atomic Restoration Protocol)
+  // INSTITUTIONAL LEDGER RECOVERY (Transaction-Derived Balance Protocol)
   useEffect(() => {
     if (!db || !user || !initialized || transactions.length === 0) return;
 
-    // SUM EVERY CREDIT: Exhaustive, case-insensitive receipt scanning
-    const totalCalculatedProfit = transactions
-      .filter(t => 
-        t.type === 'receive' && 
-        (t.currency === 'USDC' || t.currency?.includes('USDC')) &&
-        (
-          t.description?.toLowerCase().includes('profit') || 
-          t.description?.toLowerCase().includes('skim') || 
-          t.description?.toLowerCase().includes('liquidation') ||
-          t.description?.toLowerCase().includes('yield') ||
-          t.description?.toLowerCase().includes('settle') ||
-          t.description?.toLowerCase().includes('receipt')
-        )
-      )
+    // 1. SUM ALL USDC ACTIVITY (Profits - Transfers)
+    const usdcCredits = transactions
+      .filter(t => t.type === 'receive' && (t.currency === 'USDC' || t.currency?.includes('USDC')))
       .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
-
-    // SUM EVERY DEBIT: Factor in your transfers (like the -22.51 to Deriv)
-    const totalSentProfit = transactions
+    
+    const usdcDebits = transactions
       .filter(t => t.type === 'send' && (t.currency === 'USDC' || t.currency?.includes('USDC')))
       .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
 
-    // Calculate final balance after transfer: ($32.84 - $22.51 = $10.33)
-    const netProfit = Number(Math.max(0, totalCalculatedProfit - totalSentProfit).toFixed(2));
+    const netUsdc = Number(Math.max(0, usdcCredits - usdcDebits).toFixed(2));
+
+    // 2. SUM ALL ETH ACTIVITY (Deposits - Transfers)
+    const ethCredits = transactions
+      .filter(t => t.type === 'receive' && (t.currency === 'ETH' || t.currency?.includes('ETH')))
+      .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+    
+    const ethDebits = transactions
+      .filter(t => t.type === 'send' && (t.currency === 'ETH' || t.currency?.includes('ETH')))
+      .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+
+    const netEth = Number(Math.max(0, ethCredits - ethDebits).toFixed(6));
+
+    const recoveryKey = `${netUsdc}-${netEth}-${user.uid}-${transactions.length}`;
+    if (recoveryLockRef.current === recoveryKey) return;
+    recoveryLockRef.current = recoveryKey;
 
     const ethAsset = assets.find(a => a.currency === 'ETH' && a.isPrimary);
     const usdcAsset = assets.find(a => a.currency === 'USDC' && a.isPrimary);
     const liveEthPrice = marketData.find(m => m.currency === 'ETH')?.currentPriceUSD || 2450;
-    
-    // Recovery Checksum: Prevents the "Maximum Update Depth" error by locking the state
-    const recoveryKey = `${netProfit}-${ethAsset?.amount}-${user.uid}-${transactions.length}`;
-    if (recoveryLockRef.current === recoveryKey) return;
-    recoveryLockRef.current = recoveryKey;
 
     const batch = writeBatch(db);
     let needsUpdate = false;
 
-    // 1. Restore ETH Principal to EXACTLY $29.57 (As verified in the 8/31/2026 deposit)
-    const targetEthUnits = 29.57 / liveEthPrice;
-    if (!ethAsset || Math.abs(ethAsset.amount - targetEthUnits) > 0.0001) {
-      const ethRef = doc(db, 'users', user.uid, 'assets', ethAsset?.id || 'primary-vault-eth');
-      batch.set(ethRef, {
-        currency: 'ETH', amount: targetEthUnits, fiatValueUSD: 29.57, isLive: true, isPrimary: true,
-        address: `0x${user.uid.slice(0, 10)}...enclave`, privateKey: `0x${user.uid.repeat(3).slice(0, 64)}`
-      }, { merge: true });
+    // Only update ETH if it deviates from the transaction ledger sum
+    if (ethAsset && Math.abs(ethAsset.amount - netEth) > 0.0001) {
+      batch.update(doc(db, 'users', user.uid, 'assets', ethAsset.id), {
+        amount: netEth,
+        fiatValueUSD: netEth * liveEthPrice
+      });
       needsUpdate = true;
     }
 
-    // 2. Restore Correct USDC Profit (Exhaustive Receipt Sum minus your External Sends)
-    if (!usdcAsset || Math.abs(usdcAsset.amount - netProfit) > 0.01) {
-      const usdcRef = doc(db, 'users', user.uid, 'assets', usdcAsset?.id || 'primary-vault-usdc');
-      batch.set(usdcRef, {
-        currency: 'USDC', amount: netProfit, fiatValueUSD: netProfit, isLive: true, isPrimary: true,
-        address: `0x${user.uid.slice(0, 10)}...usdc`, privateKey: `0x${user.uid.repeat(3).slice(0, 64)}`
-      }, { merge: true });
+    // Only update USDC if it deviates from the transaction ledger sum (Restores the $10.33)
+    if (usdcAsset && Math.abs(usdcAsset.amount - netUsdc) > 0.01) {
+      batch.update(doc(db, 'users', user.uid, 'assets', usdcAsset.id), {
+        amount: netUsdc,
+        fiatValueUSD: netUsdc
+      });
       needsUpdate = true;
     }
 
     if (needsUpdate) {
       batch.commit().catch(() => {});
     }
-  }, [db, user, initialized, transactions, assets.length, marketData]);
+  }, [db, user, initialized, transactions, assets, marketData]);
 
   useEffect(() => {
     if (!db || !user) {
@@ -266,7 +260,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       syncOnChainBalance: async (addr, curr) => {
         if (!db || !user) return { onChain: 0, vault: 0 };
         
-        // PROTECTION: Enclave addresses strictly skip public RPC to prevent balance overwriting
+        // PROTECTION: Enclave addresses skip public RPC to prevent balance overwriting
         if (addr.includes('enclave') || addr.includes('usdc')) {
           const asset = assets.find(a => a.address === addr);
           return { onChain: asset?.amount || 0, vault: asset?.amount || 0 };
