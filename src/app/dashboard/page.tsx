@@ -98,10 +98,11 @@ export default function Dashboard() {
   }, []);
 
   const totalBalance = useMemo(() => {
-    const PRINCIPAL_LOCK = 29.57;
-    const usdcBal = assets.find(a => a.currency === 'USDC' && a.isPrimary)?.amount || 0;
-    return PRINCIPAL_LOCK + usdcBal;
-  }, [assets]);
+    return assets.reduce((acc, asset) => {
+      const price = marketData.find(m => m.currency === asset.currency)?.currentPriceUSD || 0;
+      return acc + (asset.amount * price);
+    }, 0);
+  }, [assets, marketData]);
 
   const cryptoMarketData = useMemo(() => 
     marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USDC'].includes(m.currency)), 
@@ -174,7 +175,7 @@ export default function Dashboard() {
                     <span className="text-[9px] font-bold uppercase opacity-60 block">Network Latency</span>
                     <span className="text-xs font-black uppercase tracking-widest text-green-400 flex items-center gap-1.5">
                       <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-                      {latency}ms
+                      {mounted ? `${latency}ms` : '...'}
                     </span>
                   </div>
                 </div>

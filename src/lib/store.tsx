@@ -175,7 +175,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const livePrice = marketAsset?.currentPriceUSD || 1875;
     const ethAsset = assetsRef.current.find(a => a.currency === 'ETH' && a.isPrimary);
     
-    if (!ethAsset) return;
+    if (!ethAsset || ethAsset.amount === 0) return; // PROPER GUARD: No assets = no trades
 
     const entryPrice = baselinesRef.current['ETH'] || livePrice;
     const currentProfitPercent = ((livePrice / entryPrice) - 1) * 100;
@@ -274,14 +274,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
       if (s.exists()) {
         const d = s.data();
-        setTotalBotEarnings(prev => prev !== d.totalBotEarnings ? (d.totalBotEarnings || 0) : prev);
-        setBotActive(!!d.botActive);
-        setBotAllocation(d.botAllocation || 20);
-        setBotRiskLevel(d.botRiskLevel || 'medium');
-        setBotStrategy(d.botStrategy || 'standard');
-        setStockBotActive(!!d.stockBotActive);
-        setStockBotAllocation(d.stockBotAllocation || 20);
-        setStockBotRisk(d.stockBotRisk || 'medium');
+        setTotalBotEarnings(prev => prev !== (d.totalBotEarnings || 0) ? (d.totalBotEarnings || 0) : prev);
+        setBotActive(prev => prev !== !!d.botActive ? !!d.botActive : prev);
+        setBotAllocation(prev => prev !== (d.botAllocation || 20) ? (d.botAllocation || 20) : prev);
+        setBotRiskLevel(prev => prev !== (d.botRiskLevel || 'medium') ? (d.botRiskLevel || 'medium') : prev);
+        setBotStrategy(prev => prev !== (d.botStrategy || 'standard') ? (d.botStrategy || 'standard') : prev);
+        setStockBotActive(prev => prev !== !!d.stockBotActive ? !!d.stockBotActive : prev);
+        setStockBotAllocation(prev => prev !== (d.stockBotAllocation || 20) ? (d.stockBotAllocation || 20) : prev);
+        setStockBotRisk(prev => prev !== (d.stockBotRisk || 'medium') ? (d.stockBotRisk || 'medium') : prev);
         setBaselinePrices(prev => JSON.stringify(prev) !== JSON.stringify(d.baselinePrices) ? (d.baselinePrices || {}) : prev);
         if (d.botLogs) setBotLogs(d.botLogs.slice(-50));
         if (d.stockBotLogs) setStockBotLogs(d.stockBotLogs.slice(-50));
@@ -293,14 +293,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setAssets(currentAssets);
       setInitialized(true);
       setIsSyncing(false);
-
-      const ethAsset = currentAssets.find(a => a.currency === 'ETH' && a.isPrimary);
-      if (!ethAsset) {
-        setDoc(doc(db, 'users', user.uid, 'assets', 'primary-vault-eth'), {
-          currency: 'ETH', amount: 0.0157, fiatValueUSD: PRINCIPAL_LOCK, isLive: true, isPrimary: true,
-          address: `0x${user.uid.slice(0, 10)}...enclave`, privateKey: 'ENCRYPTED_HSM_KEY'
-        }, { merge: true });
-      }
+      // PURGED: Auto-funding logic for new accounts is gone. New users start at $0.00.
     });
 
     const unsubTx = onSnapshot(collection(db, 'users', user.uid, 'transactions'), (s) => {
@@ -339,14 +332,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           return { ...m, currentPriceUSD: m.currentPriceUSD * fluctuation };
         });
 
-        // CAPITAL ANCHOR SENTRY: Adjust ETH units to exactly 29.57 USD in real-time
+        // CAPITAL ANCHOR SENTRY: Adjust ETH units ONLY IF an anchored position exists (>0)
         if (initialized && user && db) {
            const ethMarket = updated.find(m => m.currency === 'ETH');
            const ethAsset = assetsRef.current.find(a => a.currency === 'ETH' && a.isPrimary);
-           if (ethMarket && ethAsset && !isExecutingTradeRef.current) {
+           // Only anchor if the user HAS eth. Don't manifestation money if balance is 0.
+           if (ethMarket && ethAsset && ethAsset.amount > 0 && !isExecutingTradeRef.current) {
               const livePrice = ethMarket.currentPriceUSD;
               const currentVal = ethAsset.amount * livePrice;
-              if (Math.abs(currentVal - PRINCIPAL_LOCK) > 0.05) {
+              // Only anchor if it looks like they are trying to maintain the $29.57 principal
+              if (Math.abs(currentVal - PRINCIPAL_LOCK) > 0.05 && currentVal > 20) {
                  const newAmount = PRINCIPAL_LOCK / livePrice;
                  updateDoc(doc(db, 'users', user.uid, 'assets', ethAsset.id), { 
                    amount: newAmount, 
