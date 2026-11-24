@@ -1,7 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { useUserHook, useFirestore } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
+import { useUser } from '@/firebase/auth/use-user';
 import { 
   collection, 
   doc, 
@@ -16,6 +17,7 @@ import { toast } from '@/hooks/use-toast';
 import { INITIAL_MARKET_DATA } from './data';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { getLiveBalance } from '@/lib/blockchain';
 
 export interface WalletAsset {
   id: string;
@@ -103,7 +105,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [isSyncing, setIsSyncing] = useState(true);
   const [isAnalyzingStocks, setIsAnalyzingStocks] = useState(false);
   
-  const { user } = useUserHook();
+  const auth = useAuth();
+  const { user } = useUser(auth);
   const db = useFirestore();
   
   const isExecutingTradeRef = useRef(false);
@@ -120,26 +123,28 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [assets, baselinePrices, botActive]);
 
   const addBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    if (!db || !user) return;
     const newLog = { msg, type, timestamp: new Date().toISOString() };
     setBotLogs(prev => {
       if (prev.length > 0 && prev[prev.length - 1].msg === msg) return prev;
       return [...prev.slice(-49), newLog];
     });
-    if (db && user && (type === 'success' || type === 'warning' || type === 'error')) {
+    if (type === 'success' || type === 'warning' || type === 'error') {
       updateDoc(doc(db, 'users', user.uid), { botLogs: arrayUnion(newLog) });
     }
-  }, [db, user]);
+  }, [db, user?.uid]);
 
   const addStockBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
+    if (!db || !user) return;
     const newLog = { msg, type, timestamp: new Date().toISOString() };
     setStockBotLogs(prev => {
       if (prev.length > 0 && prev[prev.length - 1].msg === msg) return prev;
       return [...prev.slice(-49), newLog];
     });
-    if (db && user && (type === 'success' || type === 'warning' || type === 'error')) {
+    if (type === 'success' || type === 'warning' || type === 'error') {
       updateDoc(doc(db, 'users', user.uid), { stockBotLogs: arrayUnion(newLog) });
     }
-  }, [db, user]);
+  }, [db, user?.uid]);
 
   const addTransaction = useCallback((tx: any) => {
     if (!db || !user) return;
@@ -149,7 +154,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setDoc(txRef, data, { merge: true }).catch(() => {
       errorEmitter.emit('permission-error', new FirestorePermissionError({ path: txRef.path, operation: 'create', requestResourceData: data }));
     });
-  }, [db, user]);
+  }, [db, user?.uid]);
 
   const updateBalance = useCallback(async (currency: string, amount: number, fiatPrice: number) => {
     if (!db || !user) return;
@@ -160,7 +165,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         fiatValueUSD: increment(amount * fiatPrice) 
       });
     }
-  }, [db, user]);
+  }, [db, user?.uid]);
 
   const triggerCryptoAnalysis = useCallback(async (currentMarket: any[]) => {
     if (!botActiveRef.current || isExecutingTradeRef.current || !user || !db || assetsRef.current.length === 0) return;
@@ -185,7 +190,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       addBotLog("TARGET REACHED: Harvesting +2.1% profit to USDC Vault.", 'success');
       
       const ethValueUSD = ethAsset.amount * livePrice;
-      const profitUSD = ethValueUSD * 0.021; // Skim exactly 2.1%
+      const profitUSD = ethValueUSD * 0.021; 
       
       if (profitUSD > 0.01) {
         const skimAmount = profitUSD / livePrice;
@@ -227,7 +232,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       
       setTimeout(() => { isExecutingTradeRef.current = false; }, 10000);
     }
-  }, [user, db, addBotLog, addTransaction]);
+  }, [user?.uid, db, addBotLog, addTransaction]);
 
   const triggerStockAnalysis = useCallback(async (currentMarket: any[]) => {
     if (!stockBotActive || isAnalyzingStocks || !user || !db) return;
@@ -258,7 +263,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       addTransaction({ type: 'trade', currency: `RWA → USDC`, amount: profitVal, fiatValueUSD: profitVal, description: `Stock Profit Skim (${targetSymbol})` });
       setTimeout(() => { isExecutingTradeRef.current = false; }, 10000);
     }
-  }, [stockBotActive, isAnalyzingStocks, user, db, addStockBotLog, addTransaction]);
+  }, [stockBotActive, isAnalyzingStocks, user?.uid, db, addStockBotLog, addTransaction]);
 
   useEffect(() => {
     if (!db || !user) {
@@ -369,9 +374,22 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, 
       syncOnChainBalance: async (addr, curr) => {
-        const found = assetsRef.current.find(a => a.address === addr);
-        const bal = found?.amount || 0;
-        return { onChain: bal, vault: bal };
+        if (!db || !user) return { onChain: 0, vault: 0 };
+        try {
+          const liveBalanceStr = await getLiveBalance(addr);
+          const liveBalance = parseFloat(liveBalanceStr);
+          const asset = assetsRef.current.find(a => a.address === addr);
+          if (asset) {
+            const livePrice = marketData.find(m => m.currency === curr)?.currentPriceUSD || 0;
+            await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
+              amount: liveBalance,
+              fiatValueUSD: liveBalance * livePrice
+            });
+          }
+          return { onChain: liveBalance, vault: liveBalance };
+        } catch (e) {
+          throw e;
+        }
       },
       generateNewWallet: async (curr) => {
         if (!db || !user) return;
