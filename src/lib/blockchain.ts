@@ -1,8 +1,4 @@
-
-import { createPublicClient, http, formatEther, parseEther, fallback, erc20Abi, formatUnits } from 'viem';
-import { mainnet } from 'viem/chains';
-import { privateKeyToAccount } from 'viem/accounts';
-import { createWalletClient } from 'viem';
+import { ethers } from "ethers";
 
 /**
  * Institutional Mainnet Registry
@@ -26,78 +22,64 @@ export const TOKENS = {
 };
 
 /**
- * Hardened RPC Mesh for Production
- * Increased reliability with premium public nodes and longer timeouts.
+ * Hardened Fallback Provider Mesh
+ * Uses ethers.js v6 Fallback architecture for extreme reliability.
  */
-const RPC_URLS = [
-  'https://eth.drpc.org',
-  'https://ethereum.publicnode.com',
-  'https://1rpc.io/eth',
-  'https://rpc.ankr.com/eth',
-  'https://eth-mainnet.public.blastapi.io'
-];
-
-export const publicClient = createPublicClient({
-  chain: mainnet,
-  transport: fallback(
-    RPC_URLS.map(url => http(url, { timeout: 60000 })), // Hardened 60s timeout
-    { rank: true }
-  ),
-});
+export const provider = new ethers.FallbackProvider([
+  new ethers.JsonRpcProvider("https://eth.drpc.org"),
+  new ethers.JsonRpcProvider("https://ethereum.publicnode.com"),
+  new ethers.JsonRpcProvider("https://1rpc.io/eth")
+]);
 
 export async function getLiveBlockNumber() {
   try {
-    return await publicClient.getBlockNumber();
+    return await provider.getBlockNumber();
   } catch (error) {
     return null;
   }
 }
 
 export async function getLiveBalance(address: string, currency: string = 'ETH') {
-  if (!address || !address.startsWith('0x') || address.includes('...')) return '0';
+  if (!address || !address.startsWith('0x') || address.length < 42) return '0';
   
   try {
     if (currency === 'ETH') {
-      const balance = await publicClient.getBalance({ address: address as `0x${string}` });
-      return formatEther(balance);
+      const balance = await provider.getBalance(address);
+      return ethers.formatEther(balance);
     } else {
       const tokenAddress = TOKENS[currency as keyof typeof TOKENS];
       if (!tokenAddress) return '0';
       
-      const balance = await publicClient.readContract({
-        address: tokenAddress as `0x${string}`,
-        abi: erc20Abi,
-        functionName: 'balanceOf',
-        args: [address as `0x${string}`],
-      });
+      const abi = ["function balanceOf(address) view returns (uint256)"];
+      const contract = new ethers.Contract(tokenAddress, abi, provider);
+      const balance = await contract.balanceOf(address);
       
       const decimals = currency === 'USDC' ? 6 : 18;
-      return formatUnits(balance, decimals);
+      return ethers.formatUnits(balance, decimals);
     }
   } catch (error: any) {
-    console.warn(`RPC Mesh Delay: ${error.message}`);
+    console.warn(`Blockchain Sync Delay: ${error.message}`);
     return '0';
   }
 }
 
 export async function getLiveGasPrice() {
   try {
-    const gasPrice = await publicClient.getGasPrice();
-    return Number(gasPrice) / 1e9;
+    const feeData = await provider.getFeeData();
+    if (feeData.gasPrice) {
+      return Number(ethers.formatUnits(feeData.gasPrice, "gwei"));
+    }
+    return 15;
   } catch (error) {
     return 15;
   }
 }
 
-export async function sendLiveTransaction(privateKey: `0x${string}`, to: string, amount: string) {
-  const account = privateKeyToAccount(privateKey);
-  const walletClient = createWalletClient({
-    account,
-    chain: mainnet,
-    transport: http(RPC_URLS[0]),
+export async function sendLiveTransaction(privateKey: string, to: string, amount: string) {
+  const wallet = new ethers.Wallet(privateKey, provider);
+  const tx = await wallet.sendTransaction({
+    to: to,
+    value: ethers.parseEther(amount),
   });
-  return await walletClient.sendTransaction({
-    to: to as `0x${string}`,
-    value: parseEther(amount),
-  });
+  return tx.hash;
 }
