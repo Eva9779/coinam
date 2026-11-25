@@ -4,21 +4,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, ExternalLink, ArrowRightLeft, Zap, Lock, ShieldCheck } from "lucide-react";
+import { Loader2, ExternalLink, ArrowRightLeft, Zap } from "lucide-react";
 import { useWalletStore } from "@/lib/store";
-import { ethers } from "ethers";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
-
-const BASE_L1_BRIDGE = "0x3154Cf16ccdb4C6d922629664174b904d80F2C35";
-const BRIDGE_ABI = ["function depositETH(uint32 _minGasLimit, bytes calldata _extraData) external payable"];
 
 export function BridgeToBaseButton({ userId, selectedAddress }: { userId: string, selectedAddress: string }) {
   const { botConfig } = useWalletStore();
@@ -26,13 +14,14 @@ export function BridgeToBaseButton({ userId, selectedAddress }: { userId: string
   const [loading, setLoading] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
-  const [showPinDialog, setShowPinDialog] = useState(false);
-  const [pin, setPin] = useState("");
 
-  const isWalletLinked = Boolean(botConfig?.address && selectedAddress && botConfig.address.toLowerCase() === selectedAddress.toLowerCase());
+  const isWalletLinked = Boolean(
+    botConfig?.address && 
+    selectedAddress && 
+    botConfig.address.toLowerCase() === selectedAddress.toLowerCase()
+  );
 
-  async function handlePreBridge() {
+  async function handleBridge() {
     if (!isWalletLinked) {
       toast({
         title: "Unlock Required",
@@ -41,39 +30,30 @@ export function BridgeToBaseButton({ userId, selectedAddress }: { userId: string
       });
       return;
     }
-    setShowPinDialog(true);
-  }
 
-  async function handleFinalBridge() {
-    if (!botConfig || !pin) return;
     setLoading(true);
     setError(null);
     setTxHash(null);
 
     try {
-      // 1. Decrypt Keystore locally with user PIN
-      const wallet = await ethers.Wallet.fromEncryptedJson(botConfig.encryptedJson, pin);
-      
-      // 2. Setup Provider (Ethereum Mainnet L1)
-      const provider = new ethers.JsonRpcProvider("https://ethereum-rpc.publicnode.com");
-      const signer = wallet.connect(provider);
-
-      // 3. Contract Instance
-      const bridge = new ethers.Contract(BASE_L1_BRIDGE, BRIDGE_ABI, signer);
-      
-      // 4. Send Transaction directly from client
-      const tx = await bridge.depositETH(200000, "0x", { 
-        value: ethers.parseEther(amount) 
+      const res = await fetch("/api/wallet/bridge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, amountEth: amount }),
       });
 
-      setTxHash(tx.hash);
-      setShowPinDialog(false);
-      setPin("");
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Bridge execution failed.");
+      }
+
+      setTxHash(data.txHash);
       toast({ title: "Bridge Initiated", description: "Transaction signed and broadcasted to L1." });
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Execution failed. Ensure PIN is correct and balance is sufficient.");
-      toast({ title: "Bridge Failed", description: "Decryption or network error.", variant: "destructive" });
+      setError(err.message || "Decryption or network error.");
+      toast({ title: "Bridge Failed", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -97,7 +77,7 @@ export function BridgeToBaseButton({ userId, selectedAddress }: { userId: string
             disabled={loading}
           />
           <Button
-            onClick={handlePreBridge}
+            onClick={handleBridge}
             disabled={loading || !amount}
             className="h-12 px-6 font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg gap-2 shrink-0"
           >
@@ -110,8 +90,7 @@ export function BridgeToBaseButton({ userId, selectedAddress }: { userId: string
       {!isWalletLinked && (
         <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
            <p className="text-[9px] text-amber-500 font-black uppercase flex items-center gap-2">
-             <Lock className="h-3 w-3" /> 
-             Action Required: Import Private Key in Settings to link this wallet to your enclave.
+             Action Required: Link this wallet to your enclave in Settings to enable bridging.
            </p>
         </div>
       )}
@@ -142,38 +121,6 @@ export function BridgeToBaseButton({ userId, selectedAddress }: { userId: string
       <p className="text-[9px] text-white/40 font-medium uppercase tracking-tight italic">
         * Gas fee applies on Ethereum Mainnet. Ensure ~0.005 ETH extra for network fees.
       </p>
-
-      <Dialog open={showPinDialog} onOpenChange={setShowPinDialog}>
-        <DialogContent className="rounded-[2rem] sm:max-w-md bg-slate-900 border-white/10 text-white shadow-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-black flex items-center gap-2">
-              <Lock className="h-6 w-6 text-secondary" />
-              Sign Bridge
-            </DialogTitle>
-            <DialogDescription className="text-white/60">
-              Enter your Vault PIN to decrypt your key and sign the L1 deposit to Base.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-6 space-y-4">
-            <div className="space-y-2">
-              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Vault PIN</Label>
-              <Input 
-                type="password" 
-                placeholder="••••••••" 
-                className="h-14 text-2xl tracking-widest text-center font-black rounded-xl border-2 bg-slate-950 border-white/10"
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button className="w-full h-14 font-black rounded-xl text-lg shadow-xl" onClick={handleFinalBridge} disabled={loading || !pin}>
-              {loading ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <ShieldCheck className="h-5 w-5 mr-2" />}
-              Authorize & Sign
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
