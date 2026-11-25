@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
       const usdcBal = await usdc.balanceOf(wallet.address);
       const rwaBal = await rwaToken.balanceOf(wallet.address);
 
-      // Fetch real-time quote from Yahoo Finance API (stable v8 query)
+      // Fetch real-time quote from Yahoo Finance API
       const ticker = symbol === "USDY" ? "SHY" : symbol;
       const priceRes = await fetch(
         `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1m&range=1d`,
@@ -108,11 +108,17 @@ export async function GET(req: NextRequest) {
       }
 
       const entryPrice = Number(userData.stockEntryPrice || 0);
+      let currentLogs = userData.stockBotLogs || [];
 
       // BUY LEG: Hold USDC -> Enter RWA Position
       if (rwaBal === 0n && usdcBal >= ethers.parseUnits("5", 6)) {
         const spendAmountUsd = Math.min(allocationUsd, Number(ethers.formatUnits(usdcBal, 6)));
         const spendUnits = ethers.parseUnits(spendAmountUsd.toFixed(6), 6);
+
+        // SLIPPAGE PROTECTION (1% MAX)
+        const spendUsdNum = Number(ethers.formatUnits(spendUnits, 6));
+        const minTokensOut = (spendUsdNum / livePrice) * 0.99;
+        const amountOutMinimum = ethers.parseUnits(minTokensOut.toFixed(6), tokenCfg.decimals);
 
         const allowance = await usdc.allowance(wallet.address, UNISWAP_V3_ROUTER);
         if (allowance < spendUnits) {
@@ -126,25 +132,32 @@ export async function GET(req: NextRequest) {
           fee: tokenCfg.feeTier,
           recipient: wallet.address,
           amountIn: spendUnits,
-          amountOutMinimum: 0,
+          amountOutMinimum: amountOutMinimum,
           sqrtPriceLimitX96: 0
         });
         await tx.wait();
 
+        currentLogs.push({
+          timestamp: new Date().toISOString(),
+          msg: `BUY EXECUTION: Purchased ${symbol} at $${livePrice.toFixed(2)} (Slippage: 1%)`,
+          type: "success",
+          hash: tx.hash
+        });
+
         await userDoc.ref.update({
           stockEntryPrice: livePrice,
-          stockBotLogs: FieldValue.arrayUnion({
-            timestamp: new Date().toISOString(),
-            msg: `Initiated spot position in ${symbol} at $${livePrice.toFixed(2)}`,
-            type: "success",
-            hash: tx.hash
-          })
+          stockBotLogs: currentLogs.slice(-30)
         });
 
         results.push({ userId, action: "BUY_RWA", symbol, price: livePrice, txHash: tx.hash });
       }
       // HARVEST LEG: Reached +2.1% profit target
       else if (rwaBal > 0n && entryPrice > 0 && livePrice >= entryPrice * (1 + harvestTarget)) {
+        // SLIPPAGE PROTECTION (1% MAX)
+        const tokensToSell = Number(ethers.formatUnits(rwaBal, tokenCfg.decimals));
+        const minUsdcOut = tokensToSell * livePrice * 0.99;
+        const amountOutMinimum = ethers.parseUnits(minUsdcOut.toFixed(6), 6);
+
         const allowance = await rwaToken.allowance(wallet.address, UNISWAP_V3_ROUTER);
         if (allowance < rwaBal) {
           const approveTx = await rwaToken.approve(UNISWAP_V3_ROUTER, ethers.MaxUint256);
@@ -157,25 +170,42 @@ export async function GET(req: NextRequest) {
           fee: tokenCfg.feeTier,
           recipient: wallet.address,
           amountIn: rwaBal,
-          amountOutMinimum: 0,
+          amountOutMinimum: amountOutMinimum,
           sqrtPriceLimitX96: 0
         });
         await tx.wait();
 
-        const profitUsd = Number(ethers.formatUnits(rwaBal, tokenCfg.decimals)) * (livePrice - entryPrice);
+        const profitUsd = tokensToSell * (livePrice - entryPrice);
+
+        currentLogs.push({
+          timestamp: new Date().toISOString(),
+          msg: `HARVEST COMPLETE: Yield +${(harvestTarget * 100).toFixed(1)}% secured. Profit: $${profitUsd.toFixed(2)}`,
+          type: "success",
+          hash: tx.hash
+        });
 
         await userDoc.ref.update({
           stockEntryPrice: 0,
           harvestedStockYield: FieldValue.increment(Math.max(0, profitUsd)),
-          stockBotLogs: FieldValue.arrayUnion({
-            timestamp: new Date().toISOString(),
-            msg: `Harvested +${(harvestTarget * 100).toFixed(1)}% yield from ${symbol}. Profit settled: $${profitUsd.toFixed(2)}`,
-            type: "success",
-            hash: tx.hash
-          })
+          stockBotLogs: currentLogs.slice(-30)
         });
 
         results.push({ userId, action: "HARVEST_RWA", symbol, price: livePrice, txHash: tx.hash });
+      } else {
+        // SCANNING LOG: Show active monitoring
+        const statusMsg = rwaBal > 0n 
+          ? `SCANNING: Target $${(entryPrice * (1 + harvestTarget)).toFixed(2)} (Live: $${livePrice.toFixed(2)})`
+          : `SCANNING: Waiting for ${symbol} entry (Live: $${livePrice.toFixed(2)})`;
+        
+        currentLogs.push({
+          timestamp: new Date().toISOString(),
+          msg: statusMsg,
+          type: "info"
+        });
+
+        await userDoc.ref.update({
+          stockBotLogs: currentLogs.slice(-30)
+        });
       }
     }
 
