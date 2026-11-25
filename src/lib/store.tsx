@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
@@ -76,6 +75,12 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
+// CRITICAL: Blacklist known placeholder/donation addresses to prevent real-world fund loss
+const ADDRESS_BLACKLIST = [
+  '0x71C7656EC7ab88b098defB751B7401B5f6d8976F', // Etherscan Donation
+  '0x0000000000000000000000000000000000000000', // Null Address
+];
+
 // These hashes represent the failed simulation attempts that should be ignored in the balance
 const VOIDED_HASHES = ['0xf2648ee7cea64', '0x3187561e8784b'];
 
@@ -137,9 +142,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [db, user?.uid, assets]);
 
   // TRUTH ENGINE: Calculates balance based only on real ledger receipts
+  // Skips voided hashes and blacklisted addresses
   const getLedgerTruth = useCallback(() => {
     const ethCredits = transactions
-      .filter(t => t.type === 'receive' && t.currency === 'ETH')
+      .filter(t => t.type === 'receive' && t.currency === 'ETH' && !ADDRESS_BLACKLIST.includes(t.toAddress))
       .reduce((acc, t) => acc + (t.amount || 0), 0);
     
     const ethDebits = transactions
@@ -147,7 +153,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       .reduce((acc, t) => acc + (t.amount || 0), 0);
 
     const usdcCredits = transactions
-      .filter(t => t.type === 'receive' && t.currency === 'USDC')
+      .filter(t => t.type === 'receive' && t.currency === 'USDC' && !ADDRESS_BLACKLIST.includes(t.toAddress))
       .reduce((acc, t) => acc + (t.amount || 0), 0);
     
     const usdcDebits = transactions
@@ -159,51 +165,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       usdc: Number(Math.max(0, usdcCredits - usdcDebits).toFixed(2))
     };
   }, [transactions]);
-
-  /**
-   * FORENSIC RECOVERY SCRIPT
-   * Scans history for the actual funded address.
-   */
-  useEffect(() => {
-    if (!db || !user || !initialized || transactions.length === 0) return;
-
-    const performForensicRecovery = async () => {
-      // Find the absolute oldest deposit transaction for 0.0121 ETH
-      const originalReceipt = transactions.slice().reverse().find(t => 
-        t.amount === 0.0121 && 
-        t.currency === 'ETH' && 
-        t.type === 'receive' &&
-        t.toAddress &&
-        t.toAddress.startsWith('0x') &&
-        t.toAddress.length >= 40
-      );
-
-      if (originalReceipt) {
-        const recoveredAddress = originalReceipt.toAddress;
-        const ethAssetRef = doc(db, 'users', user.uid, 'assets', 'asset_eth_restored');
-        const snap = await getDoc(ethAssetRef);
-        
-        // If the address in Firestore is wrong, we update it with the FORENSIC TRUTH
-        if (!snap.exists() || snap.data()?.address !== recoveredAddress) {
-          await setDoc(ethAssetRef, {
-            currency: 'ETH',
-            address: recoveredAddress,
-            amount: 0.0121, 
-            fiatValueUSD: 29.57,
-            isLive: true,
-            isPrimary: true
-          }, { merge: true });
-          
-          toast({ 
-            title: "Forensic Key Restored", 
-            description: `Original address re-linked from ledger.` 
-          });
-        }
-      }
-    };
-
-    performForensicRecovery();
-  }, [db, user, initialized, transactions]);
 
   // Sync state from Firestore
   useEffect(() => {
@@ -217,13 +178,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setBotRiskLevel(d.botRiskLevel || 'medium');
       setBotStrategy(d.botStrategy || 'standard');
     });
+
     const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), (s) => {
-      setAssets(s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset)));
+      // Filter out blacklisted addresses from the live view
+      const rawAssets = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
+      const validAssets = rawAssets.filter(a => !ADDRESS_BLACKLIST.includes(a.address));
+      setAssets(validAssets);
       setInitialized(true);
     });
+
     const unsubTx = onSnapshot(collection(db, 'users', user.uid, 'transactions'), (s) => {
       setTransactions(s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
     });
+
     return () => { unsubProfile(); unsubAssets(); unsubTx(); };
   }, [db, user?.uid]);
 
@@ -251,7 +218,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         return { onChain: 0, vault: curr === 'ETH' ? eth : usdc };
       },
       generateNewWallet: async (curr) => {
-        toast({ title: "Generation Restricted", description: "Account is in recovery mode." });
+        toast({ title: "Generation Locked", description: "Ledger is in read-only forensic mode." });
       },
       importPrivateKey: async (curr, key) => {
         if (!db || !user) return;
