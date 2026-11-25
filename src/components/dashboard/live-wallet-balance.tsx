@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -6,10 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Briefcase, RefreshCw, Loader2, Landmark, Banknote, ShieldCheck, Zap, Globe } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useUserHook } from "@/firebase";
+import { BridgeToBaseButton } from "@/components/bot/bridge-to-base-button";
 
 const WALLET_ADDRESS = "0xeb585480Cd9edA87f26C281C48B84958aEb090ec";
 
 export function LiveWalletBalance() {
+  const { user } = useUserHook();
   const [baseEth, setBaseEth] = useState<string>("0.000000");
   const [mainnetEth, setMainnetEth] = useState<string>("0.000000");
   const [usdcBalance, setUsdcBalance] = useState<string>("0.00");
@@ -72,7 +76,7 @@ export function LiveWalletBalance() {
       </CardHeader>
       <CardContent className="relative z-10 pb-8">
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
-          <div className="space-y-4">
+          <div className="space-y-6">
             <div className="text-6xl font-black tracking-tighter">
               ${totalPortfolioUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
@@ -119,6 +123,12 @@ export function LiveWalletBalance() {
                 </span>
               </div>
             </div>
+
+            {user && (
+              <div className="max-w-md bg-white/5 p-4 rounded-2xl border border-white/10">
+                <BridgeToBaseButton userId={user.uid} />
+              </div>
+            )}
             
             {error && <p className="text-[10px] font-black text-amber-400 uppercase animate-pulse">{error}</p>}
           </div>
