@@ -13,12 +13,12 @@ import {
 
 /**
  * Institutional Trading Cron Enclave
- * Robustly initializes Admin SDK with Service Account credentials.
  */
 if (!admin.apps.length) {
   try {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    if (key) {
+      const serviceAccount = JSON.parse(key);
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         databaseURL: "https://coinvault-989b4-default-rtdb.firebaseio.com"

@@ -1,24 +1,27 @@
+
 import { NextResponse } from "next/server";
 import { createEncryptedUserWallet } from "@/lib/walletVault";
 import * as admin from 'firebase-admin';
 
 /**
  * Institutional Wallet Provisioning Enclave
- * Robustly initializes Admin SDK with Service Account credentials.
+ * Explicitly initializes Admin SDK with Service Account credentials.
  */
 if (!admin.apps.length) {
   try {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    if (key) {
+      const serviceAccount = JSON.parse(key);
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         databaseURL: "https://coinvault-989b4-default-rtdb.firebaseio.com"
       });
     } else {
+      console.warn("FIREBASE_SERVICE_ACCOUNT_KEY missing from environment. Defaulting to local auth (may fail).");
       admin.initializeApp();
     }
   } catch (e) {
-    console.error("Firebase Admin Init Error:", e);
+    console.error("Firebase Admin Init Error (Provisioning):", e);
   }
 }
 
@@ -29,7 +32,7 @@ export async function POST(req: Request) {
 
     if (!process.env.MASTER_ENCRYPTION_SECRET) {
       return NextResponse.json({ 
-        error: "ENCLAVE_ERROR: MASTER_ENCRYPTION_SECRET is not configured in your .env file. Please add a 32-character secret to proceed." 
+        error: "ENCLAVE_ERROR: MASTER_ENCRYPTION_SECRET is not configured. Please add it to your .env.local to proceed." 
       }, { status: 500 });
     }
 

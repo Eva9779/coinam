@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import * as admin from 'firebase-admin';
 import { ethers } from "ethers";
@@ -8,8 +9,9 @@ import { decryptUserPrivateKey } from "@/lib/walletVault";
  */
 if (!admin.apps.length) {
   try {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    if (key) {
+      const serviceAccount = JSON.parse(key);
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         databaseURL: "https://coinvault-989b4-default-rtdb.firebaseio.com"
@@ -18,7 +20,7 @@ if (!admin.apps.length) {
       admin.initializeApp();
     }
   } catch (e) {
-    console.error("Firebase Admin Init Error:", e);
+    console.error("Firebase Admin Init Error (Bridge):", e);
   }
 }
 
