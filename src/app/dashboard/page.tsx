@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
@@ -26,6 +25,7 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { LiveWalletBalance } from "@/components/dashboard/live-wallet-balance";
 
 const CustomPulseMarquee = ({ items, label }: { items: any[], label: string }) => {
   const displayItems = [...items, ...items];
@@ -71,37 +71,18 @@ const CustomPulseMarquee = ({ items, label }: { items: any[], label: string }) =
 
 export default function Dashboard() {
   const { 
-    assets, 
     transactions, 
     initialized, 
     botActive,
     botLogs,
-    marketData,
-    totalBotEarnings
+    marketData
   } = useWalletStore();
   
   const [mounted, setMounted] = useState(false);
-  const [latency, setLatency] = useState<number>(14);
 
   useEffect(() => {
     setMounted(true);
-    const interval = setInterval(() => {
-      setLatency(prev => {
-        const next = prev + (Math.random() * 4 - 2);
-        return Math.max(10, Math.min(25, Math.floor(next)));
-      });
-    }, 3000);
-    return () => clearInterval(interval);
   }, []);
-
-  const totalBalance = useMemo(() => {
-    const walletTotal = assets.reduce((acc, asset) => {
-      const livePrice = marketData.find(m => m.currency === asset.currency)?.currentPriceUSD || 0;
-      return acc + (asset.amount * livePrice);
-    }, 0);
-    // Institutional Unified Net Worth: Wallet + Held Yield
-    return walletTotal + totalBotEarnings;
-  }, [assets, marketData, totalBotEarnings]);
 
   const cryptoMarketData = useMemo(() => 
     marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USDC'].includes(m.currency)), 
@@ -128,7 +109,7 @@ export default function Dashboard() {
             <Sparkles className="h-8 w-8 text-secondary" />
             Institutional Ledger
           </h2>
-          <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Mainnet Connected: Real-World Assets</p>
+          <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Base Mainnet Connected: Live On-Chain Assets</p>
         </div>
         <div className="flex items-center gap-3">
           {botActive && (
@@ -145,51 +126,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-        <Card className="shadow-2xl border-none bg-primary text-white rounded-[2rem] overflow-hidden relative min-h-[160px]">
-          <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none">
-            <Briefcase className="h-48 w-48" />
-          </div>
-          <CardHeader className="pb-2 relative z-10">
-            <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Unified Net Worth (Wallet + Yield)</CardTitle>
-          </CardHeader>
-          <CardContent className="relative z-10">
-            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
-              <div>
-                <div className="text-6xl font-black tracking-tighter">
-                  ${totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </div>
-                <div className="mt-4 flex items-center gap-4">
-                  <div className="space-y-1">
-                    <span className="text-[9px] font-bold uppercase opacity-60 block">Strategy Yield Status</span>
-                    <span className={cn(
-                      "text-xs font-black uppercase tracking-widest flex items-center gap-1.5",
-                      botActive ? "text-secondary animate-pulse" : "text-green-400"
-                    )}>
-                      <div className={cn("h-1.5 w-1.5 rounded-full", botActive ? "bg-secondary" : "bg-green-400")} />
-                      {botActive ? "HARVESTING" : "SETTLED"}
-                    </span>
-                  </div>
-                  <div className="h-8 w-px bg-white/10" />
-                  <div className="space-y-1">
-                    <span className="text-[9px] font-bold uppercase opacity-60 block">Network Latency</span>
-                    <span className="text-xs font-black uppercase tracking-widest text-green-400 flex items-center gap-1.5">
-                      <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-                      {latency}ms
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Button variant="secondary" className="h-12 px-6 font-bold rounded-xl gap-2 shadow-xl hover:scale-105 transition-transform" asChild>
-                  <Link href="/withdraw">
-                    <Banknote className="h-5 w-5" />
-                    Withdraw to Bank
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <LiveWalletBalance />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
