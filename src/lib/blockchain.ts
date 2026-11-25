@@ -2,8 +2,8 @@ import { ethers } from "ethers";
 
 /**
  * Institutional Chain Registry
- * Primary: Base Sepolia (Testnet)
- * Secondary: Base Mainnet
+ * Primary: Base Mainnet
+ * Secondary: Base Sepolia (Testnet)
  */
 export const CHAINS = {
   BASE_SEPOLIA: {
@@ -12,12 +12,12 @@ export const CHAINS = {
     explorer: "https://sepolia.basescan.org",
     tokens: {
       WETH: '0x4200000000000000000000000000000000000006',
-      USDC: '0x036CbD53842c5426634e7929541eC2318f3dCF7e', // Base Sepolia USDC
+      USDC: '0x036CbD53842c5426634e7929541eC2318f3dCF7e', 
     }
   },
   BASE_MAINNET: {
     id: 8453,
-    rpc: "https://mainnet.base.org",
+    rpc: "https://base.org",
     explorer: "https://basescan.org",
     tokens: {
       WETH: '0x4200000000000000000000000000000000000006',
@@ -26,8 +26,8 @@ export const CHAINS = {
   }
 };
 
-// DEFAULT: Base Sepolia until explicitly switched
-const ACTIVE_CHAIN = CHAINS.BASE_SEPOLIA;
+// DEFAULT: Base Mainnet for real-world execution
+const ACTIVE_CHAIN = CHAINS.BASE_MAINNET;
 
 export const provider = new ethers.JsonRpcProvider(ACTIVE_CHAIN.rpc);
 
@@ -69,7 +69,7 @@ export async function getLiveGasPrice() {
     if (feeData.gasPrice) {
       return Number(ethers.formatUnits(feeData.gasPrice, "gwei"));
     }
-    return 0.1; // Base gas is low
+    return 0.1; 
   } catch (error) {
     return 0.1;
   }

@@ -59,7 +59,7 @@ export default function TradingBotPage() {
           </h2>
           <p className="text-muted-foreground font-medium flex items-center gap-2">
             <Cpu className="h-4 w-4" />
-            Base Sepolia Enclave. Real-World Execution.
+            Base Mainnet Enclave. Real-World Execution.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -91,7 +91,7 @@ export default function TradingBotPage() {
             <Card className="rounded-[2.5rem] bg-gradient-to-br from-primary to-primary/80 text-white border-none shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Base Sepolia Yield</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Mainnet Yield</p>
                   <p className="text-4xl font-black tracking-tighter">${totalBotEarnings.toFixed(2)}</p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
@@ -103,7 +103,7 @@ export default function TradingBotPage() {
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Network Environment</p>
-                  <p className="text-4xl font-black tracking-tighter text-blue-600">SEPOLIA</p>
+                  <p className="text-4xl font-black tracking-tighter text-blue-600">MAINNET</p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-blue-500/10 flex items-center justify-center border-blue-500/20">
                   <Activity className="h-7 w-7 text-blue-600" />
@@ -138,7 +138,7 @@ export default function TradingBotPage() {
                     <div className="flex justify-between items-center">
                        <span className="opacity-30">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
                        {log.hash && (
-                         <a href={`https://sepolia.basescan.org/tx/${log.hash}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[10px] text-secondary hover:underline">
+                         <a href={`https://basescan.org/tx/${log.hash}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[10px] text-secondary hover:underline">
                            View Tx <ExternalLink className="h-2 w-2" />
                          </a>
                        )}
@@ -218,7 +218,7 @@ export default function TradingBotPage() {
                   Proof of Backend
                 </h4>
                 <p className="text-[10px] opacity-70 leading-relaxed font-medium">
-                  The bot executes real transactions on **Base Sepolia**. Every strategy action generates a verifiable transaction hash logged to your institutional ledger.
+                  The bot executes real transactions on **Base Mainnet**. Every strategy action generates a verifiable transaction hash logged to your institutional ledger.
                 </p>
               </div>
 
