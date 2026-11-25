@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -12,19 +12,16 @@ import {
   Play, 
   Pause, 
   Terminal, 
-  TrendingUp, 
   Zap, 
   Activity, 
   ShieldCheck, 
   Loader2,
   Settings2,
   DollarSign,
-  BarChart3,
   Trophy,
   Trash2,
   BrainCircuit,
   Cpu,
-  Coins,
   ExternalLink,
   Target
 } from 'lucide-react';
@@ -39,59 +36,83 @@ import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/e
 export default function TradingBotPage() {
   const db = useFirestore();
   const { 
-    botActive, botAllocation, botRiskLevel, botStrategy, botLogs, updateBotSettings, clearBotLogs, totalBotEarnings, runBotCycle, isSyncing
+    botAllocation, botRiskLevel, botStrategy, botLogs, updateBotSettings, clearBotLogs, totalBotEarnings, runBotCycle, isSyncing
   } = useWalletStore();
 
   const [cryptoAllocation, setCryptoAllocation] = useState(botAllocation?.toString() || "20");
   const [cryptoRisk, setCryptoRisk] = useState<'low' | 'medium' | 'high'>(botRiskLevel || 'medium');
   const [cryptoStrategy, setCryptoStrategy] = useState(botStrategy || 'standard');
   const [targetAsset, setTargetAsset] = useState<string>("ETH");
+  const [isBotActiveInFirestore, setIsBotActiveInFirestore] = useState<boolean>(false);
+  const [isInitialLoad, setIsInitialInitialLoad] = useState(true);
 
-  // Sync targetAsset with Firestore
+  // Sync Global Bot State (isActive & targetAsset) with Firestore
   useEffect(() => {
     if (!db) return;
     const docRef = doc(db, 'botState', 'ethUsdcBot');
     const unsub = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data.targetAsset) {
-          setTargetAsset(data.targetAsset);
-        }
+        if (data.targetAsset) setTargetAsset(data.targetAsset);
+        setIsBotActiveInFirestore(!!data.isActive);
       }
+      setIsInitialInitialLoad(false);
     }, async (serverError) => {
       const permissionError = new FirestorePermissionError({
         path: docRef.path,
         operation: 'get',
       } satisfies SecurityRuleContext);
       errorEmitter.emit('permission-error', permissionError);
+      setIsInitialInitialLoad(false);
     });
     return () => unsub();
   }, [db]);
 
   const handleTargetAssetChange = (val: string) => {
+    if (!db) return;
     setTargetAsset(val);
-    if (db) {
+    const docRef = doc(db, 'botState', 'ethUsdcBot');
+    updateDoc(docRef, { targetAsset: val })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: docRef.path,
+          operation: 'update',
+          requestResourceData: { targetAsset: val },
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+      });
+    toast({ title: `Strategy Switched to ${val}`, description: "Enclave target updated." });
+  };
+
+  const handleToggleBot = () => {
+      if (!db) return;
+      const alloc = parseFloat(cryptoAllocation);
+      if (!isBotActiveInFirestore && (isNaN(alloc) || alloc < 20)) {
+        toast({ title: "Min Allocation $20", variant: "destructive" });
+        return;
+      }
+
+      const nextActiveState = !isBotActiveInFirestore;
       const docRef = doc(db, 'botState', 'ethUsdcBot');
-      updateDoc(docRef, { targetAsset: val })
+      
+      // 1. Update Global Enclave State (triggers Cloud Function runner)
+      updateDoc(docRef, { isActive: nextActiveState })
         .catch(async (serverError) => {
           const permissionError = new FirestorePermissionError({
             path: docRef.path,
             operation: 'update',
-            requestResourceData: { targetAsset: val },
+            requestResourceData: { isActive: nextActiveState },
           } satisfies SecurityRuleContext);
           errorEmitter.emit('permission-error', permissionError);
         });
-      toast({ title: `Strategy Switched to ${val}`, description: "Backend target updated successfully." });
-    }
-  };
 
-  const handleToggleBot = () => {
-      const alloc = parseFloat(cryptoAllocation);
-      if (!botActive && (isNaN(alloc) || alloc < 20)) {
-        toast({ title: "Min Allocation $20", variant: "destructive" });
-        return;
-      }
-      updateBotSettings(!botActive, alloc, cryptoRisk, cryptoStrategy);
+      // 2. Update User Profile Settings (for sync/logs)
+      updateBotSettings(nextActiveState, alloc, cryptoRisk, cryptoStrategy);
+      
+      toast({ 
+        title: nextActiveState ? "Agent Launched" : "Agent Deactivated", 
+        description: nextActiveState ? "Strategy monitoring active on Base Mainnet." : "Operational standby initiated." 
+      });
   };
 
   return (
@@ -108,7 +129,7 @@ export default function TradingBotPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {botActive && (
+          {isBotActiveInFirestore && (
             <Button 
               onClick={runBotCycle} 
               disabled={isSyncing}
@@ -121,11 +142,12 @@ export default function TradingBotPage() {
           )}
           <Button 
             onClick={handleToggleBot} 
-            variant={botActive ? "destructive" : "default"}
+            variant={isBotActiveInFirestore ? "destructive" : "default"}
+            disabled={isInitialLoad}
             className="h-12 px-8 font-bold rounded-2xl shadow-xl gap-2 transition-all"
           >
-            {botActive ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
-            {botActive ? 'Deactivate Agent' : 'Launch Agent'}
+            {isInitialLoad ? <Loader2 className="h-5 w-5 animate-spin" /> : isBotActiveInFirestore ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+            {isBotActiveInFirestore ? 'Deactivate Agent' : 'Launch Agent'}
           </Button>
         </div>
       </div>
@@ -208,7 +230,7 @@ export default function TradingBotPage() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-widest opacity-70">Target Trading Asset</Label>
-                  <Select value={targetAsset} onValueChange={handleTargetAssetChange} disabled={botActive}>
+                  <Select value={targetAsset} onValueChange={handleTargetAssetChange} disabled={isBotActiveInFirestore}>
                     <SelectTrigger className="h-12 rounded-xl font-bold border-2">
                       <div className="flex items-center gap-2">
                         <Target className="h-4 w-4 text-secondary" />
@@ -232,7 +254,7 @@ export default function TradingBotPage() {
                       placeholder="20" 
                       value={cryptoAllocation}
                       onChange={(e) => setCryptoAllocation(e.target.value)}
-                      disabled={botActive}
+                      disabled={isBotActiveInFirestore}
                       className="pl-9 h-12 rounded-xl font-bold text-lg border-2"
                     />
                   </div>
@@ -240,7 +262,7 @@ export default function TradingBotPage() {
 
                 <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-widest opacity-70">Strategy Protocol</Label>
-                  <Select value={cryptoStrategy} onValueChange={setCryptoStrategy} disabled={botActive}>
+                  <Select value={cryptoStrategy} onValueChange={setCryptoStrategy} disabled={isBotActiveInFirestore}>
                     <SelectTrigger className="h-12 rounded-xl font-bold border-2">
                       <SelectValue placeholder="Select Strategy" />
                     </SelectTrigger>
@@ -256,7 +278,7 @@ export default function TradingBotPage() {
                   <Select 
                     value={cryptoRisk} 
                     onValueChange={(v: any) => setCryptoRisk(v)} 
-                    disabled={botActive}
+                    disabled={isBotActiveInFirestore}
                   >
                     <SelectTrigger className="h-12 rounded-xl font-bold border-2">
                       <SelectValue placeholder="Select Risk" />
@@ -273,7 +295,7 @@ export default function TradingBotPage() {
               <div className="h-px bg-primary/10 w-full" />
 
               <div className="p-6 rounded-[1.5rem] bg-slate-900 text-white space-y-4 relative overflow-hidden">
-                <Zap className={cn("absolute -right-6 -bottom-6 h-28 w-28 opacity-10 text-secondary transition-all", botActive && "animate-pulse")} />
+                <Zap className={cn("absolute -right-6 -bottom-6 h-28 w-28 opacity-10 text-secondary transition-all", isBotActiveInFirestore && "animate-pulse")} />
                 <h4 className="text-sm font-black flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-secondary" />
                   Proof of Backend
@@ -283,7 +305,7 @@ export default function TradingBotPage() {
                 </p>
               </div>
 
-              {botActive && (
+              {isBotActiveInFirestore && (
                 <p className="text-center text-[10px] font-black text-green-600 uppercase animate-pulse">
                   Agent is active on {targetAsset} pool
                 </p>
