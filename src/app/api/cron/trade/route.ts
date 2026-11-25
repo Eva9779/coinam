@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import * as admin from 'firebase-admin';
+import { initializeApp, getApps, cert } from "firebase-admin/app";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { ethers } from "ethers";
 import { decryptUserPrivateKey } from "@/lib/walletVault";
 import {
@@ -10,22 +11,16 @@ import {
   buyAssetWithUsdc
 } from "@/lib/trading-bot";
 
-/**
- * Institutional Trading Cron Enclave
- */
-if (!admin.apps.length) {
-  const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-  if (key) {
-    try {
-      const serviceAccount = JSON.parse(key);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        databaseURL: "https://coinvault-989b4-default-rtdb.firebaseio.com"
-      });
-    } catch (e: any) {
-      console.error("Firebase Admin Init Error (Cron):", e.message);
-    }
-  }
+function getAdminFirestore() {
+  const rawKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  if (!rawKey) throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY missing");
+  const serviceAccount = JSON.parse(rawKey.trim().replace(/^['"]|['"]$/g, ""));
+  const existing = getApps().find((app) => app.name === "coinvault-admin");
+  const adminApp = existing ?? initializeApp({
+    credential: cert(serviceAccount),
+    projectId: serviceAccount.project_id
+  }, "coinvault-admin");
+  return getFirestore(adminApp);
 }
 
 const TARGET_SWING_PERCENT = 0.025;
@@ -37,10 +32,6 @@ export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  if (!admin.apps.length) {
-    return NextResponse.json({ error: "Admin SDK not initialized" }, { status: 500 });
   }
 
   const provider = new ethers.JsonRpcProvider("https://mainnet.base.org", 8453, {
@@ -61,7 +52,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Oracle lookup failed" }, { status: 502 });
   }
 
-  const db = admin.firestore();
+  const db = getAdminFirestore();
   const activeBotsSnap = await db
     .collection("userBots")
     .where("isActive", "==", true)
@@ -93,18 +84,16 @@ export async function GET(req: NextRequest) {
       if (bot.holding === "ASSET") {
         const targetSellPrice = bot.lastReferencePrice * (1 + TARGET_SWING_PERCENT);
         if (currentPrice >= targetSellPrice) {
-          const result = await sellAssetForUsdc(userPrivateKey, asset, 0n, 0n); // Abstracted logic
-          if (result.executed) {
-            summary.push({ userId, status: "SOLD", asset });
-          }
+          // Abstracted logic for sell
+          const result = await sellAssetForUsdc(userPrivateKey, asset, 0n, 0n); 
+          if (result.executed) summary.push({ userId, status: "SOLD", asset });
         }
       } else if (bot.holding === "USDC") {
         const targetBuyPrice = bot.lastReferencePrice * (1 - TARGET_SWING_PERCENT);
         if (currentPrice <= targetBuyPrice) {
-          const result = await buyAssetWithUsdc(userPrivateKey, asset, 0n, 0n); // Abstracted logic
-          if (result.executed) {
-            summary.push({ userId, status: "BOUGHT", asset });
-          }
+          // Abstracted logic for buy
+          const result = await buyAssetWithUsdc(userPrivateKey, asset, 0n, 0n);
+          if (result.executed) summary.push({ userId, status: "BOUGHT", asset });
         }
       }
     } catch (err: any) {

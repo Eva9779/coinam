@@ -1,74 +1,68 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { initializeApp, getApps, cert } from "firebase-admin/app";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { createEncryptedUserWallet } from "@/lib/walletVault";
-import * as admin from 'firebase-admin';
 
-/**
- * Institutional Wallet Provisioning Enclave
- * Explicitly initializes Admin SDK with Service Account credentials.
- */
-if (!admin.apps.length) {
-  const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-  if (!key) {
-    console.error("CRITICAL_SECURITY_ERROR: FIREBASE_SERVICE_ACCOUNT_KEY is missing from environment.");
-  } else {
-    try {
-      const serviceAccount = JSON.parse(key);
-      admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-        databaseURL: "https://coinvault-989b4-default-rtdb.firebaseio.com"
-      });
-    } catch (e: any) {
-      console.error("Firebase Admin Parse Error:", e.message);
-    }
+function getAdminFirestore() {
+  const rawKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  if (!rawKey) {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY is missing from .env.local");
   }
+
+  // Strip accidental surrounding quotes if present
+  const cleanedKey = rawKey.trim().replace(/^['"]|['"]$/g, "");
+  const serviceAccount = JSON.parse(cleanedKey);
+
+  // Use a dedicated named app so an earlier default initializeApp() never overrides it
+  const existing = getApps().find((app) => app.name === "coinvault-admin");
+  const adminApp =
+    existing ??
+    initializeApp(
+      {
+        credential: cert(serviceAccount),
+        projectId: serviceAccount.project_id
+      },
+      "coinvault-admin"
+    );
+
+  return getFirestore(adminApp);
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const { userId } = await req.json();
-    if (!userId) return NextResponse.json({ error: "Missing identity context (UID)" }, { status: 401 });
+    const body = await req.json().catch(() => ({}));
+    const userId = body.userId || "defaultUser";
 
-    if (!process.env.MASTER_ENCRYPTION_SECRET) {
-      return NextResponse.json({ 
-        error: "ENCLAVE_ERROR: MASTER_ENCRYPTION_SECRET is not configured." 
-      }, { status: 500 });
-    }
+    const db = getAdminFirestore();
+    const docRef = db.collection("userBots").doc(userId);
+    const snap = await docRef.get();
 
-    if (!admin.apps.length) {
-      return NextResponse.json({ 
-        error: "ENCLAVE_ERROR: Firebase Admin failed to initialize. Check SERVICE_ACCOUNT_KEY." 
-      }, { status: 500 });
-    }
-
-    const db = admin.firestore();
-    const botRef = db.collection("userBots").doc(userId);
-    const snap = await botRef.get();
-
-    if (snap.exists) {
-      return NextResponse.json({ 
-        address: snap.data()?.address,
-        message: "Bot wallet already provisioned for this identity." 
+    // If wallet already exists for this user, return its public address
+    if (snap.exists && snap.data()?.address) {
+      return NextResponse.json({
+        address: snap.data()!.address,
+        alreadyExists: true
       });
     }
 
-    // Generate per-user non-custodial endpoint
+    // Generate & encrypt a new wallet
     const { address, encryptedPrivateKey } = createEncryptedUserWallet();
 
-    await botRef.set({
-      userId,
+    await docRef.set({
       address,
       encryptedPrivateKey,
       isActive: false,
       targetAsset: "ETH",
       holding: "ASSET",
-      lastReferencePrice: 0,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      createdAt: FieldValue.serverTimestamp()
     });
 
-    return NextResponse.json({ address, success: true });
-  } catch (error: any) {
-    console.error("Provisioning API Error:", error);
-    return NextResponse.json({ error: `Provisioning Failed: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ address, created: true });
+  } catch (err: any) {
+    console.error("Wallet creation error:", err);
+    return NextResponse.json(
+      { error: err.message || "Failed to generate trading wallet" },
+      { status: 500 }
+    );
   }
 }
