@@ -1,35 +1,35 @@
 import { ethers } from "ethers";
 
 /**
- * Institutional Mainnet Registry
- * Maps asset symbols to real Ethereum Mainnet contract addresses.
+ * Institutional Chain Registry
+ * Primary: Base Sepolia (Testnet)
+ * Secondary: Base Mainnet
  */
-export const TOKENS = {
-  WETH: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2',
-  USDC: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
-  WBTC: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599',
-  SOL: '0xD1d69d25197a4d7E2dF0B9141C2BB73dEC995551',
-  BNB: '0xB8c77482e45F1F44dE1745F52C74426C631bDD52',
-  XRP: '0x39f6b919502f23D3F97b0946d03f6ad168e2f472',
-  bAAPL: '0x4A6fC0c3a887019fA4c5A0c128540F1aA9128522',
-  bGOOGL: '0x5b38Da6a701c568545dCfcB03FcB875f56beddC4',
-  bTSLA: '0x9dE5698b671A866b8d22384a4413e1173872217c',
-  bBND: '0x1BdE1fC1A5b2F0f5cE8B54a2B3c5F5f5f5f5f5f5f5',
-  bNVDA: '0x8898989898989898989898989898989898989898',
-  bMETA: '0x7767676767676767676767676767676767676767',
-  bTQQQ: '0x3333333333333333333333333333333333333333',
-  bSOXL: '0x5555555555555555555555555555555555555555',
+export const CHAINS = {
+  BASE_SEPOLIA: {
+    id: 84532,
+    rpc: "https://sepolia.base.org",
+    explorer: "https://sepolia.basescan.org",
+    tokens: {
+      WETH: '0x4200000000000000000000000000000000000006',
+      USDC: '0x036CbD53842c5426634e7929541eC2318f3dCF7e', // Base Sepolia USDC
+    }
+  },
+  BASE_MAINNET: {
+    id: 8453,
+    rpc: "https://mainnet.base.org",
+    explorer: "https://basescan.org",
+    tokens: {
+      WETH: '0x4200000000000000000000000000000000000006',
+      USDC: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    }
+  }
 };
 
-/**
- * Hardened Fallback Provider Mesh
- * Uses ethers.js v6 Fallback architecture for extreme reliability.
- */
-export const provider = new ethers.FallbackProvider([
-  new ethers.JsonRpcProvider("https://eth.drpc.org"),
-  new ethers.JsonRpcProvider("https://ethereum.publicnode.com"),
-  new ethers.JsonRpcProvider("https://1rpc.io/eth")
-]);
+// DEFAULT: Base Sepolia until explicitly switched
+const ACTIVE_CHAIN = CHAINS.BASE_SEPOLIA;
+
+export const provider = new ethers.JsonRpcProvider(ACTIVE_CHAIN.rpc);
 
 export async function getLiveBlockNumber() {
   try {
@@ -47,7 +47,7 @@ export async function getLiveBalance(address: string, currency: string = 'ETH') 
       const balance = await provider.getBalance(address);
       return ethers.formatEther(balance);
     } else {
-      const tokenAddress = TOKENS[currency as keyof typeof TOKENS];
+      const tokenAddress = ACTIVE_CHAIN.tokens[currency as keyof typeof ACTIVE_CHAIN.tokens];
       if (!tokenAddress) return '0';
       
       const abi = ["function balanceOf(address) view returns (uint256)"];
@@ -69,17 +69,8 @@ export async function getLiveGasPrice() {
     if (feeData.gasPrice) {
       return Number(ethers.formatUnits(feeData.gasPrice, "gwei"));
     }
-    return 15;
+    return 0.1; // Base gas is low
   } catch (error) {
-    return 15;
+    return 0.1;
   }
-}
-
-export async function sendLiveTransaction(privateKey: string, to: string, amount: string) {
-  const wallet = new ethers.Wallet(privateKey, provider);
-  const tx = await wallet.sendTransaction({
-    to: to,
-    value: ethers.parseEther(amount),
-  });
-  return tx.hash;
 }

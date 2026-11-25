@@ -1,12 +1,12 @@
-
 'use server';
 /**
  * @fileOverview Alpha-Maximizing Institutional Crypto Strategy Agent.
- * Optimized for Spot Momentum on Ethereum Mainnet assets.
+ * Refactored to execute real on-chain actions via ethers v6.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
+import { executeBotStrategy } from '@/lib/trading-bot';
 
 const MarketEntrySchema = z.object({
   currency: z.string(),
@@ -34,13 +34,14 @@ const TradingActionSchema = z.object({
   toAsset: z.string(),
   amountUSD: z.number(),
   reasoning: z.string(),
-  confidence: z.number().describe('Score from 0-100 on the probability of win.'),
+  confidence: z.number(),
 });
 
 const TradingBotOutputSchema = z.object({
   strategy: z.string(),
   actions: z.array(TradingActionSchema),
   marketSentiment: z.enum(['bullish', 'bearish', 'neutral']),
+  txHash: z.string().optional(),
   error: z.string().optional(),
 });
 export type TradingBotOutput = z.infer<typeof TradingBotOutputSchema>;
@@ -50,16 +51,18 @@ const tradingBotPrompt = ai.definePrompt({
   model: 'googleai/gemini-1.5-flash',
   input: { schema: TradingBotInputSchema },
   output: { schema: TradingBotOutputSchema },
-  prompt: `You are the Senior Quantitative Crypto Strategist for Coin A,M. 
-      MISSION: Capture structural breakouts in major crypto assets like BTC, ETH, SOL, and BNB.
+  prompt: `You are the Senior Quantitative Crypto Strategist for Coin A,M on Base Sepolia.
+      MISSION: Identify high-probability breakouts for real-world execution.
       
-      STRICT TRADING RULES (NO-LOSS SPOT):
-      1. SELECTIVE TREND: Watch market data: {{{marketData}}}. Identify assets that have dropped 2-3% today but remain in a long-term uptrend.
-      2. ZERO LOSS: Only issue a SELL if the current price is at least 2.1% higher than the entry price. 
-      3. MICRO ALLOCATION: Use small increments of the total {{{allocationLimitUSD}}} to build positions.
+      STRATEGY: {{{strategyType}}}
+      RISK: {{{riskTolerance}}}
       
-      GOAL: Maximize win rate by skipping choppy market cycles. Only enter during high-probability breakouts.`,
+      Generate a strategy output. If appropriate, recommend a trade action.`,
 });
+
+export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<TradingBotOutput> {
+  return tradingBotFlow(input);
+}
 
 const tradingBotFlow = ai.defineFlow(
   {
@@ -68,11 +71,20 @@ const tradingBotFlow = ai.defineFlow(
     outputSchema: TradingBotOutputSchema,
   },
   async (input) => {
+    // 1. Analyze with AI
     const { output } = await tradingBotPrompt(input);
-    return output!;
+    if (!output) throw new Error('AI Analysis Failed');
+
+    // 2. Execute Backend Execution (No Simulation)
+    const result = await executeBotStrategy(input.userId, {
+      type: input.strategyType,
+      actions: output.actions
+    });
+
+    if (result.success) {
+      return { ...output, txHash: result.hash };
+    } else {
+      return { ...output, error: result.error };
+    }
   }
 );
-
-export async function analyzeMarketAndTrade(input: TradingBotInput): Promise<TradingBotOutput> {
-  return tradingBotFlow(input);
-}

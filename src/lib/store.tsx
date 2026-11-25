@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
@@ -10,12 +9,12 @@ import {
   setDoc, 
   onSnapshot, 
   updateDoc,
-  getDoc,
   writeBatch
 } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 import { INITIAL_MARKET_DATA } from './data';
 import { getLiveBalance } from '@/lib/blockchain';
+import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
 
 export interface WalletAsset {
   id: string;
@@ -40,6 +39,7 @@ interface BotLog {
   msg: string;
   type: 'info' | 'success' | 'warning' | 'error';
   timestamp: string;
+  hash?: string;
 }
 
 interface WalletContextType {
@@ -68,23 +68,12 @@ interface WalletContextType {
   clearBotLogs: () => void;
   clearStockBotLogs: () => void;
   liquidateEarnings: () => Promise<void>;
-  addBotLog: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
-  addStockBotLog: (msg: string, type?: 'info' | 'success' | 'warning' | 'error') => void;
-  syncOnChainBalance: (addr: string, curr: string) => Promise<{ onChain: number, vault: number }>;
-  generateNewWallet: (curr: string, label?: string) => Promise<void>;
+  runBotCycle: () => Promise<void>;
+  syncOnChainBalance: (addr: string, curr: string) => Promise<{ onChain: number }>;
   importPrivateKey: (curr: string, key: string) => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
-
-// CRITICAL: Blacklist known placeholder/donation addresses to prevent real-world fund loss
-const ADDRESS_BLACKLIST = [
-  '0x71C7656EC7ab88b098defB751B7401B5f6d8976F', // Etherscan Donation
-  '0x0000000000000000000000000000000000000000', // Null Address
-];
-
-// These hashes represent simulated attempts that should be ignored in the real balance
-const VOIDED_HASHES = ['0xf2648ee7cea64', '0x3187561e8784b'];
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
@@ -109,21 +98,36 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const [initialized, setInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isAnalyzingStocks] = useState(false);
+  const [isAnalyzingStocks, setIsAnalyzingStocks] = useState(false);
   
   const auth = useAuth();
   const { user } = useUser(auth);
   const db = useFirestore();
 
-  const addBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-    const newLog = { msg, type, timestamp: new Date().toISOString() };
-    setBotLogs(prev => [...prev.slice(-49), newLog]);
-  }, []);
+  useEffect(() => {
+    if (!db || !user) return;
+    const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
+      if (!s.exists()) return;
+      const d = s.data();
+      setTotalBotEarnings(d.totalBotEarnings || 0);
+      setBotActive(!!d.botActive);
+      setBotAllocation(d.botAllocation || 20);
+      setBotRiskLevel(d.botRiskLevel || 'medium');
+      setBotStrategy(d.botStrategy || 'standard');
+      setBotLogs(d.botLogs || []);
+    });
 
-  const addStockBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
-    const newLog = { msg, type, timestamp: new Date().toISOString() };
-    setStockBotLogs(prev => [...prev.slice(-49), newLog]);
-  }, []);
+    const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), (s) => {
+      setAssets(s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset)));
+      setInitialized(true);
+    });
+
+    const unsubTx = onSnapshot(collection(db, 'users', user.uid, 'transactions'), (s) => {
+      setTransactions(s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    });
+
+    return () => { unsubProfile(); unsubAssets(); unsubTx(); };
+  }, [db, user?.uid]);
 
   const addTransaction = useCallback((tx: any) => {
     if (!db || !user) return;
@@ -139,83 +143,34 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), { 
         amount: amount, 
         fiatValueUSD: amount * fiatPrice 
-      }).catch(() => {});
+      });
     }
   }, [db, user?.uid, assets]);
 
-  const getLedgerTruth = useCallback(() => {
-    const ethCredits = transactions
-      .filter(t => t.type === 'receive' && t.currency === 'ETH' && !ADDRESS_BLACKLIST.includes(t.toAddress))
-      .reduce((acc, t) => acc + (t.amount || 0), 0);
-    
-    const ethDebits = transactions
-      .filter(t => t.type === 'send' && t.currency === 'ETH' && !VOIDED_HASHES.includes(t.hash))
-      .reduce((acc, t) => acc + (t.amount || 0), 0);
+  const runBotCycle = async () => {
+    if (!user || !botActive) return;
+    setIsSyncing(true);
+    try {
+      const result = await analyzeMarketAndTrade({
+        userId: user.uid,
+        strategyType: botStrategy as any,
+        assets: assets.map(a => ({ currency: a.currency, amount: a.amount, fiatValue: a.fiatValueUSD })),
+        marketData: marketData.map(m => ({ currency: m.currency, price: m.currentPriceUSD, change24h: m.dailyChangePercent })),
+        riskTolerance: botRiskLevel,
+        allocationLimitUSD: botAllocation
+      });
 
-    const usdcCredits = transactions
-      .filter(t => t.type === 'receive' && t.currency === 'USDC' && !ADDRESS_BLACKLIST.includes(t.toAddress))
-      .reduce((acc, t) => acc + (t.amount || 0), 0);
-    
-    const usdcDebits = transactions
-      .filter(t => t.type === 'send' && t.currency === 'USDC' && !VOIDED_HASHES.includes(t.hash))
-      .reduce((acc, t) => acc + (t.amount || 0), 0);
-
-    return {
-      eth: Number(Math.max(0, ethCredits - ethDebits).toFixed(6)), 
-      usdc: Number(Math.max(0, usdcCredits - usdcDebits).toFixed(2))
-    };
-  }, [transactions]);
-
-  // FORENSIC RECOVERY: Automatically re-links the funded address from history
-  useEffect(() => {
-    if (!initialized || !user || !db || transactions.length === 0) return;
-    
-    const depositTx = transactions.find(t => t.amount === 0.0121 && t.currency === 'ETH' && t.type === 'receive');
-    
-    if (depositTx && depositTx.toAddress) {
-      const address = depositTx.toAddress;
-      const exists = assets.some(a => a.address.toLowerCase() === address.toLowerCase());
-      
-      if (!exists && !ADDRESS_BLACKLIST.includes(address)) {
-        const assetId = `recovered_${address.slice(0, 10)}`;
-        setDoc(doc(db, 'users', user.uid, 'assets', assetId), {
-          id: assetId,
-          currency: 'ETH',
-          amount: 0.0121,
-          fiatValueUSD: 29.57,
-          address: address,
-          isLive: true,
-          isPrimary: true
-        }, { merge: true });
+      if (result.txHash) {
+        toast({ title: "Strategy Executed", description: `TX: ${result.txHash.slice(0, 10)}...` });
+      } else if (result.error) {
+        toast({ title: "Execution Delayed", description: result.error, variant: "destructive" });
       }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSyncing(false);
     }
-  }, [initialized, user, db, transactions, assets]);
-
-  useEffect(() => {
-    if (!db || !user) return;
-    const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
-      if (!s.exists()) return;
-      const d = s.data();
-      setTotalBotEarnings(d.totalBotEarnings || 0);
-      setBotActive(!!d.botActive);
-      setBotAllocation(d.botAllocation || 20);
-      setBotRiskLevel(d.botRiskLevel || 'medium');
-      setBotStrategy(d.botStrategy || 'standard');
-    });
-
-    const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), (s) => {
-      const rawAssets = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
-      const validAssets = rawAssets.filter(a => !ADDRESS_BLACKLIST.includes(a.address));
-      setAssets(validAssets);
-      setInitialized(true);
-    });
-
-    const unsubTx = onSnapshot(collection(db, 'users', user.uid, 'transactions'), (s) => {
-      setTransactions(s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-    });
-
-    return () => { unsubProfile(); unsubAssets(); unsubTx(); };
-  }, [db, user?.uid]);
+  };
 
   const liquidateEarnings = async () => { 
     if (!db || !user || totalBotEarnings <= 0) return;
@@ -225,37 +180,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     await batch.commit();
     addTransaction({ 
       type: 'receive', currency: 'USDC', amount: profitToAdd, fiatValueUSD: profitToAdd, 
-      description: 'Yield Settlement', internal: false 
+      description: 'Yield Settlement'
     });
-    toast({ title: "Settlement Finalized" });
   };
 
   const syncOnChainBalance = async (address: string, currency: string) => {
-    if (!address || !user || !db) return { onChain: 0, vault: 0 };
-    
+    if (!address) return { onChain: 0 };
     setIsSyncing(true);
     try {
-      const liveBalanceStr = await getLiveBalance(address, currency);
-      const liveBalance = parseFloat(liveBalanceStr);
-      
-      const asset = assets.find(a => a.address === address && a.currency === currency);
-      if (asset && liveBalance !== asset.amount) {
-        const livePrice = marketData.find(m => m.currency === currency)?.currentPriceUSD || 1;
-        await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
-          amount: liveBalance,
-          fiatValueUSD: liveBalance * livePrice
-        });
-      }
-      
-      const { eth, usdc } = getLedgerTruth();
-      return { 
-        onChain: liveBalance, 
-        vault: currency === 'ETH' ? eth : usdc 
-      };
-    } catch (e) {
-      console.error("Sync Error:", e);
-      const { eth, usdc } = getLedgerTruth();
-      return { onChain: 0, vault: currency === 'ETH' ? eth : usdc };
+      const live = await getLiveBalance(address, currency);
+      const val = parseFloat(live);
+      return { onChain: val };
     } finally {
       setIsSyncing(false);
     }
@@ -267,25 +202,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, 
-      syncOnChainBalance,
-      generateNewWallet: async (curr) => {
-        toast({ title: "Generation Locked", description: "Forensic mode: Use 'Restore' to link existing endpoints." });
-      },
+      syncOnChainBalance, runBotCycle,
       importPrivateKey: async (curr, key) => {
         if (!db || !user) return;
-        const isAddress = key.length === 42;
         const assetId = `imported_${Date.now()}`;
         setDoc(doc(db, 'users', user.uid, 'assets', assetId), {
           id: assetId,
-          currency: curr, 
-          amount: 0, 
-          fiatValueUSD: 0, 
-          isLive: true, 
-          isPrimary: true,
-          address: key, 
-          privateKey: isAddress ? null : key
+          currency: curr, amount: 0, fiatValueUSD: 0, isLive: true, isPrimary: true,
+          address: key, privateKey: key
         });
-        syncOnChainBalance(key, curr);
       },
       updateBotSettings: (active, alloc, risk, strat) => {
         setBotActive(active);
@@ -295,9 +220,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setStockBotActive(active);
         if (user && db) updateDoc(doc(db, 'users', user.uid), { stockBotActive: active, stockBotAllocation: alloc, stockBotRisk: risk });
       },
-      clearBotLogs: () => setBotLogs([]),
+      clearBotLogs: () => { if(user && db) updateDoc(doc(db, 'users', user.uid), { botLogs: [] }); },
       clearStockBotLogs: () => setStockBotLogs([]),
-      liquidateEarnings, addBotLog, addStockBotLog
+      liquidateEarnings
     }}>
       {children}
     </WalletContext.Provider>
