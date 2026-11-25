@@ -3,12 +3,16 @@ import * as admin from 'firebase-admin';
 import { ethers } from "ethers";
 import { decryptUserPrivateKey } from "@/lib/walletVault";
 
+/**
+ * Institutional Bridge Provisioning Enclave
+ */
 if (!admin.apps.length) {
   try {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
       admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: "https://coinvault-989b4-default-rtdb.firebaseio.com"
       });
     } else {
       admin.initializeApp();
@@ -18,7 +22,6 @@ if (!admin.apps.length) {
   }
 }
 
-const db = admin.firestore();
 const BASE_L1_BRIDGE = "0x3154Cf16ccdb4C6d922629664174b904d80F2C35";
 const BRIDGE_ABI = [
   "function depositETH(uint32 _minGasLimit, bytes calldata _extraData) external payable"
@@ -35,6 +38,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Enclave Error: MASTER_ENCRYPTION_SECRET missing." }, { status: 500 });
     }
 
+    const db = admin.firestore();
     const userDoc = await db.collection("userBots").doc(userId).get();
     if (!userDoc.exists) {
       return NextResponse.json({ error: "User bot wallet not found in enclave." }, { status: 404 });

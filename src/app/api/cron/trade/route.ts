@@ -10,18 +10,21 @@ import {
   buyAssetWithUsdc
 } from "@/lib/trading-bot";
 
+/**
+ * Institutional Trading Cron Enclave
+ */
 if (!admin.apps.length) {
   if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
     admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
+      credential: admin.credential.cert(serviceAccount),
+      databaseURL: "https://coinvault-989b4-default-rtdb.firebaseio.com"
     });
   } else {
     admin.initializeApp();
   }
 }
 
-const db = admin.firestore();
 const TARGET_SWING_PERCENT = 0.025; // 2.5% move triggers a trade
 
 export const dynamic = "force-dynamic";
@@ -53,6 +56,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Oracle lookup failed" }, { status: 502 });
   }
 
+  const db = admin.firestore();
   // 3. Find ALL users who currently have their bot turned ON
   const activeBotsSnap = await db
     .collection("userBots")

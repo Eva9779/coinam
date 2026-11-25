@@ -11,7 +11,8 @@ if (!admin.apps.length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
       const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
       admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: "https://coinvault-989b4-default-rtdb.firebaseio.com"
       });
     } else {
       admin.initializeApp();
@@ -20,8 +21,6 @@ if (!admin.apps.length) {
     console.error("Firebase Admin Init Error:", e);
   }
 }
-
-const db = admin.firestore();
 
 export async function POST(req: Request) {
   try {
@@ -32,6 +31,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Enclave Error: MASTER_ENCRYPTION_SECRET is not configured." }, { status: 500 });
     }
 
+    const db = admin.firestore();
     const botRef = db.collection("userBots").doc(userId);
     const snap = await botRef.get();
 
