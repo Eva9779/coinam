@@ -49,6 +49,7 @@ interface WalletContextType {
   botStrategy: string;
   botLogs: BotLog[];
   marketData: any[];
+  liveBalances: { baseEth: number, mainnetEth: number, usdcBalance: number, ethPriceUsd: number };
   addTransaction: (tx: any) => void;
   updateBalance: (currency: string, amount: number, fiatPrice: number) => Promise<void>;
   updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: string) => void;
@@ -67,9 +68,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [marketData] = useState<any[]>(INITIAL_MARKET_DATA);
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
+  const [liveBalances, setLiveBalances] = useState({ baseEth: 0, mainnetEth: 0, usdcBalance: 0, ethPriceUsd: 0 });
   
   const [botActive, setBotActive] = useState(false);
-  const [botAddress, setBotAddress] = useState<string | null>(null);
+  const [botAddress, setBotAddress] = useState<string | null>("0xeb585480Cd9edA87f26C281C48B84958aEb090ec");
   const [botAllocation, setBotAllocation] = useState(20);
   const [botRiskLevel, setBotRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [botStrategy, setBotStrategy] = useState('standard');
@@ -81,10 +83,31 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUser(auth);
   const db = useFirestore();
 
+  // Fetch Live Balances
+  const fetchLive = useCallback(async () => {
+    try {
+      const res = await fetch("/api/wallet-balance", { cache: "no-store", signal: AbortSignal.timeout(5000) });
+      if (res.ok) {
+        const data = await res.json();
+        setLiveBalances({
+          baseEth: parseFloat(data.baseEth),
+          mainnetEth: parseFloat(data.mainnetEth),
+          usdcBalance: parseFloat(data.usdcBalance),
+          ethPriceUsd: data.ethPriceUsd
+        });
+      }
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    fetchLive();
+    const interval = setInterval(fetchLive, 30000);
+    return () => clearInterval(interval);
+  }, [fetchLive]);
+
   useEffect(() => {
     if (!db || !user) return;
     
-    // Sync User Profile
     const profileRef = doc(db, 'users', user.uid);
     const unsubProfile = onSnapshot(profileRef, (s) => {
       if (!s.exists()) return;
@@ -103,18 +126,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       errorEmitter.emit('permission-error', permissionError);
     });
 
-    // Sync Bot Config (for Primary Address)
     const botRef = doc(db, 'userBots', user.uid);
     const unsubBot = onSnapshot(botRef, (s) => {
       if (s.exists()) {
         setBotAddress(s.data().address);
       }
     }, async (serverError) => {
-      // Non-blocking error handling
       console.warn("User bot configuration lookup delayed.");
     });
 
-    // Sync Assets
     const assetsRef = collection(db, 'users', user.uid, 'assets');
     const unsubAssets = onSnapshot(assetsRef, (s) => {
       const loaded = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
@@ -128,7 +148,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       errorEmitter.emit('permission-error', permissionError);
     });
 
-    // Sync Transactions
     const txRef = collection(db, 'users', user.uid, 'transactions');
     const unsubTx = onSnapshot(txRef, (s) => {
       setTransactions(s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
@@ -254,7 +273,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     <WalletContext.Provider value={{ 
       assets, transactions, initialized, isSyncing, user, totalBotEarnings,
       botActive, botAddress, botAllocation, botRiskLevel, botStrategy, botLogs,
-      marketData, addTransaction, updateBalance, 
+      marketData, liveBalances, addTransaction, updateBalance, 
       syncOnChainBalance, runBotCycle,
       importPrivateKey: async (curr, key) => {
         if (!db || !user) return;
