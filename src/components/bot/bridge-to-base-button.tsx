@@ -30,7 +30,7 @@ export function BridgeToBaseButton({ userId, selectedAddress }: { userId: string
   const [showPinDialog, setShowPinDialog] = useState(false);
   const [pin, setPin] = useState("");
 
-  const isWalletLinked = botConfig && botConfig.address.toLowerCase() === selectedAddress.toLowerCase();
+  const isWalletLinked = Boolean(botConfig?.address && selectedAddress && botConfig.address.toLowerCase() === selectedAddress.toLowerCase());
 
   async function handlePreBridge() {
     if (!isWalletLinked) {
