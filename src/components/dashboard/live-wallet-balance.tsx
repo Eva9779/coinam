@@ -3,14 +3,15 @@
 import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Briefcase, RefreshCw, Loader2, Landmark, Banknote, ShieldCheck, Zap } from "lucide-react";
+import { Briefcase, RefreshCw, Loader2, Landmark, Banknote, ShieldCheck, Zap, Globe } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const WALLET_ADDRESS = "0xeb585480Cd9edA87f26C281C48B84958aEb090ec";
 
 export function LiveWalletBalance() {
-  const [ethBalance, setEthBalance] = useState<string>("0.000000");
+  const [baseEth, setBaseEth] = useState<string>("0.000000");
+  const [mainnetEth, setMainnetEth] = useState<string>("0.000000");
   const [usdcBalance, setUsdcBalance] = useState<string>("0.00");
   const [ethPriceUsd, setEthPriceUsd] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
@@ -24,12 +25,13 @@ export function LiveWalletBalance() {
       if (!res.ok) throw new Error("Failed to load live balance");
 
       const data = await res.json();
-      setEthBalance(data.ethBalance);
+      setBaseEth(data.baseEth);
+      setMainnetEth(data.mainnetEth);
       setUsdcBalance(data.usdcBalance);
       setEthPriceUsd(data.ethPriceUsd);
     } catch (err) {
       console.error("Balance sync error:", err);
-      setError("Syncing with Base Mainnet...");
+      setError("Syncing with Global Ledger...");
     } finally {
       setLoading(false);
     }
@@ -41,9 +43,11 @@ export function LiveWalletBalance() {
     return () => clearInterval(interval);
   }, [fetchLiveBalances]);
 
-  const ethVal = parseFloat(ethBalance);
+  const baseEthVal = parseFloat(baseEth);
+  const mainnetEthVal = parseFloat(mainnetEth);
   const usdcVal = parseFloat(usdcBalance);
-  const totalPortfolioUsd = ethVal * ethPriceUsd + usdcVal;
+  
+  const totalPortfolioUsd = (baseEthVal + mainnetEthVal) * ethPriceUsd + usdcVal;
 
   return (
     <Card className="shadow-2xl border-none bg-primary text-white rounded-[2rem] overflow-hidden relative min-h-[160px]">
@@ -53,7 +57,7 @@ export function LiveWalletBalance() {
       <CardHeader className="pb-2 relative z-10 flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
            <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">
-            Mainnet Live Ledger Pulse
+            Global Cross-Chain Ledger Pulse
           </CardTitle>
           <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
         </div>
@@ -73,33 +77,45 @@ export function LiveWalletBalance() {
               ${totalPortfolioUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             
-            <div className="flex flex-wrap items-center gap-6">
+            <div className="flex flex-wrap items-center gap-8">
               <div className="space-y-1">
-                <span className="text-[9px] font-bold uppercase opacity-60 block">Asset Allocation</span>
-                <div className="flex items-center gap-4">
-                  <div className="flex flex-col">
-                    <span className="text-xs font-black uppercase tracking-widest text-green-400">
-                      {ethBalance} ETH
-                    </span>
-                    <span className="text-[9px] opacity-50 font-bold tracking-tighter">${(ethVal * ethPriceUsd).toFixed(2)} USD</span>
-                  </div>
-                  <div className="h-6 w-px bg-white/10" />
-                  <div className="flex flex-col">
-                    <span className="text-xs font-black uppercase tracking-widest text-secondary">
-                      {usdcBalance} USDC
-                    </span>
-                    <span className="text-[9px] opacity-50 font-bold tracking-tighter">${usdcVal.toFixed(2)} USD</span>
-                  </div>
+                <span className="text-[9px] font-bold uppercase opacity-60 block">Ethereum Mainnet</span>
+                <div className="flex flex-col">
+                  <span className="text-sm font-black uppercase tracking-widest text-blue-300">
+                    {mainnetEth} ETH
+                  </span>
+                  <span className="text-[9px] opacity-50 font-bold tracking-tighter">${(mainnetEthVal * ethPriceUsd).toFixed(2)} USD</span>
                 </div>
               </div>
 
               <div className="h-8 w-px bg-white/10 hidden sm:block" />
 
               <div className="space-y-1">
-                <span className="text-[9px] font-bold uppercase opacity-60 block">Network Latency</span>
-                <span className="text-xs font-black uppercase tracking-widest text-green-400 flex items-center gap-1.5">
-                  <div className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-                  PROXIED
+                <span className="text-[9px] font-bold uppercase opacity-60 block">Base Mainnet</span>
+                <div className="flex items-center gap-4">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-black uppercase tracking-widest text-green-400">
+                      {baseEth} ETH
+                    </span>
+                    <span className="text-[9px] opacity-50 font-bold tracking-tighter">${(baseEthVal * ethPriceUsd).toFixed(2)} USD</span>
+                  </div>
+                  <div className="h-6 w-px bg-white/10" />
+                  <div className="flex flex-col">
+                    <span className="text-sm font-black uppercase tracking-widest text-secondary">
+                      {usdcBalance} USDC
+                    </span>
+                    <span className="text-[9px] opacity-50 font-bold tracking-tighter">${usdcVal.toFixed(2)} USD</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="h-8 w-px bg-white/10 hidden sm:block" />
+
+              <div className="space-y-1">
+                <span className="text-[9px] font-bold uppercase opacity-60 block">Price Oracle</span>
+                <span className="text-xs font-black uppercase tracking-widest text-amber-400 flex items-center gap-1.5">
+                  <Globe className="h-3 w-3" />
+                  ${ethPriceUsd.toFixed(2)}
                 </span>
               </div>
             </div>
