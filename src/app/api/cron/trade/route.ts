@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server";
 import * as admin from 'firebase-admin';
 import { ethers } from "ethers";
@@ -12,16 +13,21 @@ import {
 
 /**
  * Institutional Trading Cron Enclave
+ * Robustly initializes Admin SDK with Service Account credentials.
  */
 if (!admin.apps.length) {
-  if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-      databaseURL: "https://coinvault-989b4-default-rtdb.firebaseio.com"
-    });
-  } else {
-    admin.initializeApp();
+  try {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+      admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: "https://coinvault-989b4-default-rtdb.firebaseio.com"
+      });
+    } else {
+      admin.initializeApp();
+    }
+  } catch (e) {
+    console.error("Firebase Admin Init Error (Cron):", e);
   }
 }
 
