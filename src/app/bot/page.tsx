@@ -50,7 +50,10 @@ export default function TradingBotPage() {
     if (!db) return;
     const unsub = onSnapshot(doc(db, 'botState', 'ethUsdcBot'), (snap) => {
       if (snap.exists()) {
-        setTargetAsset(snap.data().targetAsset || "ETH");
+        const data = snap.data();
+        if (data.targetAsset) {
+          setTargetAsset(data.targetAsset);
+        }
       }
     });
     return () => unsub();
@@ -59,8 +62,12 @@ export default function TradingBotPage() {
   const handleTargetAssetChange = async (val: string) => {
     setTargetAsset(val);
     if (db) {
-      await updateDoc(doc(db, 'botState', 'ethUsdcBot'), { targetAsset: val });
-      toast({ title: `Strategy Switched to ${val}` });
+      try {
+        await updateDoc(doc(db, 'botState', 'ethUsdcBot'), { targetAsset: val });
+        toast({ title: `Strategy Switched to ${val}`, description: "Backend target updated successfully." });
+      } catch (error) {
+        toast({ title: "Sync Failed", description: "Could not update target asset in cloud.", variant: "destructive" });
+      }
     }
   };
 
@@ -186,12 +193,12 @@ export default function TradingBotPage() {
             <CardContent className="pt-6 space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Strategy Target</Label>
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Target Trading Asset</Label>
                   <Select value={targetAsset} onValueChange={handleTargetAssetChange} disabled={botActive}>
                     <SelectTrigger className="h-12 rounded-xl font-bold border-2">
                       <div className="flex items-center gap-2">
                         <Target className="h-4 w-4 text-secondary" />
-                        <SelectValue />
+                        <SelectValue placeholder="Select Asset" />
                       </div>
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-2">
