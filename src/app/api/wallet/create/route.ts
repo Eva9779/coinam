@@ -28,7 +28,9 @@ export async function POST(req: Request) {
     if (!userId) return NextResponse.json({ error: "Missing identity context (UID)" }, { status: 401 });
 
     if (!process.env.MASTER_ENCRYPTION_SECRET) {
-      return NextResponse.json({ error: "Enclave Error: MASTER_ENCRYPTION_SECRET is not configured." }, { status: 500 });
+      return NextResponse.json({ 
+        error: "ENCLAVE_ERROR: MASTER_ENCRYPTION_SECRET is not configured in your .env file. Please add a 32-character secret to proceed." 
+      }, { status: 500 });
     }
 
     const db = admin.firestore();

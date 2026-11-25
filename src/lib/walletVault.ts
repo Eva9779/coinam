@@ -6,7 +6,7 @@ const ALGO = "aes-256-gcm";
 function getMasterKey(): Buffer {
   const secret = process.env.MASTER_ENCRYPTION_SECRET;
   if (!secret || secret.length < 32) {
-    throw new Error("MASTER_ENCRYPTION_SECRET must be at least 32 characters.");
+    throw new Error("SECURITY_ENCLAVE_ERROR: MASTER_ENCRYPTION_SECRET is missing or too short (min 32 chars). Add it to your .env file.");
   }
   return crypto.createHash("sha256").update(secret).digest();
 }
@@ -38,7 +38,7 @@ export function createEncryptedUserWallet() {
  */
 export function decryptUserPrivateKey(payload: string): string {
   const parts = payload.split(":");
-  if (parts.length !== 3) throw new Error("Invalid encrypted key format.");
+  if (parts.length !== 3) throw new Error("ENCLAVE_FORMAT_ERROR: Invalid encrypted key payload.");
   
   const [ivHex, authTagHex, encryptedHex] = parts;
   const decipher = crypto.createDecipheriv(

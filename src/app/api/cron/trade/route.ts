@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     staticNetwork: true
   });
 
-  // 2. Fetch live prices for ETH, BTC, and SOL once per cycle (saves RPC calls)
+  // 2. Fetch live prices for ETH, BTC, and SOL once per cycle
   const prices: Record<string, number> = {};
   try {
     const [ethP, btcP, solP] = await Promise.all([
@@ -57,19 +57,17 @@ export async function GET(req: NextRequest) {
   }
 
   const db = admin.firestore();
-  // 3. Find ALL users who currently have their bot turned ON
   const activeBotsSnap = await db
     .collection("userBots")
     .where("isActive", "==", true)
     .get();
 
   if (activeBotsSnap.empty) {
-    return NextResponse.json({ status: "No active user bots right now.", prices });
+    return NextResponse.json({ status: "No active user bots.", prices });
   }
 
   const summary: any[] = [];
 
-  // 4. Loop through each active user and run their personal trade check
   for (const userDoc of activeBotsSnap.docs) {
     const userId = userDoc.id;
     const bot = userDoc.data();
@@ -78,7 +76,6 @@ export async function GET(req: NextRequest) {
       const asset: TradableAsset = bot.targetAsset || "ETH";
       const currentPrice = prices[asset];
 
-      // First run for this user: set their starting baseline price
       if (!bot.lastReferencePrice || bot.lastReferencePrice === 0) {
         await userDoc.ref.update({
           holding: "ASSET",
@@ -90,10 +87,13 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      // Decrypt THIS specific user's wallet private key in server memory
+      if (!process.env.MASTER_ENCRYPTION_SECRET) {
+        summary.push({ userId, error: "MASTER_ENCRYPTION_SECRET missing on server" });
+        continue;
+      }
+
       const userPrivateKey = decryptUserPrivateKey(bot.encryptedPrivateKey);
 
-      // CASE A: User is holding crypto -> Sell for USDC if price rose +2.5%
       if (bot.holding === "ASSET") {
         const targetSellPrice = bot.lastReferencePrice * (1 + TARGET_SWING_PERCENT);
 
@@ -116,24 +116,14 @@ export async function GET(req: NextRequest) {
           }
 
           if (amountToSellRaw <= 0n) {
-            summary.push({ userId, status: "Insufficient balance to trade", asset });
+            summary.push({ userId, status: "Low balance", asset });
             continue;
           }
 
-          const humanAmount = Number(
-            ethers.formatUnits(amountToSellRaw, ASSETS[asset].decimals)
-          );
-          const minExpectedUsdc = ethers.parseUnits(
-            (humanAmount * bot.lastReferencePrice * 0.98).toFixed(6), // 2% slippage floor
-            6
-          );
+          const humanAmount = Number(ethers.formatUnits(amountToSellRaw, ASSETS[asset].decimals));
+          const minExpectedUsdc = ethers.parseUnits((humanAmount * bot.lastReferencePrice * 0.98).toFixed(6), 6);
 
-          const result = await sellAssetForUsdc(
-            userPrivateKey,
-            asset,
-            amountToSellRaw,
-            minExpectedUsdc
-          );
+          const result = await sellAssetForUsdc(userPrivateKey, asset, amountToSellRaw, minExpectedUsdc);
 
           if (result.executed && result.txHash && result.usdcReceived) {
             await userDoc.ref.update({
@@ -146,20 +136,14 @@ export async function GET(req: NextRequest) {
 
             await userDoc.ref.collection("tradeLogs").add({
               side: `SELL_${asset}_FOR_USDC`,
-              asset,
-              priceUsd: currentPrice,
-              usdcAmount: result.usdcReceived,
-              txHash: result.txHash,
-              timestamp: admin.firestore.FieldValue.serverTimestamp()
+              asset, priceUsd: currentPrice, usdcAmount: result.usdcReceived,
+              txHash: result.txHash, timestamp: admin.firestore.FieldValue.serverTimestamp()
             });
 
             summary.push({ userId, status: "SOLD", asset, txHash: result.txHash });
           }
         }
-      }
-
-      // CASE B: User is holding USDC -> Buy more crypto if price dropped -2.5%
-      else if (bot.holding === "USDC") {
+      } else if (bot.holding === "USDC") {
         const targetBuyPrice = bot.lastReferencePrice * (1 - TARGET_SWING_PERCENT);
 
         if (currentPrice <= targetBuyPrice) {
@@ -167,18 +151,12 @@ export async function GET(req: NextRequest) {
           const prevSoldRaw = BigInt(bot.lastAssetSoldRaw || "0");
           
           if (usdcToSpend <= 0n) {
-            summary.push({ userId, status: "No USDC to spend", asset });
+            summary.push({ userId, status: "No USDC", asset });
             continue;
           }
 
-          const minExpectedOut = (prevSoldRaw * 1010n) / 1000n; // Require at least +1.0% more coins
-
-          const result = await buyAssetWithUsdc(
-            userPrivateKey,
-            asset,
-            usdcToSpend,
-            minExpectedOut
-          );
+          const minExpectedOut = (prevSoldRaw * 1010n) / 1000n; 
+          const result = await buyAssetWithUsdc(userPrivateKey, asset, usdcToSpend, minExpectedOut);
 
           if (result.executed && result.txHash && result.amountReceived) {
             await userDoc.ref.update({
@@ -191,11 +169,8 @@ export async function GET(req: NextRequest) {
 
             await userDoc.ref.collection("tradeLogs").add({
               side: `BUY_${asset}_WITH_USDC`,
-              asset,
-              priceUsd: currentPrice,
-              amountReceived: result.amountReceived,
-              txHash: result.txHash,
-              timestamp: admin.firestore.FieldValue.serverTimestamp()
+              asset, priceUsd: currentPrice, amountReceived: result.amountReceived,
+              txHash: result.txHash, timestamp: admin.firestore.FieldValue.serverTimestamp()
             });
 
             summary.push({ userId, status: "BOUGHT", asset, txHash: result.txHash });
