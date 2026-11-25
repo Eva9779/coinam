@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,10 @@ import {
   Settings,
   ArrowRight,
   Import,
-  Cpu
+  Cpu,
+  Eye,
+  EyeOff,
+  Check
 } from 'lucide-react';
 import { 
   Dialog, 
@@ -32,32 +35,60 @@ import {
   DialogFooter
 } from "@/components/ui/dialog";
 import { useAuth, useUserHook } from '@/firebase';
-import { updateEmail, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
+import { updateEmail, EmailAuthProvider, reauthenticateWithCredential } from 'firebase/auth';
 import { toast } from '@/hooks/use-toast';
 import { useWalletStore } from '@/lib/store';
-import Link from 'next/link';
 import { ethers } from 'ethers';
 import { doc, setDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
+import { jsPDF } from 'jspdf';
 
 export default function SettingsPage() {
   const db = useFirestore();
   const { user, loading: userLoading } = useUserHook();
-  const { assets, botConfig } = useWalletStore();
+  const { botConfig } = useWalletStore();
   
   const [email, setEmail] = useState(user?.email || '');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
-  
   const [loadingEmail, setLoadingEmail] = useState(false);
-  const [loadingPassword, setLoadingPassword] = useState(false);
+
+  // Recovery Kit State
+  const [recoveryKit, setRecoveryKit] = useState<{ address: string, mnemonic: string } | null>(null);
+  const [loadingKit, setLoadingKit] = useState(false);
+  const [showMnemonic, setShowMnemonic] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
 
   // Import State
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importKey, setImportKey] = useState("");
   const [importPin, setImportPin] = useState("");
   const [importLoading, setImportLoading] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      fetchRecoveryKit();
+    }
+  }, [user]);
+
+  const fetchRecoveryKit = async () => {
+    if (!user) return;
+    setLoadingKit(true);
+    try {
+      const res = await fetch('/api/wallet/recovery-kit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.uid }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setRecoveryKit(data);
+      }
+    } catch (e) {
+      console.error("Failed to load recovery kit", e);
+    } finally {
+      setLoadingKit(false);
+    }
+  };
 
   const handleUpdateEmail = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,9 +145,87 @@ export default function SettingsPage() {
     }
   };
 
+  const downloadRecoveryPDF = () => {
+    if (!recoveryKit || !user) return;
+    
+    const doc = new jsPDF();
+    const margin = 20;
+    let y = 30;
+
+    // Header
+    doc.setFontSize(22);
+    doc.setTextColor(40, 40, 40);
+    doc.text("CoinVault Institutional Recovery Kit", margin, y);
+    y += 15;
+
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, margin, y);
+    y += 15;
+
+    // User Details
+    doc.setFontSize(12);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "bold");
+    doc.text("Identity Endpoint:", margin, y);
+    doc.setFont("helvetica", "normal");
+    doc.text(user.email || "N/A", margin + 40, y);
+    y += 10;
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Vault Address:", margin, y);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(recoveryKit.address, margin + 40, y);
+    y += 20;
+
+    // Mnemonic
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("Master Recovery Phrase (12 Words)", margin, y);
+    y += 10;
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "normal");
+    const words = recoveryKit.mnemonic.split(" ");
+    words.forEach((word, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const xPos = margin + col * 60;
+      const yPos = y + row * 10;
+      doc.text(`${i + 1}. ${word}`, xPos, yPos);
+    });
+    y += 70;
+
+    // Footer / Warnings
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, y, 190, y);
+    y += 10;
+
+    doc.setFontSize(10);
+    doc.setTextColor(200, 0, 0);
+    doc.setFont("helvetica", "bold");
+    doc.text("SECURITY WARNING:", margin, y);
+    y += 6;
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(60, 60, 60);
+    doc.text("1. Never share these 12 words with anyone, including CoinVault staff.", margin, y);
+    y += 6;
+    doc.text("2. Store this document in a physically secure location (e.g., a safe).", margin, y);
+    y += 6;
+    doc.text("3. If you lose this phrase, your assets cannot be recovered.", margin, y);
+
+    doc.save("CoinVault-Recovery-Kit.pdf");
+    toast({ title: "Recovery Kit Exported" });
+  };
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: `${label} Copied` });
+    if (label === "Mnemonic") {
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    }
   };
 
   if (userLoading) {
@@ -146,6 +255,101 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
+          
+          {/* Recovery Kit Card */}
+          <Card className="shadow-2xl border-primary/5 bg-card/50 backdrop-blur-xl rounded-[2rem] overflow-hidden">
+            <CardHeader className="bg-primary/5 pb-6 border-b flex flex-row items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Fingerprint className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg font-bold">Wallet Recovery Kit</CardTitle>
+                  <CardDescription className="text-xs">Permanent 12-word master backup enclave.</CardDescription>
+                </div>
+              </div>
+              {recoveryKit && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-9 font-bold text-[10px] uppercase gap-1.5 rounded-xl"
+                  onClick={downloadRecoveryPDF}
+                >
+                  <Download className="h-3.5 w-3.5" /> Export PDF
+                </Button>
+              )}
+            </CardHeader>
+            <CardContent className="pt-8 space-y-6">
+              {loadingKit ? (
+                <div className="py-12 flex flex-col items-center justify-center gap-4">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary opacity-20" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Provisioning Enclave...</p>
+                </div>
+              ) : recoveryKit ? (
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Public Wallet Address</Label>
+                    <div className="p-4 bg-muted/30 rounded-xl font-mono text-[11px] break-all border-2 border-primary/5 relative group">
+                      {recoveryKit.address}
+                      <button 
+                        className="absolute right-3 top-3.5 text-muted-foreground hover:text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => copyToClipboard(recoveryKit.address, "Address")}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">12-Word Master Phrase</Label>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          className="text-[10px] font-bold text-primary flex items-center gap-1.5 hover:underline"
+                          onClick={() => setShowMnemonic(!showMnemonic)}
+                        >
+                          {showMnemonic ? <><EyeOff className="h-3 w-3" /> Hide</> : <><Eye className="h-3 w-3" /> Reveal</>}
+                        </button>
+                        <div className="h-3 w-px bg-muted" />
+                        <button 
+                          className="text-[10px] font-bold text-primary flex items-center gap-1.5 hover:underline"
+                          onClick={() => copyToClipboard(recoveryKit.mnemonic, "Mnemonic")}
+                        >
+                          {isCopied ? <><Check className="h-3 w-3" /> Copied</> : <><Copy className="h-3 w-3" /> Copy Words</>}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className={cn(
+                      "p-6 rounded-[1.5rem] bg-slate-900 grid grid-cols-3 gap-3 border border-white/5 transition-all duration-500",
+                      !showMnemonic && "blur-md select-none opacity-40 grayscale"
+                    )}>
+                      {recoveryKit.mnemonic.split(" ").map((word, i) => (
+                        <div key={i} className="flex items-center gap-2 bg-white/5 p-2.5 rounded-lg border border-white/5">
+                          <span className="text-[9px] font-black text-secondary/40 w-4">{i + 1}</span>
+                          <span className="text-xs font-bold text-white tracking-wide">{word}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-amber-500/5 border border-dashed border-amber-500/20 rounded-xl flex items-start gap-3">
+                    <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-amber-700 font-bold uppercase leading-relaxed tracking-tight">
+                      This recovery kit is generated once and stored in your private hardware enclave. If you lose this phrase, you lose access to your primary vault.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-12 text-center">
+                  <Button onClick={fetchRecoveryKit} className="h-12 px-8 rounded-xl font-black gap-2 shadow-xl">
+                    <Cpu className="h-5 w-5" /> Initialize Recovery Enclave
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           <Card className="shadow-2xl border-primary/5 bg-card/50 backdrop-blur-xl rounded-[2rem] overflow-hidden">
             <CardHeader className="bg-muted/20 pb-6 border-b">
               <div className="flex items-center gap-3">
