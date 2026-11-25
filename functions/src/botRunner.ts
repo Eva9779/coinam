@@ -39,7 +39,7 @@ export const runTradingBot = onSchedule(
     const stateRef = db.collection("botState").doc("ethUsdcBot");
     const stateSnap = await stateRef.get();
 
-    // Use a reliable RPC to read the current live on-chain price
+    // Use a reliable RPC to read the current live on-chain price (Base Sepolia for testing)
     const provider = new ethers.JsonRpcProvider("https://sepolia.base.org"); 
     const currentPrice = await getOnChainEthPrice(provider);
 
