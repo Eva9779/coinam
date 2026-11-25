@@ -32,7 +32,8 @@ import {
   CheckCircle2,
   ChevronRight,
   ExternalLink,
-  AreaChart as ChartIcon
+  AreaChart as ChartIcon,
+  Clock
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -98,6 +99,14 @@ export default function StocksPage() {
     const asset = marketPulse.rwa.find(a => a.ticker === selectedAssetTicker);
     return asset?.price || 0;
   }, [marketPulse.rwa, selectedAssetTicker]);
+
+  const getActionStyle = (action?: string) => {
+    const a = action?.toUpperCase() || "";
+    if (a.includes("BUY")) return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+    if (a.includes("HARVEST")) return "bg-green-500/20 text-green-400 border-green-500/30";
+    if (a.includes("SCANNING")) return "bg-white/5 text-white/40 border-white/10";
+    return "bg-white/5 text-white/60 border-white/10";
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20">
@@ -231,46 +240,58 @@ export default function StocksPage() {
             <CardHeader className="border-b border-white/10 flex flex-row items-center justify-between px-8 py-6">
               <div className="flex items-center gap-3">
                 <Terminal className="h-5 w-5 text-secondary" />
-                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">Strategy Feed (+2.1%)</CardTitle>
+                <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">Live AI Execution Logs</CardTitle>
               </div>
-              <div className="flex items-center gap-2">
-                {isAnalyzingStocks && (
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-secondary mr-4">
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                    HARVESTING ALPHA
-                  </div>
+              <div className="flex items-center gap-3">
+                {stockBotActive && (
+                  <Badge className="bg-green-500/20 text-green-500 border-green-500/30 animate-pulse gap-1.5 px-2 py-0.5 font-black text-[9px] uppercase">
+                    <div className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                    LIVE TELEMETRY
+                  </Badge>
                 )}
                 <button onClick={clearStockBotLogs} className="h-8 w-8 flex items-center justify-center rounded-lg hover:bg-white/5 text-white/30 hover:text-white transition-colors">
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
             </CardHeader>
-            <CardContent className="max-h-[400px] overflow-y-auto p-8 font-mono text-xs space-y-4 no-scrollbar">
-              {(stockBotLogs || []).length === 0 ? (
+            <CardContent className="max-h-[450px] overflow-y-auto p-8 font-mono text-xs space-y-4 no-scrollbar">
+              {stockBotLogs.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center opacity-20 text-center space-y-6 py-20">
-                  <Cpu className="h-16 w-16" />
-                  <p className="uppercase tracking-[0.4em] font-black text-sm">Awaiting Strategic Signal</p>
+                  <Activity className="h-16 w-16" />
+                  <p className="uppercase tracking-[0.4em] font-black text-xs text-center max-w-xs">Agent idle — toggle the AI Bot ON to begin real-time market scanning.</p>
                 </div>
               ) : (
-                stockBotLogs.slice().reverse().map((log, i) => (
-                  <div key={i} className="flex flex-col gap-2 p-3 rounded-xl bg-white/5 border border-white/5 animate-in fade-in slide-in-from-left-4 duration-500">
+                stockBotLogs.slice().reverse().map((log: any, i) => (
+                  <div key={i} className="flex flex-col gap-3 p-4 rounded-xl bg-white/5 border border-white/5 animate-in fade-in slide-in-from-left-4 duration-500">
                     <div className="flex items-center justify-between">
-                      <span className="opacity-30">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
-                      {log.hash && (
+                      <div className="flex items-center gap-3">
+                        <span className="opacity-30 flex items-center gap-1.5">
+                          <Clock className="h-3 w-3" />
+                          {new Date(log.timestamp).toLocaleTimeString()}
+                        </span>
+                        <Badge className={cn("text-[9px] font-black uppercase px-2 py-0.5", getActionStyle(log.action || log.msg))}>
+                          {log.action || (log.msg.includes("SCANNING") ? "SCANNING" : log.msg.includes("BUY") ? "BUY" : "INFO")}
+                        </Badge>
+                      </div>
+                      {log.txHash && (
                         <a 
-                          href={`https://basescan.org/tx/${log.hash}`} 
+                          href={`https://basescan.org/tx/${log.txHash}`} 
                           target="_blank" 
                           rel="noopener noreferrer"
                           className="text-[9px] font-black text-secondary hover:underline flex items-center gap-1"
                         >
-                          RECEIPT <ExternalLink className="h-2.5 w-2.5" />
+                          View Receipt <ExternalLink className="h-2.5 w-2.5" />
                         </a>
                       )}
                     </div>
-                    <span className={cn(
-                      "font-bold",
-                      log.type === 'success' ? "text-green-400" : log.type === 'error' ? "text-red-400" : "text-blue-300"
-                    )}>{log.msg || log.action}</span>
+                    
+                    <div className="space-y-1">
+                      <p className="font-bold text-white/90">{log.msg || `Autonomous rebalance for ${log.symbol}`}</p>
+                      <div className="flex flex-wrap items-center gap-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                        {log.price && <span>Price: ${Number(log.price).toLocaleString()}</span>}
+                        {log.profitUsd > 0 && <span className="text-green-400">Profit: +${log.profitUsd.toFixed(2)}</span>}
+                      </div>
+                    </div>
                   </div>
                 ))
               )}
