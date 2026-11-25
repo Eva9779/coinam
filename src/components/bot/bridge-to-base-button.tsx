@@ -8,29 +8,20 @@ import { Loader2, ExternalLink, ArrowRightLeft, Zap } from "lucide-react";
 import { useWalletStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 
-export function BridgeToBaseButton({ userId, selectedAddress }: { userId: string, selectedAddress: string }) {
+export function BridgeToBaseButton({ userId, selectedAddress }: { userId: string, selectedAddress?: string }) {
   const { botConfig } = useWalletStore();
   const [amount, setAmount] = useState("0.0105");
   const [loading, setLoading] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Verification logic for linked enclave
   const isWalletLinked = Boolean(
     botConfig?.address && 
-    selectedAddress && 
-    botConfig.address.toLowerCase() === selectedAddress.toLowerCase()
+    (!selectedAddress || botConfig.address.toLowerCase() === selectedAddress.toLowerCase())
   );
 
   async function handleBridge() {
-    if (!isWalletLinked) {
-      toast({
-        title: "Unlock Required",
-        description: "This wallet is not currently linked to your enclave. Please import the private key in Settings.",
-        variant: "destructive"
-      });
-      return;
-    }
-
     setLoading(true);
     setError(null);
     setTxHash(null);
@@ -49,10 +40,10 @@ export function BridgeToBaseButton({ userId, selectedAddress }: { userId: string
       }
 
       setTxHash(data.txHash);
-      toast({ title: "Bridge Initiated", description: "Transaction signed and broadcasted to L1." });
+      toast({ title: "Bridge Initiated", description: "Transaction signed by server-side enclave." });
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Decryption or network error.");
+      setError(err.message || "Enclave connection or network error.");
       toast({ title: "Bridge Failed", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
@@ -87,7 +78,7 @@ export function BridgeToBaseButton({ userId, selectedAddress }: { userId: string
         </div>
       </div>
 
-      {!isWalletLinked && (
+      {!isWalletLinked && selectedAddress && (
         <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
            <p className="text-[9px] text-amber-500 font-black uppercase flex items-center gap-2">
              Action Required: Link this wallet to your enclave in Settings to enable bridging.
@@ -95,7 +86,7 @@ export function BridgeToBaseButton({ userId, selectedAddress }: { userId: string
         </div>
       )}
 
-      {error && isWalletLinked && (
+      {error && (
         <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
           <p className="text-[9px] text-red-600 font-bold uppercase">{error}</p>
         </div>
@@ -119,7 +110,7 @@ export function BridgeToBaseButton({ userId, selectedAddress }: { userId: string
       )}
       
       <p className="text-[9px] text-white/40 font-medium uppercase tracking-tight italic">
-        * Gas fee applies on Ethereum Mainnet. Ensure ~0.005 ETH extra for network fees.
+        * No PIN required. Signing is handled by your secure server-side enclave.
       </p>
     </div>
   );
