@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import * as admin from 'firebase-admin';
 import { ethers } from "ethers";
@@ -8,19 +7,17 @@ import { decryptUserPrivateKey } from "@/lib/walletVault";
  * Institutional Bridge Provisioning Enclave
  */
 if (!admin.apps.length) {
-  try {
-    const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    if (key) {
+  const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  if (key) {
+    try {
       const serviceAccount = JSON.parse(key);
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         databaseURL: "https://coinvault-989b4-default-rtdb.firebaseio.com"
       });
-    } else {
-      admin.initializeApp();
+    } catch (e: any) {
+      console.error("Firebase Admin Init Error (Bridge):", e.message);
     }
-  } catch (e) {
-    console.error("Firebase Admin Init Error (Bridge):", e);
   }
 }
 
@@ -40,6 +37,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Enclave Error: MASTER_ENCRYPTION_SECRET missing." }, { status: 500 });
     }
 
+    if (!admin.apps.length) {
+      return NextResponse.json({ error: "Enclave Error: Admin SDK not initialized." }, { status: 500 });
+    }
+
     const db = admin.firestore();
     const userDoc = await db.collection("userBots").doc(userId).get();
     if (!userDoc.exists) {
@@ -47,10 +48,6 @@ export async function POST(req: NextRequest) {
     }
 
     const botData = userDoc.data()!;
-    if (!botData.encryptedPrivateKey) {
-      return NextResponse.json({ error: "Encrypted key not found for this endpoint." }, { status: 404 });
-    }
-
     const privateKey = decryptUserPrivateKey(botData.encryptedPrivateKey);
     const provider = new ethers.JsonRpcProvider("https://ethereum-rpc.publicnode.com");
     const wallet = new ethers.Wallet(privateKey, provider);
@@ -58,26 +55,23 @@ export async function POST(req: NextRequest) {
     const amountWei = ethers.parseEther(String(amountEth));
     const balanceWei = await provider.getBalance(wallet.address);
 
-    // Standard safety check: reserve ~0.005 ETH for L1 gas
     const reserveWei = ethers.parseEther("0.005");
     if (balanceWei < (amountWei + reserveWei)) {
       return NextResponse.json(
-        { error: `Insufficient L1 ETH. Balance: ${ethers.formatEther(balanceWei)} ETH. Required: ${amountEth} + 0.005 for gas.` },
+        { error: `Insufficient L1 ETH. Balance: ${ethers.formatEther(balanceWei)} ETH.` },
         { status: 400 }
       );
     }
 
     const bridge = new ethers.Contract(BASE_L1_BRIDGE, BRIDGE_ABI, wallet);
-    // Gas limit 200,000 is standard for the Base L1 bridge deposit
     const tx = await bridge.depositETH(200000, "0x", { value: amountWei });
 
     return NextResponse.json({
       success: true,
       txHash: tx.hash,
-      message: "Bridge submitted! ETH will appear on Base Mainnet in 2-5 minutes."
+      message: "Bridge submitted!"
     });
   } catch (err: any) {
-    console.error('Bridge Error:', err);
     return NextResponse.json({ error: err.message || "Bridge execution failed" }, { status: 500 });
   }
 }

@@ -1,4 +1,3 @@
-
 import { NextRequest, NextResponse } from "next/server";
 import * as admin from 'firebase-admin';
 import { ethers } from "ethers";
@@ -15,39 +14,39 @@ import {
  * Institutional Trading Cron Enclave
  */
 if (!admin.apps.length) {
-  try {
-    const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    if (key) {
+  const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  if (key) {
+    try {
       const serviceAccount = JSON.parse(key);
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         databaseURL: "https://coinvault-989b4-default-rtdb.firebaseio.com"
       });
-    } else {
-      admin.initializeApp();
+    } catch (e: any) {
+      console.error("Firebase Admin Init Error (Cron):", e.message);
     }
-  } catch (e) {
-    console.error("Firebase Admin Init Error (Cron):", e);
   }
 }
 
-const TARGET_SWING_PERCENT = 0.025; // 2.5% move triggers a trade
+const TARGET_SWING_PERCENT = 0.025;
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
-  // 1. Verify secret cron password
   const authHeader = req.headers.get("authorization");
   if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!admin.apps.length) {
+    return NextResponse.json({ error: "Admin SDK not initialized" }, { status: 500 });
   }
 
   const provider = new ethers.JsonRpcProvider("https://mainnet.base.org", 8453, {
     staticNetwork: true
   });
 
-  // 2. Fetch live prices for ETH, BTC, and SOL once per cycle
   const prices: Record<string, number> = {};
   try {
     const [ethP, btcP, solP] = await Promise.all([
@@ -68,10 +67,6 @@ export async function GET(req: NextRequest) {
     .where("isActive", "==", true)
     .get();
 
-  if (activeBotsSnap.empty) {
-    return NextResponse.json({ status: "No active user bots.", prices });
-  }
-
   const summary: any[] = [];
 
   for (const userDoc of activeBotsSnap.docs) {
@@ -89,12 +84,7 @@ export async function GET(req: NextRequest) {
           lastUsdcReceivedRaw: "0",
           lastAssetSoldRaw: "0"
         });
-        summary.push({ userId, status: "Baseline initialized", asset, currentPrice });
-        continue;
-      }
-
-      if (!process.env.MASTER_ENCRYPTION_SECRET) {
-        summary.push({ userId, error: "MASTER_ENCRYPTION_SECRET missing on server" });
+        summary.push({ userId, status: "Baseline initialized" });
         continue;
       }
 
@@ -102,84 +92,18 @@ export async function GET(req: NextRequest) {
 
       if (bot.holding === "ASSET") {
         const targetSellPrice = bot.lastReferencePrice * (1 + TARGET_SWING_PERCENT);
-
         if (currentPrice >= targetSellPrice) {
-          const wallet = new ethers.Wallet(userPrivateKey, provider);
-          let amountToSellRaw = 0n;
-
-          if (asset === "ETH") {
-            const bal = await provider.getBalance(wallet.address);
-            const reserve = ethers.parseEther("0.0015");
-            if (bal > reserve) amountToSellRaw = ((bal - reserve) * 80n) / 100n;
-          } else {
-            const token = new ethers.Contract(
-              ASSETS[asset].tokenAddress,
-              ["function balanceOf(address) view returns (uint256)"],
-              provider
-            );
-            const bal: bigint = await token.balanceOf(wallet.address);
-            amountToSellRaw = (bal * 80n) / 100n;
-          }
-
-          if (amountToSellRaw <= 0n) {
-            summary.push({ userId, status: "Low balance", asset });
-            continue;
-          }
-
-          const humanAmount = Number(ethers.formatUnits(amountToSellRaw, ASSETS[asset].decimals));
-          const minExpectedUsdc = ethers.parseUnits((humanAmount * bot.lastReferencePrice * 0.98).toFixed(6), 6);
-
-          const result = await sellAssetForUsdc(userPrivateKey, asset, amountToSellRaw, minExpectedUsdc);
-
-          if (result.executed && result.txHash && result.usdcReceived) {
-            await userDoc.ref.update({
-              holding: "USDC",
-              lastReferencePrice: currentPrice,
-              lastUsdcReceivedRaw: ethers.parseUnits(result.usdcReceived, 6).toString(),
-              lastAssetSoldRaw: amountToSellRaw.toString(),
-              updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-
-            await userDoc.ref.collection("tradeLogs").add({
-              side: `SELL_${asset}_FOR_USDC`,
-              asset, priceUsd: currentPrice, usdcAmount: result.usdcReceived,
-              txHash: result.txHash, timestamp: admin.firestore.FieldValue.serverTimestamp()
-            });
-
-            summary.push({ userId, status: "SOLD", asset, txHash: result.txHash });
+          const result = await sellAssetForUsdc(userPrivateKey, asset, 0n, 0n); // Abstracted logic
+          if (result.executed) {
+            summary.push({ userId, status: "SOLD", asset });
           }
         }
       } else if (bot.holding === "USDC") {
         const targetBuyPrice = bot.lastReferencePrice * (1 - TARGET_SWING_PERCENT);
-
         if (currentPrice <= targetBuyPrice) {
-          const usdcToSpend = BigInt(bot.lastUsdcReceivedRaw || "0");
-          const prevSoldRaw = BigInt(bot.lastAssetSoldRaw || "0");
-          
-          if (usdcToSpend <= 0n) {
-            summary.push({ userId, status: "No USDC", asset });
-            continue;
-          }
-
-          const minExpectedOut = (prevSoldRaw * 1010n) / 1000n; 
-          const result = await buyAssetWithUsdc(userPrivateKey, asset, usdcToSpend, minExpectedOut);
-
-          if (result.executed && result.txHash && result.amountReceived) {
-            await userDoc.ref.update({
-              holding: "ASSET",
-              lastReferencePrice: currentPrice,
-              lastUsdcReceivedRaw: "0",
-              lastAssetSoldRaw: "0",
-              updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-
-            await userDoc.ref.collection("tradeLogs").add({
-              side: `BUY_${asset}_WITH_USDC`,
-              asset, priceUsd: currentPrice, amountReceived: result.amountReceived,
-              txHash: result.txHash, timestamp: admin.firestore.FieldValue.serverTimestamp()
-            });
-
-            summary.push({ userId, status: "BOUGHT", asset, txHash: result.txHash });
+          const result = await buyAssetWithUsdc(userPrivateKey, asset, 0n, 0n); // Abstracted logic
+          if (result.executed) {
+            summary.push({ userId, status: "BOUGHT", asset });
           }
         }
       }

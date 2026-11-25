@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import { createEncryptedUserWallet } from "@/lib/walletVault";
 import * as admin from 'firebase-admin';
@@ -8,20 +7,19 @@ import * as admin from 'firebase-admin';
  * Explicitly initializes Admin SDK with Service Account credentials.
  */
 if (!admin.apps.length) {
-  try {
-    const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    if (key) {
+  const key = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  if (!key) {
+    console.error("CRITICAL_SECURITY_ERROR: FIREBASE_SERVICE_ACCOUNT_KEY is missing from environment.");
+  } else {
+    try {
       const serviceAccount = JSON.parse(key);
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
         databaseURL: "https://coinvault-989b4-default-rtdb.firebaseio.com"
       });
-    } else {
-      console.warn("FIREBASE_SERVICE_ACCOUNT_KEY missing from environment. Defaulting to local auth (may fail).");
-      admin.initializeApp();
+    } catch (e: any) {
+      console.error("Firebase Admin Parse Error:", e.message);
     }
-  } catch (e) {
-    console.error("Firebase Admin Init Error (Provisioning):", e);
   }
 }
 
@@ -32,7 +30,13 @@ export async function POST(req: Request) {
 
     if (!process.env.MASTER_ENCRYPTION_SECRET) {
       return NextResponse.json({ 
-        error: "ENCLAVE_ERROR: MASTER_ENCRYPTION_SECRET is not configured. Please add it to your .env.local to proceed." 
+        error: "ENCLAVE_ERROR: MASTER_ENCRYPTION_SECRET is not configured." 
+      }, { status: 500 });
+    }
+
+    if (!admin.apps.length) {
+      return NextResponse.json({ 
+        error: "ENCLAVE_ERROR: Firebase Admin failed to initialize. Check SERVICE_ACCOUNT_KEY." 
       }, { status: 500 });
     }
 
