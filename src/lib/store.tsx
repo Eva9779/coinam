@@ -42,6 +42,12 @@ interface UserBotConfig {
   holding: 'ASSET' | 'USDC';
 }
 
+interface MarketPulse {
+  crypto: any[];
+  rwa: any[];
+  cryptoChartPoints: any[];
+}
+
 interface WalletContextType {
   assets: WalletAsset[];
   transactions: any[];
@@ -53,6 +59,7 @@ interface WalletContextType {
   botLogs: BotLog[];
   marketData: any[];
   liveBalances: { baseEth: number, mainnetEth: number, usdcBalance: number, ethPriceUsd: number };
+  marketPulse: MarketPulse;
   
   // Stock Bot State
   stockBotActive: boolean;
@@ -84,6 +91,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
   const [liveBalances, setLiveBalances] = useState({ baseEth: 0, mainnetEth: 0, usdcBalance: 0, ethPriceUsd: 0 });
   const [botConfig, setBotConfig] = useState<UserBotConfig | null>(null);
+  const [marketPulse, setMarketPulse] = useState<MarketPulse>({ crypto: [], rwa: [], cryptoChartPoints: [] });
 
   // Stock Bot State
   const [stockBotActive, setStockBotActive] = useState(false);
@@ -101,14 +109,26 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUser(auth);
   const db = useFirestore();
 
-  const fetchLive = useCallback(async () => {
-    if (!botConfig?.address) return;
-    
+  const fetchLiveMarket = useCallback(async () => {
     try {
-      const res = await fetch(`/api/wallet-balance?address=${botConfig.address}`, { 
-        cache: "no-store", 
-        signal: AbortSignal.timeout(5000) 
-      });
+      const res = await fetch("/api/market-pulse", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setMarketPulse({
+          crypto: data.crypto || [],
+          rwa: data.rwa || [],
+          cryptoChartPoints: data.cryptoChartPoints || []
+        });
+      }
+    } catch (e) {
+      console.warn("Market Pulse Sync Delay");
+    }
+  }, []);
+
+  const fetchLiveBalances = useCallback(async () => {
+    if (!botConfig?.address) return;
+    try {
+      const res = await fetch(`/api/wallet-balance?address=${botConfig.address}`, { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         setLiveBalances({
@@ -122,10 +142,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [botConfig?.address]);
 
   useEffect(() => {
-    fetchLive();
-    const interval = setInterval(fetchLive, 30000);
-    return () => clearInterval(interval);
-  }, [fetchLive]);
+    fetchLiveMarket();
+    const mInterval = setInterval(fetchLiveMarket, 15000);
+    return () => clearInterval(mInterval);
+  }, [fetchLiveMarket]);
+
+  useEffect(() => {
+    fetchLiveBalances();
+    const bInterval = setInterval(fetchLiveBalances, 30000);
+    return () => clearInterval(bInterval);
+  }, [fetchLiveBalances]);
 
   useEffect(() => {
     if (!db || !user) return;
@@ -136,8 +162,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const d = s.data();
       setTotalBotEarnings(d.totalBotEarnings || 0);
       setBotLogs(d.botLogs || []);
-      
-      // Stock bot fields
       setStockBotActive(d.stockBotActive || false);
       setStockBotAllocation(d.stockBotAllocation || 20);
       setStockBotRisk(d.stockBotRisk || 'medium');
@@ -215,7 +239,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const updateStockBotSettings = (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => {
     if (user && db) {
-      // Logic mapping: Low risk -> Bond (USDY), Balanced/High -> Equity (NVDA)
       const symbol = risk === 'low' ? 'USDY' : 'NVDA';
       updateDoc(doc(db, 'users', user.uid), {
         stockBotActive: active,
@@ -237,7 +260,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   return (
     <WalletContext.Provider value={{ 
       assets, transactions, initialized, isSyncing, user, totalBotEarnings,
-      botConfig, botLogs, marketData, liveBalances, 
+      botConfig, botLogs, marketData, liveBalances, marketPulse,
       stockBotActive, stockBotAllocation, stockBotRisk, selectedStockSymbol, harvestedStockYield, stockBotLogs, stockAssets, isAnalyzingStocks,
       addTransaction, updateBalance, syncOnChainBalance, updateBotSettings, updateStockBotSettings,
       clearBotLogs: () => {

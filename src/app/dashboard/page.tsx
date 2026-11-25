@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
@@ -14,9 +14,10 @@ import {
   ChevronRight,
   Loader2,
   Landmark,
-  Activity,
   Globe,
-  Clock
+  Clock,
+  TrendingUp,
+  TrendingDown
 } from "lucide-react";
 import { useWalletStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -24,49 +25,42 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
-const CustomPulseMarquee = ({ items, label, loading }: { items: any[], label: string, loading: boolean }) => {
+const PulseDisplay = ({ items, label, loading }: { items: any[], label: string, loading: boolean }) => {
   if (loading || !items || items.length === 0) return (
-    <div className="w-full bg-slate-900 h-[110px] rounded-2xl flex items-center justify-center opacity-30">
+    <div className="w-full bg-slate-950 h-[100px] rounded-2xl flex items-center justify-center border border-white/5">
       <Loader2 className="h-4 w-4 animate-spin text-secondary mr-2" />
-      <span className="text-[10px] font-black uppercase tracking-widest text-secondary">Awaiting On-Chain Oracle...</span>
+      <span className="text-[10px] font-black uppercase tracking-widest text-secondary opacity-50">Syncing Oracle...</span>
     </div>
   );
 
-  const displayItems = [...items, ...items];
-
   return (
-    <div className="w-full bg-slate-900 border-y border-white/5 py-4 relative group rounded-2xl shadow-inner h-[110px] overflow-hidden">
-      <div className="absolute top-2 left-4 z-20 text-[9px] font-black text-secondary/40 uppercase tracking-widest flex items-center gap-2">
+    <div className="w-full bg-slate-950 border border-white/10 rounded-2xl shadow-inner h-[100px] overflow-hidden flex items-center px-4 relative">
+       <div className="absolute top-2 left-4 z-20 text-[8px] font-black text-secondary/40 uppercase tracking-widest flex items-center gap-1.5">
         <div className="h-1 w-1 rounded-full bg-green-500 animate-pulse" />
         {label}
       </div>
-      
-      <ScrollArea className="w-full h-full pt-4">
-        <div className="flex animate-marquee whitespace-nowrap w-max gap-8 px-6 hover:[animation-play-state:paused]">
-          {displayItems.map((item, idx) => {
-            const price = item.price;
-            const minDec = price < 1 ? 4 : 2;
-            const maxDec = Math.max(minDec, 2);
-
-            return (
-              <div key={`${item.ticker}-${idx}`} className="flex flex-col items-start min-w-[180px] transition-all hover:bg-white/5 p-2 rounded-xl">
-                <span className="text-[11px] font-black text-secondary uppercase tracking-[0.2em] mb-1">{item.ticker}</span>
-                <span className="text-lg font-black text-white leading-tight">
-                  ${price.toLocaleString(undefined, { 
-                    minimumFractionDigits: minDec,
-                    maximumFractionDigits: maxDec 
-                  })}
+      <div className="flex items-center gap-6 overflow-x-auto no-scrollbar w-full pt-4">
+        {items.map((item, idx) => {
+          const isUp = item.changePercent >= 0;
+          return (
+            <div key={`${item.ticker}-${idx}`} className="flex flex-col min-w-[140px] border-r border-white/5 last:border-none pr-6">
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">{item.ticker}</span>
+              <div className="flex flex-col">
+                <span className="text-xl font-black text-white tracking-tighter">
+                  ${item.price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
-                <span className="text-[9px] font-bold text-muted-foreground/60 flex items-center gap-1 mt-1 uppercase">
-                  <Clock className="h-2.5 w-2.5" />
-                  Block: {new Date(item.updatedAt).toLocaleTimeString()}
-                </span>
+                <div className={cn(
+                  "flex items-center gap-1 text-[9px] font-bold mt-0.5",
+                  isUp ? "text-green-400" : "text-red-400"
+                )}>
+                  {isUp ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                  {isUp ? '+' : ''}{item.changePercent.toFixed(2)}%
+                </div>
               </div>
-            );
-          })}
-        </div>
-        <ScrollBar orientation="horizontal" className="h-1.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-      </ScrollArea>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
@@ -75,39 +69,15 @@ export default function Dashboard() {
   const { 
     transactions, 
     initialized, 
-    botLogs
+    botLogs,
+    marketPulse
   } = useWalletStore();
   
   const [mounted, setMounted] = useState(false);
-  const [pulseData, setPulseData] = useState<{ crypto: any[], rwa: any[] }>({ crypto: [], rwa: [] });
-  const [pulseLoading, setPulseLoading] = useState(true);
-
-  const fetchMarketPulse = useCallback(async () => {
-    try {
-      const res = await fetch("/api/market-pulse", { 
-        cache: "no-store",
-        signal: AbortSignal.timeout(5000)
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setPulseData({
-          crypto: data.crypto || [],
-          rwa: data.rwa || []
-        });
-      }
-    } catch (err) {
-      console.warn("Market Pulse Sync Delay:", err);
-    } finally {
-      setPulseLoading(false);
-    }
-  }, []);
 
   useEffect(() => {
     setMounted(true);
-    fetchMarketPulse();
-    const interval = setInterval(fetchMarketPulse, 15000);
-    return () => clearInterval(interval);
-  }, [fetchMarketPulse]);
+  }, []);
 
   if (!mounted) return null;
   
@@ -119,7 +89,7 @@ export default function Dashboard() {
             <Sparkles className="h-8 w-8 text-secondary" />
             Institutional Ledger
           </h2>
-          <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Chainlink Oracles: Live On-Chain Market Discovery</p>
+          <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Global Mainnet Discovery: Real-Time Performance</p>
         </div>
         <div className="flex items-center gap-3">
           <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
@@ -130,27 +100,27 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden min-h-[140px]">
+        <Card className="shadow-2xl border-none rounded-[2rem] bg-slate-900 overflow-hidden min-h-[160px]">
           <CardHeader className="pb-2">
-             <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                <Zap className="h-3 w-3 text-secondary" />
-                CHAINLINK CRYPTOGRAPHIC PULSE
+             <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary flex items-center gap-2">
+                <Zap className="h-3 w-3" />
+                REAL-TIME CRYPTOGRAPHIC PULSE
              </CardTitle>
           </CardHeader>
-          <CardContent className="pb-4">
-            <CustomPulseMarquee items={pulseData.crypto} label="Mainnet Crypto Oracle" loading={pulseLoading} />
+          <CardContent className="pb-6">
+            <PulseDisplay items={marketPulse.crypto} label="EVM Market Feed" loading={!initialized} />
           </CardContent>
         </Card>
 
-        <Card className="shadow-sm border-primary/5 rounded-[2rem] bg-card/50 backdrop-blur-xl overflow-hidden min-h-[140px]">
+        <Card className="shadow-2xl border-none rounded-[2rem] bg-slate-900 overflow-hidden min-h-[160px]">
           <CardHeader className="pb-2">
-             <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                <Landmark className="h-3 w-3 text-secondary" />
-                CHAINLINK EQUITY PULSE (RWA)
+             <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary flex items-center gap-2">
+                <Landmark className="h-3 w-3" />
+                REAL-TIME EQUITY PULSE (RWA)
              </CardTitle>
           </CardHeader>
-          <CardContent className="pb-4">
-            <CustomPulseMarquee items={pulseData.rwa} label="Commodity & Forex Oracle" loading={pulseLoading} />
+          <CardContent className="pb-6">
+            <PulseDisplay items={marketPulse.rwa} label="Tokenized Asset Feed" loading={!initialized} />
           </CardContent>
         </Card>
       </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, memo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -31,55 +31,15 @@ import {
   Zap,
   CheckCircle2,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  AreaChart as ChartIcon
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import Link from 'next/link';
-
-const EquityChart = memo(({ symbol }: { symbol: string }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    containerRef.current.innerHTML = ''; 
-    const script = document.createElement("script");
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-    script.type = "text/javascript";
-    script.async = true;
-    const config = {
-      autosize: true,
-      symbol: symbol,
-      interval: "1",
-      timezone: "Etc/UTC",
-      theme: "dark",
-      style: "1",
-      locale: "en",
-      enable_publishing: false,
-      hide_top_toolbar: false,
-      hide_legend: false,
-      backgroundColor: "rgba(2, 6, 23, 1)",
-      gridColor: "rgba(30, 41, 59, 0.5)",
-      container_id: "equity_chart_inner",
-    };
-    script.innerHTML = JSON.stringify(config);
-    containerRef.current.appendChild(script);
-  }, [symbol]);
-
-  return (
-    <div className="w-full h-[500px] border border-white/5 rounded-[2rem] overflow-hidden shadow-2xl bg-[#020617] relative">
-      <div 
-        id="equity_chart_inner" 
-        ref={containerRef} 
-        className="absolute inset-0 w-full h-full"
-        style={{ width: '100%', height: '100%' }}
-      />
-    </div>
-  );
-});
-
-EquityChart.displayName = "EquityChart";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 
 export default function StocksPage() {
   const { 
@@ -92,12 +52,13 @@ export default function StocksPage() {
     isAnalyzingStocks,
     updateStockBotSettings,
     clearStockBotLogs,
-    liquidateEarnings
+    liquidateEarnings,
+    marketPulse
   } = useWalletStore();
 
   const [localRisk, setLocalRisk] = useState<'low' | 'medium' | 'high'>(stockBotRisk || 'medium');
   const [localAllocation, setLocalAllocation] = useState(stockBotAllocation?.toString() || "20");
-  const [chartSymbol, setChartSymbol] = useState("NASDAQ:NVDA");
+  const [selectedAssetTicker, setSelectedAssetTicker] = useState("NVDA");
   const [isLiquidating, setIsLiquidating] = useState(false);
 
   useEffect(() => {
@@ -127,6 +88,16 @@ export default function StocksPage() {
   };
 
   const totalValue = stockAssets.reduce((acc, s) => acc + s.totalValue, 0);
+
+  const activeChartData = useMemo(() => {
+    const asset = marketPulse.rwa.find(a => a.ticker === selectedAssetTicker);
+    return asset?.chartPoints || [];
+  }, [marketPulse.rwa, selectedAssetTicker]);
+
+  const currentAssetPrice = useMemo(() => {
+    const asset = marketPulse.rwa.find(a => a.ticker === selectedAssetTicker);
+    return asset?.price || 0;
+  }, [marketPulse.rwa, selectedAssetTicker]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20">
@@ -203,9 +174,9 @@ export default function StocksPage() {
             <Card className="rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/10 shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Harvest Target</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Oracle Price ({selectedAssetTicker})</p>
                   <p className="text-3xl font-black tracking-tighter text-green-600">
-                    +2.1%
+                    ${currentAssetPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div className="h-12 w-12 rounded-2xl bg-green-500/10 flex items-center justify-center border-green-500/20">
@@ -215,34 +186,48 @@ export default function StocksPage() {
             </Card>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-2">
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-primary flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-secondary" />
-                  Vision: {chartSymbol.split(':')[1] || chartSymbol}
-                </h3>
-              </div>
-              <div className="flex items-center gap-3">
-                <Select value={chartSymbol} onValueChange={setChartSymbol}>
-                  <SelectTrigger className="w-56 h-12 rounded-xl font-bold bg-background border-2 border-primary/20 shadow-md">
-                    <SelectValue placeholder="Select Asset" />
+          <Card className="bg-slate-950 text-white border-none shadow-2xl rounded-[2.5rem] overflow-hidden min-h-[500px]">
+            <CardHeader className="border-b border-white/10 px-8 py-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <ChartIcon className="h-5 w-5 text-secondary" />
+                  <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50 font-mono">Equity Vision: {selectedAssetTicker}</CardTitle>
+                </div>
+                <Select value={selectedAssetTicker} onValueChange={setSelectedAssetTicker}>
+                  <SelectTrigger className="w-56 h-10 rounded-xl font-bold bg-white/5 border-white/10 text-white">
+                    <SelectValue />
                   </SelectTrigger>
-                  <SelectContent className="rounded-xl border-2 shadow-2xl">
-                    <SelectItem value="NASDAQ:NVDA" className="font-bold">NVIDIA (NVDA)</SelectItem>
-                    <SelectItem value="NASDAQ:AAPL" className="font-bold">Apple (AAPL)</SelectItem>
-                    <SelectItem value="NASDAQ:TSLA" className="font-bold">Tesla (TSLA)</SelectItem>
-                    <SelectItem value="NASDAQ:META" className="font-bold">Meta (META)</SelectItem>
-                    <SelectItem value="NASDAQ:TQQQ" className="font-bold">TQQQ (3X Leveraged)</SelectItem>
-                    <SelectItem value="AMEX:BND" className="font-bold">Total Bond (BND)</SelectItem>
+                  <SelectContent className="rounded-xl bg-slate-900 border-white/10 text-white">
+                    {marketPulse.rwa.map(asset => (
+                      <SelectItem key={asset.ticker} value={asset.ticker} className="font-bold">{asset.symbol} ({asset.ticker})</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <EquityChart symbol={chartSymbol} />
-          </div>
+            </CardHeader>
+            <CardContent className="p-8">
+               <div className="h-[350px] w-full">
+                <ChartContainer config={{ price: { label: "Price", color: "hsl(var(--secondary))" } }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={activeChartData}>
+                      <defs>
+                        <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(var(--secondary))" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="hsl(var(--secondary))" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="time" hide />
+                      <YAxis hide domain={['auto', 'auto']} />
+                      <Tooltip content={<ChartTooltipContent />} />
+                      <Area type="monotone" dataKey="price" stroke="hsl(var(--secondary))" strokeWidth={3} fillOpacity={1} fill="url(#colorPrice)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
+              </div>
+            </CardContent>
+          </Card>
 
-          <Card className="bg-slate-950 text-slate-50 border-none shadow-2xl rounded-[2.5rem] overflow-hidden min-h-[400px] flex flex-col">
+          <Card className="bg-slate-950 text-slate-50 border-none shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col">
             <CardHeader className="border-b border-white/10 flex flex-row items-center justify-between px-8 py-6">
               <div className="flex items-center gap-3">
                 <Terminal className="h-5 w-5 text-secondary" />
@@ -260,7 +245,7 @@ export default function StocksPage() {
                 </button>
               </div>
             </CardHeader>
-            <CardContent className="flex-1 overflow-y-auto p-8 font-mono text-xs space-y-4 no-scrollbar max-h-[400px]">
+            <CardContent className="max-h-[400px] overflow-y-auto p-8 font-mono text-xs space-y-4 no-scrollbar">
               {(stockBotLogs || []).length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center opacity-20 text-center space-y-6 py-20">
                   <Cpu className="h-16 w-16" />
@@ -284,8 +269,8 @@ export default function StocksPage() {
                     </div>
                     <span className={cn(
                       "font-bold",
-                      log.type === 'success' ? "text-green-400" : log.type === 'warning' ? "text-amber-400" : "text-blue-300"
-                    )}>{log.msg}</span>
+                      log.type === 'success' ? "text-green-400" : log.type === 'error' ? "text-red-400" : "text-blue-300"
+                    )}>{log.msg || log.action}</span>
                   </div>
                 ))
               )}

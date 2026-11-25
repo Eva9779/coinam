@@ -23,7 +23,9 @@ import {
   PlusCircle,
   Copy,
   Wallet,
-  Lock
+  Lock,
+  AreaChart as ChartIcon,
+  TrendingUp
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -40,12 +42,15 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ChartContainer, ChartTooltipContent } from "@/components/ui/chart";
 
 export default function TradingBotPage() {
   const db = useFirestore();
   const { user } = useUserHook();
   const { 
-    botLogs, clearBotLogs, totalBotEarnings, botConfig, updateBotSettings, initialized: storeInitialized
+    botLogs, clearBotLogs, totalBotEarnings, botConfig, updateBotSettings, initialized: storeInitialized,
+    marketPulse
   } = useWalletStore();
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -61,13 +66,9 @@ export default function TradingBotPage() {
 
     setIsGenerating(true);
     try {
-      // 1. Generate Local Wallet
       const wallet = ethers.Wallet.createRandom();
-      
-      // 2. Encrypt locally (this takes a few seconds)
       const encryptedJson = await wallet.encrypt(pin);
       
-      // 3. Backup to Firestore
       const botRef = doc(db, 'userBots', user.uid);
       await setDoc(botRef, {
         address: wallet.address,
@@ -78,7 +79,6 @@ export default function TradingBotPage() {
         createdAt: new Date().toISOString()
       });
 
-      // 4. Provision primary asset entry
       const assetRef = doc(db, 'users', user.uid, 'assets', 'primary_eth');
       await setDoc(assetRef, {
         id: 'primary_eth',
@@ -168,6 +168,8 @@ export default function TradingBotPage() {
     );
   }
 
+  const currentPrice = marketPulse.crypto.find(c => c.ticker === botConfig.targetAsset)?.price || 0;
+
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -210,8 +212,8 @@ export default function TradingBotPage() {
             <Card className="rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/10 shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Active Asset</p>
-                  <p className="text-4xl font-black tracking-tighter text-blue-600">{botConfig.holding === 'ASSET' ? botConfig.targetAsset : 'USDC'}</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Oracle Price ({botConfig.targetAsset})</p>
+                  <p className="text-4xl font-black tracking-tighter text-blue-600">${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-blue-500/10 flex items-center justify-center border-blue-500/20">
                   <Activity className="h-7 w-7 text-blue-600" />
@@ -220,7 +222,39 @@ export default function TradingBotPage() {
             </Card>
           </div>
 
-          <Card className="bg-slate-950 text-slate-50 border-none shadow-2xl rounded-[2.5rem] overflow-hidden min-h-[400px] flex flex-col">
+          <Card className="bg-slate-950 text-white border-none shadow-2xl rounded-[2.5rem] overflow-hidden min-h-[400px]">
+            <CardHeader className="border-b border-white/10 px-8 py-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <ChartIcon className="h-5 w-5 text-secondary" />
+                  <CardTitle className="text-sm font-bold uppercase tracking-widest text-white/50">Market Intelligence</CardTitle>
+                </div>
+                <Badge variant="outline" className="text-[8px] border-secondary/30 text-secondary bg-secondary/5">LIVE ORACLE DATA</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-8">
+              <div className="h-[300px] w-full">
+                <ChartContainer config={{ price: { label: "Price", color: "hsl(var(--secondary))" } }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={marketPulse.cryptoChartPoints}>
+                      <defs>
+                        <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(var(--secondary))" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="hsl(var(--secondary))" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="time" hide />
+                      <YAxis hide domain={['auto', 'auto']} />
+                      <Tooltip content={<ChartTooltipContent />} />
+                      <Area type="monotone" dataKey="price" stroke="hsl(var(--secondary))" strokeWidth={3} fillOpacity={1} fill="url(#colorPrice)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </ChartContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-slate-950 text-slate-50 border-none shadow-2xl rounded-[2.5rem] overflow-hidden flex flex-col">
             <CardHeader className="border-b border-white/10 flex flex-row items-center justify-between px-8 py-6">
               <div className="flex items-center gap-3">
                 <Terminal className="h-5 w-5 text-secondary" />
@@ -230,7 +264,7 @@ export default function TradingBotPage() {
                 <Trash2 className="h-4 w-4" />
               </Button>
             </CardHeader>
-            <CardContent className="flex-1 overflow-y-auto p-8 font-mono text-xs space-y-4 no-scrollbar">
+            <CardContent className="max-h-[300px] overflow-y-auto p-8 font-mono text-xs space-y-4 no-scrollbar">
               {botLogs.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center opacity-20 text-center space-y-6 py-20">
                   <BrainCircuit className="h-16 w-16" />
