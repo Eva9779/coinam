@@ -42,6 +42,7 @@ import { ethers } from 'ethers';
 import { doc, setDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
 import { jsPDF } from 'jspdf';
+import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
   const db = useFirestore();
@@ -411,7 +412,7 @@ export default function SettingsPage() {
                 <DialogContent className="rounded-[2rem] sm:max-w-md">
                   <DialogHeader>
                     <DialogTitle className="text-xl font-black flex gap-2"><Cpu className="h-5 w-5 text-secondary" /> Import Private Key</DialogTitle>
-                    <DialogDescription className="text-xs font-medium">Link an existing wallet. We will encrypt it with your PIN before backing it up to Firestore.</DialogDescription>
+                    <DialogTitle className="text-xs font-medium">Link an existing wallet. We will encrypt it with your PIN before backing it up to Firestore.</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
