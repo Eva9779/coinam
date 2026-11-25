@@ -12,20 +12,14 @@ import {
   ArrowUpRight, 
   ArrowDownLeft, 
   Send, 
-  CheckCircle2, 
   History, 
-  AlertCircle, 
-  Zap, 
-  ShieldCheck, 
   Database, 
   Copy, 
   Loader2, 
   Clock, 
-  XCircle, 
-  Activity, 
-  Globe 
+  Zap 
 } from "lucide-react";
-import { useWalletStore, Transaction } from "@/lib/store";
+import { useWalletStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { getLiveGasPrice, sendLiveTransaction } from "@/lib/blockchain";
@@ -37,7 +31,7 @@ type FeeTier = 'slow' | 'average' | 'fast';
 const VOIDED_HASHES = ['0xf2648ee7cea64', '0x3187561e8784b'];
 
 function TransactionsContent() {
-  const { assets, transactions, updateBalance, addTransaction, initialized } = useWalletStore();
+  const { assets, transactions, addTransaction, initialized } = useWalletStore();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'send';
   
@@ -45,8 +39,6 @@ function TransactionsContent() {
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
   const [selectedAssetId, setSelectedAssetId] = useState("");
-  const [feeTier, setFeeTier] = useState<FeeTier>('average');
-  const [addressError, setAddressError] = useState("");
   const [mounted, setMounted] = useState(false);
   const [baseGas, setBaseGas] = useState<number>(0);
 
@@ -132,18 +124,13 @@ function TransactionsContent() {
     navigator.clipboard.writeText(text).then(() => {
       toast({
         title: `${label} Copied`,
-        description: `Full data (${text.length} characters) stored in secure clipboard.`,
+        description: `Full data stored in secure clipboard.`,
       });
     });
   };
 
-  if (!initialized || !mounted) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
+  // NEVER block the entire screen with a loader.
+  // We use localized skeletons if data is missing, but render the shell immediately.
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
@@ -183,16 +170,18 @@ function TransactionsContent() {
                       <SelectValue placeholder="Select asset" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-2">
-                      {assets.map(a => (
+                      {assets.length > 0 ? assets.map(a => (
                         <SelectItem key={a.id} value={a.id} className="font-bold">
                           {a.currency} ({a.amount.toFixed(4)})
                         </SelectItem>
-                      ))}
+                      )) : (
+                        <SelectItem value="loading" disabled>Loading Assets...</SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">External Target Address (e.g. Binance)</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">External Target Address</Label>
                   <Input 
                     placeholder="0x... Paste Full ERC-20 Address" 
                     value={recipient} 
@@ -223,7 +212,7 @@ function TransactionsContent() {
                     Institutional Sweep Policy
                   </div>
                   <p className="text-[10px] text-amber-600 font-medium leading-relaxed">
-                    External transfers to third-party wallets (Binance, Deriv, etc.) undergo automated bridge verification. Expected clearance time: 2-4 hours.
+                    External transfers undergo automated bridge verification. Expected clearance time: 2-4 hours.
                   </p>
                 </div>
 
@@ -239,7 +228,13 @@ function TransactionsContent() {
            <Card className="border-none shadow-2xl bg-card/50 backdrop-blur-xl rounded-[2rem] overflow-hidden">
             <CardContent className="flex flex-col items-center py-16 space-y-8">
               <div className="p-4 bg-white rounded-3xl shadow-xl border-2 border-primary/5">
-                <QRCodeSVG value={asset?.address || ""} size={220} />
+                {asset?.address ? (
+                  <QRCodeSVG value={asset.address} size={220} />
+                ) : (
+                  <div className="h-[220px] w-[220px] bg-muted/20 animate-pulse rounded-xl flex items-center justify-center">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground/30" />
+                  </div>
+                )}
               </div>
               <div className="w-full max-w-sm space-y-4">
                 <div className="space-y-4 text-center">
@@ -247,18 +242,23 @@ function TransactionsContent() {
                   <div className="flex flex-col gap-2">
                     <Input 
                       readOnly 
-                      value={asset?.address || ""} 
+                      value={asset?.address || "SCANNING LEDGER..."} 
                       onClick={(e) => (e.target as HTMLInputElement).select()}
                       className="h-14 font-mono text-[13px] font-black rounded-xl border-2 bg-background/50 text-center select-all cursor-text focus-visible:ring-secondary" 
                     />
-                    <Button variant="outline" className="h-12 rounded-xl border-2 font-black gap-2 hover:bg-secondary/5" onClick={() => copyToClipboard(asset?.address || "", "Full Address")}>
+                    <Button 
+                      variant="outline" 
+                      className="h-12 rounded-xl border-2 font-black gap-2 hover:bg-secondary/5" 
+                      onClick={() => copyToClipboard(asset?.address || "", "Full Address")}
+                      disabled={!asset?.address}
+                    >
                       <Copy className="h-4 w-4" />
                       Copy Entire Address
                     </Button>
                   </div>
                 </div>
                 <p className="text-[10px] text-muted-foreground text-center font-medium px-4">
-                  Only send {currency} to this address on the Ethereum Mainnet (ERC-20). Assets sent to other networks (BSC, Solana) may be unrecoverable.
+                  Only send {currency} to this address on the Ethereum Mainnet (ERC-20). Assets sent to other networks may be unrecoverable.
                 </p>
               </div>
             </CardContent>
@@ -293,7 +293,7 @@ function TransactionsContent() {
                           <div className="font-bold text-sm flex items-center gap-2">
                             {tx.description}
                             {isVoided ? (
-                              <Badge variant="destructive" className="text-[8px] h-4 uppercase font-black">VOIDED - FAILED BROADCAST</Badge>
+                              <Badge variant="destructive" className="text-[8px] h-4 uppercase font-black">VOIDED</Badge>
                             ) : tx.status === 'clearing' && (
                               <Badge className="bg-amber-500 text-white border-none text-[8px] h-4 animate-pulse">CLEARING</Badge>
                             )}
@@ -304,18 +304,14 @@ function TransactionsContent() {
                           
                           {tx.hash && (
                             <div className="mt-3 flex flex-col gap-1 bg-primary/5 p-3 rounded-xl border border-primary/10 w-fit group">
-                              <span className="text-[8px] font-black uppercase text-primary/40 leading-none">Transaction ID (TxID / Hash)</span>
+                              <span className="text-[8px] font-black uppercase text-primary/40 leading-none">TxID</span>
                               <div className="flex items-center gap-3 mt-1">
-                                <Input 
-                                  readOnly 
-                                  value={tx.hash} 
-                                  onClick={(e) => (e.target as HTMLInputElement).select()}
-                                  className="h-8 font-mono text-[11px] font-black text-primary truncate max-w-[150px] sm:max-w-[250px] bg-white/50 px-2 py-0.5 rounded border border-primary/5 select-all focus-visible:ring-0"
-                                />
+                                <span className="font-mono text-[11px] font-black text-primary truncate max-w-[150px] sm:max-w-[250px]">
+                                  {tx.hash}
+                                </span>
                                 <button 
                                   className="h-8 w-8 flex items-center justify-center bg-white border rounded-lg shadow-sm hover:bg-muted transition-all active:scale-95"
                                   onClick={() => copyToClipboard(tx.hash, "TxID")}
-                                  title="Copy TxID"
                                 >
                                   <Copy className="h-3.5 w-3.5 text-primary" />
                                 </button>
@@ -329,15 +325,20 @@ function TransactionsContent() {
                           {tx.type === 'receive' ? '+' : '-'}{tx.amount.toFixed(4)}
                         </div>
                         <div className="text-[10px] font-bold text-muted-foreground">${tx.fiatValueUSD.toFixed(2)}</div>
-                        {isVoided && <p className="text-[8px] font-black text-green-600 uppercase mt-1">Reversed to Balance</p>}
                       </div>
                     </div>
                   );
-                }) : (
+                }) : initialized ? (
                   <div className="py-24 text-center opacity-30 flex flex-col items-center gap-4">
                     <Database className="h-12 w-12" />
                     <p className="text-xs font-black uppercase tracking-widest">No official activity recorded</p>
                   </div>
+                ) : (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="p-6 border-b border-primary/5">
+                      <div className="h-14 w-full bg-muted/20 animate-pulse rounded-xl" />
+                    </div>
+                  ))
                 )}
               </div>
             </CardContent>
@@ -350,7 +351,7 @@ function TransactionsContent() {
 
 export default function TransactionsPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin" /></div>}>
+    <Suspense fallback={<div className="flex items-center justify-center h-[60vh]"><Loader2 className="animate-spin" /></div>}>
       <TransactionsContent />
     </Suspense>
   );

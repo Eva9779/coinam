@@ -8,10 +8,7 @@ import {
   doc, 
   setDoc, 
   onSnapshot, 
-  updateDoc,
-  query,
-  where,
-  getDocs
+  updateDoc
 } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 import { INITIAL_MARKET_DATA } from './data';
@@ -112,6 +109,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (s.exists()) {
         setBotAddress(s.data().address);
       }
+    }, async (serverError) => {
+      // Non-blocking error handling
+      console.warn("User bot configuration lookup delayed.");
     });
 
     // Sync Assets
