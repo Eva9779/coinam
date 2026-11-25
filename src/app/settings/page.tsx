@@ -264,8 +264,8 @@ export default function SettingsPage() {
                   <Fingerprint className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <CardTitle className="text-lg font-bold">Wallet Recovery Kit</CardTitle>
-                  <CardDescription className="text-xs">Permanent 12-word master backup enclave.</CardDescription>
+                  <CardTitle className="text-lg font-bold">Wallet Recovery Kit (12-Word Backup)</CardTitle>
+                  <CardDescription className="text-xs">Permanent master backup enclave for your digital legacy.</CardDescription>
                 </div>
               </div>
               {recoveryKit && (
@@ -275,7 +275,7 @@ export default function SettingsPage() {
                   className="h-9 font-bold text-[10px] uppercase gap-1.5 rounded-xl"
                   onClick={downloadRecoveryPDF}
                 >
-                  <Download className="h-3.5 w-3.5" /> Export PDF
+                  <Download className="h-3.5 w-3.5" /> Download Recovery PDF
                 </Button>
               )}
             </CardHeader>
@@ -315,7 +315,7 @@ export default function SettingsPage() {
                           className="text-[10px] font-bold text-primary flex items-center gap-1.5 hover:underline"
                           onClick={() => copyToClipboard(recoveryKit.mnemonic, "Mnemonic")}
                         >
-                          {isCopied ? <><Check className="h-3 w-3" /> Copied</> : <><Copy className="h-3 w-3" /> Copy Words</>}
+                          {isCopied ? <><Check className="h-3 w-3" /> Copied</> : <><Copy className="h-3 w-3" /> Copy 12 Words</>}
                         </button>
                       </div>
                     </div>
@@ -336,7 +336,7 @@ export default function SettingsPage() {
                   <div className="p-4 bg-amber-500/5 border border-dashed border-amber-500/20 rounded-xl flex items-start gap-3">
                     <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                     <p className="text-[10px] text-amber-700 font-bold uppercase leading-relaxed tracking-tight">
-                      This recovery kit is generated once and stored in your private hardware enclave. If you lose this phrase, you lose access to your primary vault.
+                      This recovery kit is generated once and stored in your private security enclave. If you lose this phrase, you lose access to your digital legacy.
                     </p>
                   </div>
                 </div>
