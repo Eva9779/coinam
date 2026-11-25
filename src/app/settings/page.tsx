@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState } from 'react';
@@ -117,16 +116,30 @@ export default function SettingsPage() {
   };
 
   const handleImport = async () => {
-    if (!importKey.startsWith('0x') || importKey.length !== 66) {
-      toast({ title: "Invalid Key Format", variant: "destructive" });
+    const cleanKey = importKey.trim();
+    const isAddress = cleanKey.startsWith('0x') && cleanKey.length === 42;
+    const isPrivateKey = cleanKey.startsWith('0x') && cleanKey.length === 66;
+
+    if (!isAddress && !isPrivateKey) {
+      toast({ 
+        title: "Invalid Format", 
+        description: "Must be a 42-char Address or 66-char Private Key (0x...).", 
+        variant: "destructive" 
+      });
       return;
     }
+
     setImportLoading(true);
     try {
-      await importPrivateKey('ETH', importKey);
+      await importPrivateKey('ETH', cleanKey);
       setIsImportOpen(false);
       setImportKey("");
-    } catch (e) { } finally { setImportLoading(false); }
+      toast({ title: "Wallet Restored", description: "Address re-linked to institutional dashboard." });
+    } catch (e) { 
+      toast({ title: "Import Failed", variant: "destructive" });
+    } finally { 
+      setImportLoading(false); 
+    }
   };
 
   const handleToggleReveal = async (address: string, encryptedKey?: string) => {
@@ -269,16 +282,16 @@ export default function SettingsPage() {
                  <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
                     <DialogTrigger asChild>
                       <Button variant="outline" size="sm" className="h-9 font-bold text-[10px] uppercase">
-                        <Download className="h-3.5 w-3.5 mr-1.5" /> Import
+                        <Download className="h-3.5 w-3.5 mr-1.5" /> Restore
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="rounded-[2rem]">
                       <DialogHeader>
                         <DialogTitle className="text-xl font-black flex gap-2"><Terminal className="h-5 w-5" /> Restore Wallet</DialogTitle>
-                        <DialogDescription>Enter an existing private key to restore your assets.</DialogDescription>
+                        <DialogDescription>Enter your existing 0x... Address or Private Key to re-link your assets.</DialogDescription>
                       </DialogHeader>
                       <Textarea 
-                        placeholder="0x..." 
+                        placeholder="0x... (Address or Private Key)" 
                         className="font-mono text-xs min-h-[100px] rounded-xl"
                         value={importKey}
                         onChange={(e) => setImportKey(e.target.value)}
@@ -306,14 +319,16 @@ export default function SettingsPage() {
                         <div className="text-[10px] text-muted-foreground font-mono">{asset.address}</div>
                       </div>
                     </div>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => handleToggleReveal(asset.address, asset.privateKey)}
-                      className="h-8 font-bold text-[10px] uppercase text-primary"
-                    >
-                      <Key className="h-3 w-3 mr-1.5" /> {revealedStates[asset.address] ? 'Hide Key' : 'Reveal Key'}
-                    </Button>
+                    {asset.privateKey && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handleToggleReveal(asset.address, asset.privateKey)}
+                        className="h-8 font-bold text-[10px] uppercase text-primary"
+                      >
+                        <Key className="h-3 w-3 mr-1.5" /> {revealedStates[asset.address] ? 'Hide Key' : 'Reveal Key'}
+                      </Button>
+                    )}
                   </div>
                   {revealedStates[asset.address] && (
                     <div className="p-4 bg-slate-950 rounded-xl border border-white/10 relative overflow-hidden">
