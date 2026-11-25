@@ -256,7 +256,7 @@ export default function SettingsPage() {
                   <div className="p-4 bg-slate-950 rounded-xl border border-white/10">
                      <p className="text-[9px] font-black uppercase tracking-widest text-secondary mb-2">Cloud Backup Hash</p>
                      <div className="font-mono text-[8px] break-all text-white/50">
-                       {botConfig.encryptedJson.slice(0, 150)}...
+                       {botConfig?.encryptedJson ? `${botConfig.encryptedJson.slice(0, 150)}...` : "No encrypted cloud backup saved yet."}
                      </div>
                   </div>
                 </div>
