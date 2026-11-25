@@ -13,7 +13,6 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { INITIAL_MARKET_DATA } from './data';
 import { getLiveBalance } from '@/lib/blockchain';
-import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
@@ -35,6 +34,14 @@ interface BotLog {
   hash?: string;
 }
 
+interface UserBotConfig {
+  address: string;
+  encryptedJson: string;
+  isActive: boolean;
+  targetAsset: string;
+  holding: 'ASSET' | 'USDC';
+}
+
 interface WalletContextType {
   assets: WalletAsset[];
   transactions: any[];
@@ -42,22 +49,16 @@ interface WalletContextType {
   isSyncing: boolean;
   user: any;
   totalBotEarnings: number;
-  botActive: boolean;
-  botAddress: string | null;
-  botAllocation: number;
-  botRiskLevel: 'low' | 'medium' | 'high';
-  botStrategy: string;
+  botConfig: UserBotConfig | null;
   botLogs: BotLog[];
   marketData: any[];
   liveBalances: { baseEth: number, mainnetEth: number, usdcBalance: number, ethPriceUsd: number };
   addTransaction: (tx: any) => void;
   updateBalance: (currency: string, amount: number, fiatPrice: number) => Promise<void>;
-  updateBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high', strategy: string) => void;
+  updateBotSettings: (settings: Partial<UserBotConfig>) => void;
   clearBotLogs: () => void;
   liquidateEarnings: () => Promise<void>;
-  runBotCycle: () => Promise<void>;
   syncOnChainBalance: (addr: string, curr: string) => Promise<{ onChain: number }>;
-  importPrivateKey: (curr: string, key: string) => Promise<void>;
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
@@ -69,12 +70,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [marketData] = useState<any[]>(INITIAL_MARKET_DATA);
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
   const [liveBalances, setLiveBalances] = useState({ baseEth: 0, mainnetEth: 0, usdcBalance: 0, ethPriceUsd: 0 });
-  
-  const [botActive, setBotActive] = useState(false);
-  const [botAddress, setBotAddress] = useState<string | null>("0xeb585480Cd9edA87f26C281C48B84958aEb090ec");
-  const [botAllocation, setBotAllocation] = useState(20);
-  const [botRiskLevel, setBotRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
-  const [botStrategy, setBotStrategy] = useState('standard');
+  const [botConfig, setBotConfig] = useState<UserBotConfig | null>(null);
 
   const [initialized, setInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -83,7 +79,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const { user } = useUser(auth);
   const db = useFirestore();
 
-  // Fetch Live Balances
   const fetchLive = useCallback(async () => {
     try {
       const res = await fetch("/api/wallet-balance", { cache: "no-store", signal: AbortSignal.timeout(5000) });
@@ -113,26 +108,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (!s.exists()) return;
       const d = s.data();
       setTotalBotEarnings(d.totalBotEarnings || 0);
-      setBotActive(!!d.botActive);
-      setBotAllocation(d.botAllocation || 20);
-      setBotRiskLevel(d.botRiskLevel || 'medium');
-      setBotStrategy(d.botStrategy || 'standard');
       setBotLogs(d.botLogs || []);
-    }, async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-        path: profileRef.path,
-        operation: 'get',
-      } satisfies SecurityRuleContext);
-      errorEmitter.emit('permission-error', permissionError);
     });
 
     const botRef = doc(db, 'userBots', user.uid);
     const unsubBot = onSnapshot(botRef, (s) => {
       if (s.exists()) {
-        setBotAddress(s.data().address);
+        setBotConfig(s.data() as UserBotConfig);
       }
-    }, async (serverError) => {
-      console.warn("User bot configuration lookup delayed.");
     });
 
     const assetsRef = collection(db, 'users', user.uid, 'assets');
@@ -140,23 +123,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const loaded = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
       setAssets(loaded);
       setInitialized(true);
-    }, async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-        path: assetsRef.path,
-        operation: 'list',
-      } satisfies SecurityRuleContext);
-      errorEmitter.emit('permission-error', permissionError);
     });
 
     const txRef = collection(db, 'users', user.uid, 'transactions');
     const unsubTx = onSnapshot(txRef, (s) => {
       setTransactions(s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
-    }, async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-        path: txRef.path,
-        operation: 'list',
-      } satisfies SecurityRuleContext);
-      errorEmitter.emit('permission-error', permissionError);
     });
 
     return () => { unsubProfile(); unsubBot(); unsubAssets(); unsubTx(); };
@@ -167,15 +138,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const txId = `tx_${Date.now()}`;
     const txRef = doc(db, 'users', user.uid, 'transactions', txId);
     const txData = { ...tx, id: txId, timestamp: new Date().toISOString(), status: tx.status || 'completed' };
-    setDoc(txRef, txData, { merge: true })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: txRef.path,
-          operation: 'write',
-          requestResourceData: txData,
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-      });
+    setDoc(txRef, txData, { merge: true }).catch(async (serverError) => {
+      errorEmitter.emit('permission-error', new FirestorePermissionError({ path: txRef.path, operation: 'write', requestResourceData: txData }));
+    });
   }, [db, user?.uid]);
 
   const updateBalance = useCallback(async (currency: string, amount: number, fiatPrice: number) => {
@@ -183,65 +148,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const asset = assets.find(a => a.currency === currency && a.isPrimary);
     if (asset) {
       const assetRef = doc(db, 'users', user.uid, 'assets', asset.id);
-      const updateData = { 
-        amount: amount, 
-        fiatValueUSD: amount * fiatPrice 
-      };
-      updateDoc(assetRef, updateData)
-        .catch(async (serverError) => {
-          const permissionError = new FirestorePermissionError({
-            path: assetRef.path,
-            operation: 'update',
-            requestResourceData: updateData,
-          } satisfies SecurityRuleContext);
-          errorEmitter.emit('permission-error', permissionError);
-        });
+      const updateData = { amount: amount, fiatValueUSD: amount * fiatPrice };
+      updateDoc(assetRef, updateData);
     }
   }, [db, user?.uid, assets]);
-
-  const runBotCycle = async () => {
-    if (!user || !botActive) return;
-    setIsSyncing(true);
-    try {
-      const result = await analyzeMarketAndTrade({
-        userId: user.uid,
-        strategyType: botStrategy as any,
-        assets: assets.map(a => ({ currency: a.currency, amount: a.amount, fiatValue: a.fiatValueUSD })),
-        marketData: marketData.map(m => ({ currency: m.currency, price: m.currentPriceUSD, change24h: m.dailyChangePercent })),
-        riskTolerance: botRiskLevel,
-        allocationLimitUSD: botAllocation
-      });
-
-      if (result.txHash) {
-        toast({ title: "Strategy Executed", description: `TX: ${result.txHash.slice(0, 10)}...` });
-      } else if (result.error) {
-        toast({ title: "Execution Delayed", description: result.error, variant: "destructive" });
-      }
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  const liquidateEarnings = async () => { 
-    if (!db || !user || totalBotEarnings <= 0) return;
-    const profitToAdd = totalBotEarnings;
-    const userRef = doc(db, 'users', user.uid);
-    updateDoc(userRef, { totalBotEarnings: 0 })
-      .catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-          path: userRef.path,
-          operation: 'update',
-          requestResourceData: { totalBotEarnings: 0 },
-        } satisfies SecurityRuleContext);
-        errorEmitter.emit('permission-error', permissionError);
-      });
-    addTransaction({ 
-      type: 'receive', currency: 'USDC', amount: profitToAdd, fiatValueUSD: profitToAdd, 
-      description: 'Yield Settlement'
-    });
-  };
 
   const syncOnChainBalance = async (address: string, currency: string) => {
     if (!address) return { onChain: 0 };
@@ -253,15 +163,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       if (asset && val !== asset.amount) {
         const livePrice = marketData.find(m => m.currency === currency)?.currentPriceUSD || 1;
         const assetRef = doc(db, 'users', user.uid, 'assets', asset.id);
-        updateDoc(assetRef, { amount: val, fiatValueUSD: val * livePrice })
-          .catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-              path: assetRef.path,
-              operation: 'update',
-              requestResourceData: { amount: val },
-            } satisfies SecurityRuleContext);
-            errorEmitter.emit('permission-error', permissionError);
-          });
+        updateDoc(assetRef, { amount: val, fiatValueUSD: val * livePrice });
       }
       return { onChain: val };
     } finally {
@@ -269,63 +171,27 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateBotSettings = (settings: Partial<UserBotConfig>) => {
+    if (user && db) {
+      const botRef = doc(db, 'userBots', user.uid);
+      updateDoc(botRef, settings);
+    }
+  };
+
   return (
     <WalletContext.Provider value={{ 
       assets, transactions, initialized, isSyncing, user, totalBotEarnings,
-      botActive, botAddress, botAllocation, botRiskLevel, botStrategy, botLogs,
-      marketData, liveBalances, addTransaction, updateBalance, 
-      syncOnChainBalance, runBotCycle,
-      importPrivateKey: async (curr, key) => {
-        if (!db || !user) return;
-        const clean = key.trim();
-        const assetId = `imported_${Date.now()}`;
-        const isAddress = clean.startsWith('0x') && clean.length === 42;
-        const assetRef = doc(db, 'users', user.uid, 'assets', assetId);
-        const assetData = {
-          id: assetId,
-          currency: curr, amount: 0, fiatValueUSD: 0, isLive: true, isPrimary: true,
-          address: clean, privateKey: isAddress ? null : clean
-        };
-        setDoc(assetRef, assetData)
-          .catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-              path: assetRef.path,
-              operation: 'create',
-              requestResourceData: assetData,
-            } satisfies SecurityRuleContext);
-            errorEmitter.emit('permission-error', permissionError);
-          });
+      botConfig, botLogs, marketData, liveBalances, 
+      addTransaction, updateBalance, syncOnChainBalance, updateBotSettings,
+      clearBotLogs: () => {
+        if(user && db) updateDoc(doc(db, 'users', user.uid), { botLogs: [] });
       },
-      updateBotSettings: (active, alloc, risk, strat) => {
-        setBotActive(active);
-        if (user && db) {
-          const userRef = doc(db, 'users', user.uid);
-          updateDoc(userRef, { botActive: active, botAllocation: alloc, botRiskLevel: risk, botStrategy: strat })
-            .catch(async (serverError) => {
-              const permissionError = new FirestorePermissionError({
-                path: userRef.path,
-                operation: 'update',
-                requestResourceData: { botActive: active },
-              } satisfies SecurityRuleContext);
-              errorEmitter.emit('permission-error', permissionError);
-            });
-        }
-      },
-      clearBotLogs: () => { 
-        if(user && db) {
-          const userRef = doc(db, 'users', user.uid);
-          updateDoc(userRef, { botLogs: [] })
-            .catch(async (serverError) => {
-              const permissionError = new FirestorePermissionError({
-                path: userRef.path,
-                operation: 'update',
-                requestResourceData: { botLogs: [] },
-              } satisfies SecurityRuleContext);
-              errorEmitter.emit('permission-error', permissionError);
-            });
-        }
-      },
-      liquidateEarnings
+      liquidateEarnings: async () => {
+        if (!db || !user || totalBotEarnings <= 0) return;
+        const profit = totalBotEarnings;
+        updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: 0 });
+        addTransaction({ type: 'receive', currency: 'USDC', amount: profit, fiatValueUSD: profit, description: 'Yield Settlement' });
+      }
     }}>
       {children}
     </WalletContext.Provider>

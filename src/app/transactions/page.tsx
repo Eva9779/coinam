@@ -16,21 +16,32 @@ import {
   Database, 
   Copy, 
   Loader2, 
-  Clock, 
   Zap,
-  ExternalLink 
+  ExternalLink,
+  Lock
 } from "lucide-react";
 import { useWalletStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { getLiveGasPrice } from "@/lib/blockchain";
 import { Badge } from "@/components/ui/badge";
 import { QRCodeSVG } from 'qrcode.react';
+import { ethers } from 'ethers';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
-const VOIDED_HASHES = ['0xf2648ee7cea64', '0x3187561e8784b'];
+const CHAINS = {
+  BASE: { rpc: "https://mainnet.base.org", explorer: "https://basescan.org/tx/" },
+  ETHEREUM: { rpc: "https://ethereum-rpc.publicnode.com", explorer: "https://etherscan.io/tx/" }
+};
 
 function TransactionsContent() {
-  const { assets, transactions, addTransaction, initialized, liveBalances, botAddress, user } = useWalletStore();
+  const { transactions, addTransaction, liveBalances, botConfig, user } = useWalletStore();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'send';
   
@@ -38,12 +49,11 @@ function TransactionsContent() {
   const [amount, setAmount] = useState("");
   const [recipient, setRecipient] = useState("");
   const [selectedAssetId, setSelectedAssetId] = useState("");
-  const [mounted, setMounted] = useState(false);
   const [lastTx, setLastTx] = useState<{ hash: string, url: string } | null>(null);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  
+  // PIN Auth State
+  const [showPinDialog, setShowPinDialog] = useState(false);
+  const [pin, setPin] = useState("");
 
   const combinedAssets = useMemo(() => {
     return [
@@ -60,61 +70,71 @@ function TransactionsContent() {
   }, [combinedAssets, selectedAssetId]);
 
   const activeAsset = combinedAssets.find(a => a.id === selectedAssetId);
-  const displayAddress = botAddress || "0xeb585480Cd9edA87f26C281C48B84958aEb090ec";
+  const displayAddress = botConfig?.address || "0xeb585480Cd9edA87f26C281C48B84958aEb090ec";
 
-  const displayTransactions = transactions.filter(t => {
-    const desc = (t.description || "").toLowerCase();
-    return !t.internal && !desc.includes('yield settle');
-  });
-
-  const handleSend = async (e: React.FormEvent) => {
+  const handlePreSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !activeAsset) return;
-    
+    if (!botConfig) {
+      toast({ title: "Vault Required", description: "Initialize your vault in the Strategy Enclave first.", variant: "destructive" });
+      return;
+    }
     const val = parseFloat(amount);
-    if (val > activeAsset.amount) {
+    if (val > (activeAsset?.amount || 0)) {
       toast({ title: "Insufficient balance", variant: "destructive" });
       return;
     }
+    setShowPinDialog(true);
+  };
 
+  const handleFinalSend = async () => {
+    if (!user || !activeAsset || !botConfig || !pin) return;
+    
     setIsSending(true);
     setLastTx(null);
 
     try {
-      const res = await fetch("/api/wallet/send", {
-        method: "POST",
-        body: JSON.stringify({
-          userId: user.uid,
-          asset: selectedAssetId,
-          toAddress: recipient,
-          amount: val
-        })
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Broadcast failed");
-
-      setLastTx({ hash: data.txHash, url: data.explorerUrl });
+      // 1. Decrypt Keystore with PIN
+      const wallet = await ethers.Wallet.fromEncryptedJson(botConfig.encryptedJson, pin);
       
-      // Update local history for UI feel
+      // 2. Configure Provider
+      const isBase = selectedAssetId.includes('BASE');
+      const network = isBase ? CHAINS.BASE : CHAINS.ETHEREUM;
+      const provider = new ethers.JsonRpcProvider(network.rpc);
+      const connectedWallet = wallet.connect(provider);
+
+      let tx;
+      if (selectedAssetId === 'USDC_BASE') {
+        const usdcAddress = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+        const abi = ["function transfer(address to, uint256 amount) returns (bool)"];
+        const contract = new ethers.Contract(usdcAddress, abi, connectedWallet);
+        const amountUnits = ethers.parseUnits(amount, 6);
+        tx = await contract.transfer(recipient, amountUnits);
+      } else {
+        const valueWei = ethers.parseEther(amount);
+        tx = await connectedWallet.sendTransaction({ to: recipient, value: valueWei });
+      }
+
+      setLastTx({ hash: tx.hash, url: `${network.explorer}${tx.hash}` });
+      
       addTransaction({
         type: 'send',
-        hash: data.txHash,
+        hash: tx.hash,
         currency: activeAsset.currency,
-        amount: val,
-        fiatValueUSD: val * (activeAsset.id.includes('USDC') ? 1 : liveBalances.ethPriceUsd),
+        amount: parseFloat(amount),
+        fiatValueUSD: parseFloat(amount) * (selectedAssetId.includes('USDC') ? 1 : liveBalances.ethPriceUsd),
         fromAddress: displayAddress,
         toAddress: recipient,
-        description: `External Network Transfer`,
-        status: 'completed',
-        internal: false
+        description: `External Broadcast`,
+        status: 'completed'
       });
 
       setAmount("");
       setRecipient("");
+      setPin("");
+      setShowPinDialog(false);
       toast({ title: "Transfer Successful", description: "Your broadcast is confirmed on the ledger." });
     } catch (err: any) {
-      toast({ title: "Transfer Failed", description: err.message, variant: "destructive" });
+      toast({ title: "Auth Failed", description: "Incorrect Vault PIN or Network Delay.", variant: "destructive" });
     } finally {
       setIsSending(false);
     }
@@ -123,10 +143,7 @@ function TransactionsContent() {
   const copyToClipboard = (text: string, label: string) => {
     if (!text) return;
     navigator.clipboard.writeText(text).then(() => {
-      toast({
-        title: `${label} Copied`,
-        description: `Full data stored in secure clipboard.`,
-      });
+      toast({ title: `${label} Copied` });
     });
   };
 
@@ -138,11 +155,11 @@ function TransactionsContent() {
             <Database className="h-8 w-8 text-secondary" />
             Capital Routing
           </h2>
-          <p className="text-muted-foreground text-sm font-medium">Mainnet Bridge & Institutional Clearance Protocol Active.</p>
+          <p className="text-muted-foreground text-sm font-medium">Production-Grade Cross-Chain Execution Active.</p>
         </div>
         <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
           <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
-          BRIDGE CONNECTED
+          ENCLAVE SECURE
         </Badge>
       </div>
 
@@ -157,12 +174,12 @@ function TransactionsContent() {
           <Card className="border-none shadow-2xl bg-card/50 backdrop-blur-xl rounded-[2rem] overflow-hidden">
             <CardHeader className="bg-primary/5 pb-8 px-8">
               <CardTitle className="text-xl font-black">Initiate Network Broadcast</CardTitle>
-              <CardDescription className="text-[10px] font-bold uppercase tracking-widest opacity-60">Real-time clearance to external endpoints</CardDescription>
+              <CardDescription className="text-[10px] font-bold uppercase tracking-widest opacity-60">Authorize production transfer with your Vault PIN</CardDescription>
             </CardHeader>
             <CardContent className="p-8">
-              <form onSubmit={handleSend} className="space-y-6">
+              <form onSubmit={handlePreSend} className="space-y-6">
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Source Asset Vault</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Source Vault</Label>
                   <Select value={selectedAssetId} onValueChange={setSelectedAssetId}>
                     <SelectTrigger className="h-14 bg-background/50 border-2 rounded-xl font-bold">
                       <SelectValue placeholder="Select asset" />
@@ -177,9 +194,9 @@ function TransactionsContent() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">External Target Address</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Recipient Address</Label>
                   <Input 
-                    placeholder="0x... Paste Full ERC-20 Address" 
+                    placeholder="0x..." 
                     value={recipient} 
                     onChange={(e) => setRecipient(e.target.value)} 
                     className="h-14 rounded-xl font-bold bg-background/50 border-2"
@@ -187,7 +204,7 @@ function TransactionsContent() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Transfer Amount</Label>
+                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Amount</Label>
                   <div className="relative">
                     <Input 
                       type="number" 
@@ -202,13 +219,12 @@ function TransactionsContent() {
                   </div>
                 </div>
 
-                <div className="p-4 rounded-xl bg-amber-500/5 border border-dashed border-amber-500/20 space-y-2">
-                  <div className="flex items-center gap-2 text-amber-700 text-[10px] font-black uppercase tracking-tight">
-                    <Zap className="h-3.5 w-3.5" />
-                    Network Transmission Speed
-                  </div>
-                  <p className="text-[10px] text-amber-600 font-medium leading-relaxed">
-                    On-chain transfers confirm in ~15 seconds on Base and ~1–2 minutes on Ethereum.
+                <div className="p-4 rounded-xl bg-amber-500/5 border border-dashed border-amber-500/20">
+                  <p className="text-[10px] text-amber-700 font-bold uppercase flex items-center gap-2">
+                    <Zap className="h-3.5 w-3.5" /> Direct Mainnet Execution
+                  </p>
+                  <p className="text-[10px] text-amber-600 font-medium leading-relaxed mt-1">
+                    Transfers confirm in ~15s on Base and ~2m on Ethereum. Ensure enough gas is available.
                   </p>
                 </div>
 
@@ -226,8 +242,8 @@ function TransactionsContent() {
                   </div>
                 )}
 
-                <Button type="submit" className="w-full h-16 text-xl font-black rounded-2xl shadow-xl gap-3 transition-transform hover:scale-[1.01]" disabled={isSending}>
-                  {isSending ? <Loader2 className="animate-spin h-6 w-6" /> : <><Send className="h-6 w-6" /> Authorize Broadcast</>}
+                <Button type="submit" className="w-full h-16 text-xl font-black rounded-2xl shadow-xl gap-3 transition-transform hover:scale-[1.01]">
+                  <Send className="h-6 w-6" /> Authorize Broadcast
                 </Button>
               </form>
             </CardContent>
@@ -240,28 +256,20 @@ function TransactionsContent() {
               <div className="p-4 bg-white rounded-3xl shadow-xl border-2 border-primary/5">
                 <QRCodeSVG value={displayAddress} size={220} />
               </div>
-              <div className="w-full max-w-sm space-y-4">
-                <div className="space-y-4 text-center">
-                  <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Your Secure Receiving Endpoint</Label>
-                  <div className="flex flex-col gap-2">
-                    <Input 
-                      readOnly 
-                      value={displayAddress} 
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
-                      className="h-14 font-mono text-[13px] font-black rounded-xl border-2 bg-background/50 text-center select-all cursor-text focus-visible:ring-secondary" 
-                    />
-                    <Button 
-                      variant="outline" 
-                      className="h-12 rounded-xl border-2 font-black gap-2 hover:bg-secondary/5" 
-                      onClick={() => copyToClipboard(displayAddress, "Full Address")}
-                    >
-                      <Copy className="h-4 w-4" />
-                      Copy Entire Address
-                    </Button>
-                  </div>
+              <div className="w-full max-w-sm space-y-4 text-center">
+                <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Secure Deposit Endpoint</Label>
+                <div className="flex flex-col gap-2">
+                  <Input 
+                    readOnly 
+                    value={displayAddress} 
+                    className="h-14 font-mono text-[13px] font-black rounded-xl border-2 bg-background/50 text-center" 
+                  />
+                  <Button variant="outline" className="h-12 rounded-xl border-2 font-black gap-2" onClick={() => copyToClipboard(displayAddress, "Address")}>
+                    <Copy className="h-4 w-4" /> Copy Address
+                  </Button>
                 </div>
-                <p className="text-[10px] text-muted-foreground text-center font-medium px-4">
-                  Only send supported tokens to this address on the correct network (EVM compatible). Assets sent to other networks may be unrecoverable.
+                <p className="text-[10px] text-muted-foreground font-medium px-4 leading-relaxed">
+                  Only send supported tokens (ETH, USDC) to this address on Base or Ethereum Mainnet.
                 </p>
               </div>
             </CardContent>
@@ -273,51 +281,38 @@ function TransactionsContent() {
             <CardHeader className="bg-muted/20 border-b px-8 py-6">
                <CardTitle className="text-lg font-bold flex items-center gap-2">
                  <History className="h-5 w-5 text-secondary" />
-                 Official Ledger History
+                 Ledger History
                </CardTitle>
-               <CardDescription className="text-[10px] uppercase font-bold text-muted-foreground">Excludes internal enclave yield settlements</CardDescription>
             </CardHeader>
             <CardContent className="p-0">
               <div className="divide-y divide-primary/5">
-                {displayTransactions.length > 0 ? displayTransactions.map((tx) => {
-                  const isVoided = VOIDED_HASHES.includes(tx.hash);
-                  return (
-                    <div key={tx.id} className="p-6 flex justify-between items-start hover:bg-primary/[0.02] transition-colors">
-                      <div className="flex items-start gap-4">
-                        <div className={cn(
-                          "h-12 w-12 rounded-xl flex items-center justify-center border-2 mt-1 shrink-0",
-                          tx.type === 'receive' ? "bg-green-500/10 text-green-600 border-green-500/20" : 
-                          tx.type === 'send' ? "bg-blue-500/10 text-blue-600 border-blue-500/20" : "bg-purple-500/10 text-purple-600 border-purple-500/20"
-                        )}>
-                          {tx.type === 'receive' ? <ArrowDownLeft className="h-5 w-5" /> : 
-                           tx.type === 'send' ? <ArrowUpRight className="h-5 w-5" /> : <Zap className="h-5 w-5" />}
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <div className="font-bold text-sm flex items-center gap-2">
-                            {tx.description}
-                            {isVoided ? (
-                              <Badge variant="destructive" className="text-[8px] h-4 uppercase font-black">VOIDED</Badge>
-                            ) : tx.status === 'clearing' && (
-                              <Badge className="bg-amber-500 text-white border-none text-[8px] h-4 animate-pulse">CLEARING</Badge>
-                            )}
-                          </div>
-                          <div className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">
-                            {tx.currency} • {new Date(tx.timestamp).toLocaleDateString()}
-                          </div>
-                        </div>
+                {transactions.length > 0 ? transactions.map((tx) => (
+                  <div key={tx.id} className="p-6 flex justify-between items-start hover:bg-primary/[0.02] transition-colors">
+                    <div className="flex items-start gap-4">
+                      <div className={cn(
+                        "h-12 w-12 rounded-xl flex items-center justify-center border-2 mt-1",
+                        tx.type === 'receive' ? "bg-green-500/10 text-green-600 border-green-500/20" : "bg-blue-500/10 text-blue-600 border-blue-500/20"
+                      )}>
+                        {tx.type === 'receive' ? <ArrowDownLeft className="h-5 w-5" /> : <ArrowUpRight className="h-5 w-5" />}
                       </div>
-                      <div className="text-right">
-                        <div className={cn("font-black text-sm", isVoided ? "text-muted-foreground line-through" : tx.type === 'receive' ? "text-green-600" : "text-primary")}>
-                          {tx.type === 'receive' ? '+' : '-'}{tx.amount.toFixed(4)}
+                      <div className="flex flex-col gap-1">
+                        <div className="font-bold text-sm">{tx.description}</div>
+                        <div className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">
+                          {tx.currency} • {new Date(tx.timestamp).toLocaleDateString()}
                         </div>
-                        <div className="text-[10px] font-bold text-muted-foreground">${tx.fiatValueUSD.toFixed(2)}</div>
                       </div>
                     </div>
-                  );
-                }) : (
+                    <div className="text-right">
+                      <div className={cn("font-black text-sm", tx.type === 'receive' ? "text-green-600" : "text-primary")}>
+                        {tx.type === 'receive' ? '+' : '-'}{tx.amount.toFixed(4)}
+                      </div>
+                      <div className="text-[10px] font-bold text-muted-foreground">${tx.fiatValueUSD.toFixed(2)}</div>
+                    </div>
+                  </div>
+                )) : (
                   <div className="py-24 text-center opacity-30 flex flex-col items-center gap-4">
                     <Database className="h-12 w-12" />
-                    <p className="text-xs font-black uppercase tracking-widest">No official activity recorded</p>
+                    <p className="text-xs font-black uppercase tracking-widest">No activity recorded</p>
                   </div>
                 )}
               </div>
@@ -325,6 +320,38 @@ function TransactionsContent() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={showPinDialog} onOpenChange={setShowPinDialog}>
+        <DialogContent className="rounded-[2rem] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-black flex items-center gap-2">
+              <Lock className="h-6 w-6 text-secondary" />
+              Sign Broadcast
+            </DialogTitle>
+            <DialogDescription>
+              Enter your Vault PIN to decrypt your key and sign this production transaction.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-6 space-y-4">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest opacity-60">Vault PIN</Label>
+              <Input 
+                type="password" 
+                placeholder="••••••••" 
+                className="h-14 text-2xl tracking-widest text-center font-black rounded-xl border-2"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button className="w-full h-14 font-black rounded-xl text-lg shadow-xl" onClick={handleFinalSend} disabled={isSending || !pin}>
+              {isSending ? <Loader2 className="h-5 w-5 animate-spin mr-2" /> : <ShieldCheck className="h-5 w-5 mr-2" />}
+              Authorize & Sign
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
