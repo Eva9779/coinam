@@ -51,8 +51,8 @@ const CustomPulseMarquee = ({ items, label }: { items: any[], label: string }) =
             const maxDec = Math.max(minDec, 2);
 
             return (
-              <div key={`${item.symbol}-${idx}`} className="flex flex-col items-start min-w-[180px] transition-all hover:bg-white/5 p-2 rounded-xl">
-                <span className="text-[11px] font-black text-secondary uppercase tracking-[0.2em] mb-1">{item.symbol}</span>
+              <div key={`${item.ticker}-${idx}`} className="flex flex-col items-start min-w-[180px] transition-all hover:bg-white/5 p-2 rounded-xl">
+                <span className="text-[11px] font-black text-secondary uppercase tracking-[0.2em] mb-1">{item.ticker}</span>
                 <span className="text-lg font-black text-white leading-tight">
                   ${price.toLocaleString(undefined, { 
                     minimumFractionDigits: minDec,
@@ -82,7 +82,7 @@ export default function Dashboard() {
   } = useWalletStore();
   
   const [mounted, setMounted] = useState(false);
-  const [pulseData, setPulseData] = useState<{ cryptoPulse: any[], rwaPulse: any[] }>({ cryptoPulse: [], rwaPulse: [] });
+  const [pulseData, setPulseData] = useState<{ crypto: any[], rwa: any[] }>({ crypto: [], rwa: [] });
   const [pulseLoading, setPulseLoading] = useState(true);
 
   const fetchMarketPulse = useCallback(async () => {
@@ -90,7 +90,10 @@ export default function Dashboard() {
       const res = await fetch("/api/market-pulse", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
-        setPulseData(data);
+        setPulseData({
+          crypto: data.crypto || [],
+          rwa: data.rwa || []
+        });
       }
     } catch (err) {
       console.error("Market Pulse Sync Failed:", err);
@@ -152,7 +155,7 @@ export default function Dashboard() {
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
-            <CustomPulseMarquee items={pulseData.cryptoPulse} label="Mainnet Crypto Oracle" />
+            <CustomPulseMarquee items={pulseData.crypto} label="Mainnet Crypto Oracle" />
           </CardContent>
         </Card>
 
@@ -164,7 +167,7 @@ export default function Dashboard() {
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
-            <CustomPulseMarquee items={pulseData.rwaPulse} label="Commodity & Forex Oracle" />
+            <CustomPulseMarquee items={pulseData.rwa} label="Commodity & Forex Oracle" />
           </CardContent>
         </Card>
       </div>
