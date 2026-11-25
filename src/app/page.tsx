@@ -11,14 +11,10 @@ import {
   Globe, 
   Lock, 
   Activity,
-  ArrowUpRight,
-  Sparkles,
   Smartphone,
-  CreditCard,
   Layers
 } from "lucide-react";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
 
 export default function LandingPage() {
   return (
@@ -162,7 +158,7 @@ export default function LandingPage() {
                 </div>
              </div>
              <div className="p-4 bg-white/5 rounded-2xl border border-white/5 text-sm font-mono leading-relaxed opacity-70">
-                0x71C7656EC7ab88b098defB751B7401B5f6d8976F...
+                0x... [ENCRYPTED ASSET IDENTIFIER]
              </div>
           </div>
         </div>

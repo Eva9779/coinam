@@ -1,4 +1,5 @@
-import { createPublicClient, http, formatEther, parseEther, fallback, parseUnits } from 'viem';
+
+import { createPublicClient, http, formatEther, parseEther, fallback } from 'viem';
 import { mainnet } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { createWalletClient } from 'viem';
