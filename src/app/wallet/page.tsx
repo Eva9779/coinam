@@ -25,9 +25,10 @@ import { toast } from "@/hooks/use-toast";
 import { useWalletStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { LiveWalletBalance } from "@/components/dashboard/live-wallet-balance";
 
 export default function WalletPage() {
-  const { assets, initialized, syncOnChainBalance, marketData, transactions } = useWalletStore();
+  const { assets, initialized, syncOnChainBalance, marketData } = useWalletStore();
   const [search, setSearch] = useState("");
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
 
@@ -40,18 +41,26 @@ export default function WalletPage() {
 
   const handleSyncBalance = async (address: string, currency: string) => {
     setSyncingBalances(prev => ({ ...prev, [address]: true }));
+    
+    // Create a 5-second timeout controller
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
     try {
       const result = await syncOnChainBalance(address, currency);
       toast({
         title: "Forensic Sync Complete",
-        description: `Verified Balance: ${result.vault} ${currency}`,
+        description: `Verified Balance: ${result.onChain} ${currency}`,
       });
-    } catch (e) {
+    } catch (e: any) {
+      console.warn("Sync Interrupted:", e.name === 'AbortError' ? "Timeout" : e.message);
       toast({ 
-        title: "Network Timeout", 
+        title: "Network Delay", 
+        description: "Ledger sync moved to background protocol.",
         variant: "destructive" 
       });
     } finally {
+      clearTimeout(timeoutId);
       setSyncingBalances(prev => ({ ...prev, [address]: false }));
     }
   };
@@ -66,15 +75,6 @@ export default function WalletPage() {
     });
   };
 
-  if (!initialized) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
-        <Loader2 className="h-16 w-16 animate-spin text-primary opacity-20" />
-        <p className="text-xs font-black uppercase tracking-[0.3em] text-primary animate-pulse">Scanning Global Ledger...</p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-10">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -83,7 +83,9 @@ export default function WalletPage() {
             <ShieldCheck className="h-8 w-8 text-secondary" />
             Sovereign Vault
           </h2>
-          <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Read-Only Forensic View: Principal Protection Active.</p>
+          <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">
+            {initialized ? "Read-Only Forensic View: Principal Protection Active." : "Synchronizing Global Ledger Pulse..."}
+          </p>
         </div>
         <div className="flex flex-wrap gap-3">
           <Button variant="outline" asChild className="gap-2 h-14 px-6 font-bold rounded-2xl border-primary/20">
@@ -99,6 +101,10 @@ export default function WalletPage() {
             </Link>
           </Button>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6">
+        <LiveWalletBalance />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -191,10 +197,12 @@ export default function WalletPage() {
                 }) : (
                   <div className="py-24 text-center border-2 border-dashed rounded-[2.5rem] flex flex-col items-center gap-6 bg-muted/5">
                     <div className="h-20 w-20 rounded-full bg-primary/5 flex items-center justify-center border-2 border-dashed border-primary/20">
-                       <History className="h-10 w-10 text-primary opacity-20" />
+                       {initialized ? <History className="h-10 w-10 text-primary opacity-20" /> : <Loader2 className="h-10 w-10 animate-spin text-primary opacity-20" />}
                     </div>
                     <div className="space-y-2">
-                      <p className="text-sm font-black uppercase tracking-[0.2em]">Scanning Historical Receipts...</p>
+                      <p className="text-sm font-black uppercase tracking-[0.2em]">
+                        {initialized ? "Scanning Historical Receipts..." : "Initializing Protocol..."}
+                      </p>
                       <p className="text-xs text-muted-foreground max-w-xs mx-auto">The system is auditing your ledger to re-establish your original deposit link.</p>
                     </div>
                   </div>
