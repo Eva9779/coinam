@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
@@ -14,6 +15,7 @@ import {
 } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 import { INITIAL_MARKET_DATA } from './data';
+import { getLiveBalance } from '@/lib/blockchain';
 
 export interface WalletAsset {
   id: string;
@@ -106,7 +108,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [stockBotRisk, setStockBotRisk] = useState<'low' | 'medium' | 'high'>('medium');
 
   const [initialized, setInitialized] = useState(false);
-  const [isSyncing] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isAnalyzingStocks] = useState(false);
   
   const auth = useAuth();
@@ -141,7 +143,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   }, [db, user?.uid, assets]);
 
-  // TRUTH ENGINE: Calculates balance based only on real ledger receipts
   const getLedgerTruth = useCallback(() => {
     const ethCredits = transactions
       .filter(t => t.type === 'receive' && t.currency === 'ETH' && !ADDRESS_BLACKLIST.includes(t.toAddress))
@@ -159,9 +160,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       .filter(t => t.type === 'send' && t.currency === 'USDC' && !VOIDED_HASHES.includes(t.hash))
       .reduce((acc, t) => acc + (t.amount || 0), 0);
 
-    // PRINCIPAL PROTECTION: 0.0121 ETH ($29.57) baseline
     return {
-      eth: Number(Math.max(0.0121, ethCredits - ethDebits).toFixed(6)), 
+      eth: Number(Math.max(0, ethCredits - ethDebits).toFixed(6)), 
       usdc: Number(Math.max(0, usdcCredits - usdcDebits).toFixed(2))
     };
   }, [transactions]);
@@ -170,12 +170,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!initialized || !user || !db || transactions.length === 0) return;
     
-    // Find the original deposit receipt (+0.0121 ETH)
     const depositTx = transactions.find(t => t.amount === 0.0121 && t.currency === 'ETH' && t.type === 'receive');
     
     if (depositTx && depositTx.toAddress) {
       const address = depositTx.toAddress;
-      // Check if we already have this address in assets
       const exists = assets.some(a => a.address.toLowerCase() === address.toLowerCase());
       
       if (!exists && !ADDRESS_BLACKLIST.includes(address)) {
@@ -189,12 +187,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
           isLive: true,
           isPrimary: true
         }, { merge: true });
-        console.log("Forensic Recovery: Restored funded address link", address);
       }
     }
   }, [initialized, user, db, transactions, assets]);
 
-  // Sync state from Firestore
   useEffect(() => {
     if (!db || !user) return;
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
@@ -234,16 +230,44 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     toast({ title: "Settlement Finalized" });
   };
 
+  const syncOnChainBalance = async (address: string, currency: string) => {
+    if (!address || !user || !db) return { onChain: 0, vault: 0 };
+    
+    setIsSyncing(true);
+    try {
+      const liveBalanceStr = await getLiveBalance(address, currency);
+      const liveBalance = parseFloat(liveBalanceStr);
+      
+      const asset = assets.find(a => a.address === address && a.currency === currency);
+      if (asset && liveBalance !== asset.amount) {
+        const livePrice = marketData.find(m => m.currency === currency)?.currentPriceUSD || 1;
+        await updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
+          amount: liveBalance,
+          fiatValueUSD: liveBalance * livePrice
+        });
+      }
+      
+      const { eth, usdc } = getLedgerTruth();
+      return { 
+        onChain: liveBalance, 
+        vault: currency === 'ETH' ? eth : usdc 
+      };
+    } catch (e) {
+      console.error("Sync Error:", e);
+      const { eth, usdc } = getLedgerTruth();
+      return { onChain: 0, vault: currency === 'ETH' ? eth : usdc };
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <WalletContext.Provider value={{ 
       assets, stockAssets, transactions, initialized, isSyncing, user, totalBotEarnings,
       botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, 
-      syncOnChainBalance: async (addr, curr) => {
-        const { eth, usdc } = getLedgerTruth();
-        return { onChain: 0, vault: curr === 'ETH' ? eth : usdc };
-      },
+      syncOnChainBalance,
       generateNewWallet: async (curr) => {
         toast({ title: "Generation Locked", description: "Forensic mode: Use 'Restore' to link existing endpoints." });
       },
@@ -254,13 +278,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setDoc(doc(db, 'users', user.uid, 'assets', assetId), {
           id: assetId,
           currency: curr, 
-          amount: curr === 'ETH' ? 0.0121 : 0, 
-          fiatValueUSD: curr === 'ETH' ? 29.57 : 0, 
+          amount: 0, 
+          fiatValueUSD: 0, 
           isLive: true, 
           isPrimary: true,
           address: key, 
           privateKey: isAddress ? null : key
         });
+        syncOnChainBalance(key, curr);
       },
       updateBotSettings: (active, alloc, risk, strat) => {
         setBotActive(active);

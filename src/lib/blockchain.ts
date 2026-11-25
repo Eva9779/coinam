@@ -1,5 +1,5 @@
 
-import { createPublicClient, http, formatEther, parseEther, fallback } from 'viem';
+import { createPublicClient, http, formatEther, parseEther, fallback, erc20Abi, formatUnits } from 'viem';
 import { mainnet } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import { createWalletClient } from 'viem';
@@ -53,11 +53,27 @@ export async function getLiveBlockNumber() {
   }
 }
 
-export async function getLiveBalance(address: string) {
+export async function getLiveBalance(address: string, currency: string = 'ETH') {
   if (!address || !address.startsWith('0x') || address.includes('...')) return '0';
+  
   try {
-    const balance = await publicClient.getBalance({ address: address as `0x${string}` });
-    return formatEther(balance);
+    if (currency === 'ETH') {
+      const balance = await publicClient.getBalance({ address: address as `0x${string}` });
+      return formatEther(balance);
+    } else {
+      const tokenAddress = TOKENS[currency as keyof typeof TOKENS];
+      if (!tokenAddress) return '0';
+      
+      const balance = await publicClient.readContract({
+        address: tokenAddress as `0x${string}`,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [address as `0x${string}`],
+      });
+      
+      const decimals = currency === 'USDC' ? 6 : 18;
+      return formatUnits(balance, decimals);
+    }
   } catch (error: any) {
     console.warn(`RPC Mesh Delay: ${error.message}`);
     return '0';
