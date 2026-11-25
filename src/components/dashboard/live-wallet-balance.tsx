@@ -8,11 +8,21 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useUserHook } from "@/firebase";
 import { BridgeToBaseButton } from "@/components/bot/bridge-to-base-button";
+import { useWalletStore } from "@/lib/store";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 
 const WALLET_ADDRESS = "0xeb585480Cd9edA87f26C281C48B84958aEb090ec";
 
 export function LiveWalletBalance() {
   const { user } = useUserHook();
+  const { botConfig } = useWalletStore();
   const [baseEth, setBaseEth] = useState<string>("0.000000");
   const [mainnetEth, setMainnetEth] = useState<string>("0.000000");
   const [usdcBalance, setUsdcBalance] = useState<string>("0.00");
@@ -20,11 +30,12 @@ export function LiveWalletBalance() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [selectedWallet, setSelectedWallet] = useState<string>(WALLET_ADDRESS);
+
   const fetchLiveBalances = useCallback(async () => {
     setLoading(true);
     try {
       setError(null);
-      // 5-second timeout to prevent card hang
       const res = await fetch("/api/wallet-balance", { 
         cache: "no-store",
         signal: AbortSignal.timeout(5000)
@@ -132,8 +143,28 @@ export function LiveWalletBalance() {
             </div>
 
             {user && (
-              <div className="max-w-md bg-white/5 p-4 rounded-2xl border border-white/10">
-                <BridgeToBaseButton userId={user.uid} />
+              <div className="max-w-md bg-white/5 p-6 rounded-[2rem] border border-white/10 space-y-6">
+                <div className="space-y-3">
+                   <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary opacity-80">
+                     Source Execution Vault
+                   </Label>
+                   <Select value={selectedWallet} onValueChange={setSelectedWallet}>
+                    <SelectTrigger className="h-12 bg-slate-900 border-white/10 text-white rounded-xl font-bold">
+                      <SelectValue placeholder="Select wallet" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-white/10 bg-slate-900 text-white shadow-2xl">
+                      <SelectItem value={WALLET_ADDRESS} className="font-bold">
+                         Institutional Vault ({WALLET_ADDRESS.slice(0, 8)}...)
+                      </SelectItem>
+                      {botConfig && (
+                        <SelectItem value={botConfig.address} className="font-bold">
+                          Personal Enclave ({botConfig.address.slice(0, 8)}...)
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <BridgeToBaseButton userId={user.uid} selectedAddress={selectedWallet} />
               </div>
             )}
             
