@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { 
@@ -9,16 +9,15 @@ import {
   Sparkles,
   Terminal,
   TrendingUp,
-  TrendingDown,
-  Briefcase,
   History,
   ArrowUpRight,
   ArrowDownLeft,
   ChevronRight,
   Loader2,
   Landmark,
-  Banknote,
-  Activity
+  Activity,
+  Globe,
+  Clock
 } from "lucide-react";
 import { useWalletStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -28,6 +27,13 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { LiveWalletBalance } from "@/components/dashboard/live-wallet-balance";
 
 const CustomPulseMarquee = ({ items, label }: { items: any[], label: string }) => {
+  if (!items || items.length === 0) return (
+    <div className="w-full bg-slate-900 h-[110px] rounded-2xl flex items-center justify-center opacity-30">
+      <Loader2 className="h-4 w-4 animate-spin text-secondary mr-2" />
+      <span className="text-[10px] font-black uppercase tracking-widest text-secondary">Awaiting On-Chain Oracle...</span>
+    </div>
+  );
+
   const displayItems = [...items, ...items];
 
   return (
@@ -40,24 +46,22 @@ const CustomPulseMarquee = ({ items, label }: { items: any[], label: string }) =
       <ScrollArea className="w-full h-full pt-4">
         <div className="flex animate-marquee whitespace-nowrap w-max gap-8 px-6 hover:[animation-play-state:paused]">
           {displayItems.map((item, idx) => {
-            const minDec = item.currentPriceUSD < 1 ? 4 : 2;
+            const price = item.price;
+            const minDec = price < 1 ? 4 : 2;
             const maxDec = Math.max(minDec, 2);
 
             return (
-              <div key={`${item.currency}-${idx}`} className="flex flex-col items-start min-w-[150px] transition-all hover:bg-white/5 p-2 rounded-xl">
-                <span className="text-[11px] font-black text-secondary uppercase tracking-[0.2em] mb-1">{item.currency}</span>
+              <div key={`${item.symbol}-${idx}`} className="flex flex-col items-start min-w-[180px] transition-all hover:bg-white/5 p-2 rounded-xl">
+                <span className="text-[11px] font-black text-secondary uppercase tracking-[0.2em] mb-1">{item.symbol}</span>
                 <span className="text-lg font-black text-white leading-tight">
-                  ${item.currentPriceUSD.toLocaleString(undefined, { 
+                  ${price.toLocaleString(undefined, { 
                     minimumFractionDigits: minDec,
                     maximumFractionDigits: maxDec 
                   })}
                 </span>
-                <span className={cn(
-                  "text-[11px] font-black leading-tight flex items-center gap-0.5 mt-1",
-                  item.dailyChangePercent >= 0 ? "text-green-400" : "text-red-400"
-                )}>
-                  {item.dailyChangePercent >= 0 ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
-                  {item.dailyChangePercent >= 0 ? '+' : ''}{item.dailyChangePercent.toFixed(2)}%
+                <span className="text-[9px] font-bold text-muted-foreground/60 flex items-center gap-1 mt-1 uppercase">
+                  <Clock className="h-2.5 w-2.5" />
+                  Block: {new Date(item.updatedAt).toLocaleTimeString()}
                 </span>
               </div>
             );
@@ -74,23 +78,33 @@ export default function Dashboard() {
     transactions, 
     initialized, 
     botActive,
-    botLogs,
-    marketData
+    botLogs
   } = useWalletStore();
   
   const [mounted, setMounted] = useState(false);
+  const [pulseData, setPulseData] = useState<{ cryptoPulse: any[], rwaPulse: any[] }>({ cryptoPulse: [], rwaPulse: [] });
+  const [pulseLoading, setPulseLoading] = useState(true);
+
+  const fetchMarketPulse = useCallback(async () => {
+    try {
+      const res = await fetch("/api/market-pulse", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setPulseData(data);
+      }
+    } catch (err) {
+      console.error("Market Pulse Sync Failed:", err);
+    } finally {
+      setPulseLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     setMounted(true);
-  }, []);
-
-  const cryptoMarketData = useMemo(() => 
-    marketData.filter(m => ['BTC', 'ETH', 'BNB', 'SOL', 'XRP', 'USDC'].includes(m.currency)), 
-  [marketData]);
-
-  const equityMarketData = useMemo(() => 
-    marketData.filter(m => ['NVD', 'SOX', 'TQQQ', 'META', 'AAPL'].includes(m.currency)), 
-  [marketData]);
+    fetchMarketPulse();
+    const interval = setInterval(fetchMarketPulse, 15000);
+    return () => clearInterval(interval);
+  }, [fetchMarketPulse]);
 
   if (!initialized || !mounted) {
     return (
@@ -109,7 +123,7 @@ export default function Dashboard() {
             <Sparkles className="h-8 w-8 text-secondary" />
             Institutional Ledger
           </h2>
-          <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Base Mainnet Connected: Live On-Chain Assets</p>
+          <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Chainlink Oracles: Live On-Chain Market Discovery</p>
         </div>
         <div className="flex items-center gap-3">
           {botActive && (
@@ -134,11 +148,11 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Zap className="h-3 w-3 text-secondary" />
-                REAL-TIME CRYPTOGRAPHIC PULSE
+                CHAINLINK CRYPTOGRAPHIC PULSE
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
-            <CustomPulseMarquee items={cryptoMarketData} label="Crypto Pulse" />
+            <CustomPulseMarquee items={pulseData.cryptoPulse} label="Mainnet Crypto Oracle" />
           </CardContent>
         </Card>
 
@@ -146,11 +160,11 @@ export default function Dashboard() {
           <CardHeader className="pb-2">
              <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <Landmark className="h-3 w-3 text-secondary" />
-                REAL-TIME EQUITY PULSE (RWA)
+                CHAINLINK EQUITY PULSE (RWA)
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
-            <CustomPulseMarquee items={equityMarketData} label="Stock & Bond Pulse" />
+            <CustomPulseMarquee items={pulseData.rwaPulse} label="Commodity & Forex Oracle" />
           </CardContent>
         </Card>
       </div>
@@ -196,7 +210,7 @@ export default function Dashboard() {
                 </CardContent>
               </Card>
             )) : (
-              <div className="py-20 text-center border-2 border-dashed rounded-[2rem] opacity-30">
+              <div className="py-20 text-center border-2 border-dashed rounded-[2.5rem] opacity-30">
                  <History className="h-12 w-12 mx-auto mb-4" />
                  <p className="text-xs font-black uppercase tracking-widest">No activity detected on ledger</p>
               </div>
