@@ -4,7 +4,7 @@ import * as admin from 'firebase-admin';
 
 /**
  * Institutional Wallet Provisioning Enclave
- * Initializes the Admin SDK with explicit credentials to prevent "non-existent access token" errors.
+ * Robustly initializes Admin SDK with Service Account credentials.
  */
 if (!admin.apps.length) {
   try {
