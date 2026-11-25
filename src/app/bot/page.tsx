@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { useFirestore, useUserHook } from '@/firebase';
+import { BridgeToBaseButton } from '@/components/bot/bridge-to-base-button';
 
 export default function TradingBotPage() {
   const db = useFirestore();
@@ -241,9 +242,11 @@ export default function TradingBotPage() {
 
                 <div className="p-4 bg-amber-500/5 border border-dashed border-amber-500/20 rounded-xl">
                   <p className="text-[10px] text-amber-700 font-bold uppercase leading-relaxed">
-                    To start, deposit at least 0.01 ETH or 20 USDC to your Enclave Address above on Base Mainnet.
+                    Deposit at least 0.01 ETH or 20 USDC to your Enclave on Base Mainnet.
                   </p>
                 </div>
+
+                {user && <BridgeToBaseButton userId={user.uid} />}
               </div>
 
               <div className="h-px bg-primary/10 w-full" />
