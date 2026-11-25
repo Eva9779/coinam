@@ -46,6 +46,7 @@ interface WalletContextType {
   user: any;
   totalBotEarnings: number;
   botActive: boolean;
+  botAddress: string | null;
   botAllocation: number;
   botRiskLevel: 'low' | 'medium' | 'high';
   botStrategy: string;
@@ -63,8 +64,6 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-const ADDRESS_BLACKLIST = ['0x71C7656EC7ab88b098defB751B7401B5f6d8976F'];
-
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [assets, setAssets] = useState<WalletAsset[]>([]);
@@ -73,6 +72,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
   
   const [botActive, setBotActive] = useState(false);
+  const [botAddress, setBotAddress] = useState<string | null>(null);
   const [botAllocation, setBotAllocation] = useState(20);
   const [botRiskLevel, setBotRiskLevel] = useState<'low' | 'medium' | 'high'>('medium');
   const [botStrategy, setBotStrategy] = useState('standard');
@@ -87,6 +87,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!db || !user) return;
     
+    // Sync User Profile
     const profileRef = doc(db, 'users', user.uid);
     const unsubProfile = onSnapshot(profileRef, (s) => {
       if (!s.exists()) return;
@@ -105,10 +106,19 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       errorEmitter.emit('permission-error', permissionError);
     });
 
+    // Sync Bot Config (for Primary Address)
+    const botRef = doc(db, 'userBots', user.uid);
+    const unsubBot = onSnapshot(botRef, (s) => {
+      if (s.exists()) {
+        setBotAddress(s.data().address);
+      }
+    });
+
+    // Sync Assets
     const assetsRef = collection(db, 'users', user.uid, 'assets');
     const unsubAssets = onSnapshot(assetsRef, (s) => {
       const loaded = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
-      setAssets(loaded.filter(a => !ADDRESS_BLACKLIST.includes(a.address)));
+      setAssets(loaded);
       setInitialized(true);
     }, async (serverError) => {
       const permissionError = new FirestorePermissionError({
@@ -118,6 +128,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       errorEmitter.emit('permission-error', permissionError);
     });
 
+    // Sync Transactions
     const txRef = collection(db, 'users', user.uid, 'transactions');
     const unsubTx = onSnapshot(txRef, (s) => {
       setTransactions(s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
@@ -129,39 +140,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       errorEmitter.emit('permission-error', permissionError);
     });
 
-    return () => { unsubProfile(); unsubAssets(); unsubTx(); };
+    return () => { unsubProfile(); unsubBot(); unsubAssets(); unsubTx(); };
   }, [db, user?.uid]);
-
-  // Forensic Recovery: Auto-restore original funded address from history
-  useEffect(() => {
-    if (!initialized || !db || !user || assets.length > 0) return;
-
-    const recover = async () => {
-      const txColRef = collection(db, 'users', user.uid, 'transactions');
-      const q = query(txColRef, where('amount', '==', 0.0121));
-      const snap = await getDocs(q);
-      const original = snap.docs.find(d => !ADDRESS_BLACKLIST.includes(d.data().toAddress));
-      
-      if (original) {
-        const addr = original.data().toAddress;
-        const assetId = `recovered_${Date.now()}`;
-        const assetRef = doc(db, 'users', user.uid, 'assets', assetId);
-        const assetData = {
-          id: assetId, currency: 'ETH', amount: 0.0121, fiatValueUSD: 29.57, address: addr, isLive: true, isPrimary: true
-        };
-        setDoc(assetRef, assetData)
-          .catch(async (serverError) => {
-            const permissionError = new FirestorePermissionError({
-              path: assetRef.path,
-              operation: 'create',
-              requestResourceData: assetData,
-            } satisfies SecurityRuleContext);
-            errorEmitter.emit('permission-error', permissionError);
-          });
-      }
-    };
-    recover();
-  }, [initialized, db, user?.uid, assets.length]);
 
   const addTransaction = useCallback((tx: any) => {
     if (!db || !user) return;
@@ -250,21 +230,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       const live = await getLiveBalance(address, currency);
       const val = parseFloat(live);
-      // Update local asset if on-chain is different
       const asset = assets.find(a => a.address === address);
-      if (asset && val !== asset.amount && val > 0) {
+      if (asset && val !== asset.amount) {
         const livePrice = marketData.find(m => m.currency === currency)?.currentPriceUSD || 1;
         const assetRef = doc(db, 'users', user.uid, 'assets', asset.id);
-        const updateData = {
-          amount: val,
-          fiatValueUSD: val * livePrice
-        };
-        updateDoc(assetRef, updateData)
+        updateDoc(assetRef, { amount: val, fiatValueUSD: val * livePrice })
           .catch(async (serverError) => {
             const permissionError = new FirestorePermissionError({
               path: assetRef.path,
               operation: 'update',
-              requestResourceData: updateData,
+              requestResourceData: { amount: val },
             } satisfies SecurityRuleContext);
             errorEmitter.emit('permission-error', permissionError);
           });
@@ -278,7 +253,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   return (
     <WalletContext.Provider value={{ 
       assets, transactions, initialized, isSyncing, user, totalBotEarnings,
-      botActive, botAllocation, botRiskLevel, botStrategy, botLogs,
+      botActive, botAddress, botAllocation, botRiskLevel, botStrategy, botLogs,
       marketData, addTransaction, updateBalance, 
       syncOnChainBalance, runBotCycle,
       importPrivateKey: async (curr, key) => {
@@ -306,13 +281,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setBotActive(active);
         if (user && db) {
           const userRef = doc(db, 'users', user.uid);
-          const updateData = { botActive: active, botAllocation: alloc, botRiskLevel: risk, botStrategy: strat };
-          updateDoc(userRef, updateData)
+          updateDoc(userRef, { botActive: active, botAllocation: alloc, botRiskLevel: risk, botStrategy: strat })
             .catch(async (serverError) => {
               const permissionError = new FirestorePermissionError({
                 path: userRef.path,
                 operation: 'update',
-                requestResourceData: updateData,
+                requestResourceData: { botActive: active },
               } satisfies SecurityRuleContext);
               errorEmitter.emit('permission-error', permissionError);
             });
