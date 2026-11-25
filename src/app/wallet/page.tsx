@@ -142,8 +142,8 @@ export default function WalletPage() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-black text-3xl tracking-tighter">{asset.amount.toFixed(4)}</div>
-                          <div className="text-sm font-bold text-green-600">${(asset.amount * (livePrice || 1)).toLocaleString()}</div>
+                          <div className="font-black text-3xl tracking-tighter">{Number(asset.amount ?? 0).toFixed(4)}</div>
+                          <div className="text-sm font-bold text-green-600">${(Number(asset.amount ?? 0) * (livePrice || 1)).toLocaleString()}</div>
                         </div>
                       </div>
 
