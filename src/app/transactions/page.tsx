@@ -18,7 +18,8 @@ import {
   Loader2, 
   Zap,
   ExternalLink,
-  Lock
+  Lock,
+  ShieldCheck
 } from "lucide-react";
 import { useWalletStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
