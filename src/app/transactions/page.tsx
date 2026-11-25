@@ -17,21 +17,20 @@ import {
   Copy, 
   Loader2, 
   Clock, 
-  Zap 
+  Zap,
+  ExternalLink 
 } from "lucide-react";
 import { useWalletStore } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { getLiveGasPrice, sendLiveTransaction } from "@/lib/blockchain";
+import { getLiveGasPrice } from "@/lib/blockchain";
 import { Badge } from "@/components/ui/badge";
 import { QRCodeSVG } from 'qrcode.react';
-
-type FeeTier = 'slow' | 'average' | 'fast';
 
 const VOIDED_HASHES = ['0xf2648ee7cea64', '0x3187561e8784b'];
 
 function TransactionsContent() {
-  const { assets, transactions, addTransaction, initialized, liveBalances, botAddress } = useWalletStore();
+  const { assets, transactions, addTransaction, initialized, liveBalances, botAddress, user } = useWalletStore();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'send';
   
@@ -40,30 +39,19 @@ function TransactionsContent() {
   const [recipient, setRecipient] = useState("");
   const [selectedAssetId, setSelectedAssetId] = useState("");
   const [mounted, setMounted] = useState(false);
-  const [baseGas, setBaseGas] = useState<number>(0);
+  const [lastTx, setLastTx] = useState<{ hash: string, url: string } | null>(null);
 
   useEffect(() => {
     setMounted(true);
-    async function fetchFees() {
-      try {
-        const gwei = await getLiveGasPrice();
-        setBaseGas(gwei);
-      } catch (e) {}
-    }
-    fetchFees();
-    const interval = setInterval(fetchFees, 30000);
-    return () => clearInterval(interval);
   }, []);
 
-  // Merge Firestore Assets with Live Balances for the dropdown
   const combinedAssets = useMemo(() => {
-    const baseline = [
-      { id: 'live-base-eth', currency: 'ETH (Base)', amount: liveBalances.baseEth, network: 'Base' },
-      { id: 'live-main-eth', currency: 'ETH (Mainnet)', amount: liveBalances.mainnetEth, network: 'Ethereum' },
-      { id: 'live-base-usdc', currency: 'USDC (Base)', amount: liveBalances.usdcBalance, network: 'Base' },
+    return [
+      { id: 'ETH_BASE', currency: 'ETH (Base)', amount: liveBalances.baseEth },
+      { id: 'ETH_MAINNET', currency: 'ETH (Mainnet)', amount: liveBalances.mainnetEth },
+      { id: 'USDC_BASE', currency: 'USDC (Base)', amount: liveBalances.usdcBalance },
     ];
-    return [...baseline, ...assets.filter(a => !['ETH', 'USDC'].includes(a.currency))];
-  }, [liveBalances, assets]);
+  }, [liveBalances]);
 
   useEffect(() => {
     if (combinedAssets.length > 0 && !selectedAssetId) {
@@ -76,39 +64,55 @@ function TransactionsContent() {
 
   const displayTransactions = transactions.filter(t => {
     const desc = (t.description || "").toLowerCase();
-    const isBotInternal = t.internal === true || desc.includes('yield settle');
-    return !isBotInternal;
+    return !t.internal && !desc.includes('yield settle');
   });
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    const val = parseFloat(amount);
+    if (!user || !activeAsset) return;
     
-    if (!activeAsset || val > activeAsset.amount) {
+    const val = parseFloat(amount);
+    if (val > activeAsset.amount) {
       toast({ title: "Insufficient balance", variant: "destructive" });
       return;
     }
 
     setIsSending(true);
+    setLastTx(null);
+
     try {
-      const txHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+      const res = await fetch("/api/wallet/send", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: user.uid,
+          asset: selectedAssetId,
+          toAddress: recipient,
+          amount: val
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Broadcast failed");
+
+      setLastTx({ hash: data.txHash, url: data.explorerUrl });
       
+      // Update local history for UI feel
       addTransaction({
         type: 'send',
-        hash: txHash,
+        hash: data.txHash,
         currency: activeAsset.currency,
         amount: val,
-        fiatValueUSD: val * (activeAsset.currency.includes('USDC') ? 1 : liveBalances.ethPriceUsd),
+        fiatValueUSD: val * (activeAsset.id.includes('USDC') ? 1 : liveBalances.ethPriceUsd),
         fromAddress: displayAddress,
         toAddress: recipient,
         description: `External Network Transfer`,
-        status: 'clearing',
+        status: 'completed',
         internal: false
       });
 
       setAmount("");
       setRecipient("");
-      toast({ title: "Transfer Authorized", description: `Broadcast initialized. ID: ${txHash.slice(0, 12)}...` });
+      toast({ title: "Transfer Successful", description: "Your broadcast is confirmed on the ledger." });
     } catch (err: any) {
       toast({ title: "Transfer Failed", description: err.message, variant: "destructive" });
     } finally {
@@ -207,6 +211,20 @@ function TransactionsContent() {
                     On-chain transfers confirm in ~15 seconds on Base and ~1–2 minutes on Ethereum.
                   </p>
                 </div>
+
+                {lastTx && (
+                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-between">
+                    <div className="space-y-1">
+                      <p className="text-[10px] text-emerald-700 font-bold uppercase">Broadcast Confirmed</p>
+                      <p className="text-[9px] font-mono text-emerald-600 truncate max-w-[200px]">{lastTx.hash}</p>
+                    </div>
+                    <Button variant="outline" size="sm" className="h-8 rounded-lg text-[10px] uppercase font-black gap-1" asChild>
+                      <a href={lastTx.url} target="_blank" rel="noreferrer">
+                        View Receipt <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </Button>
+                  </div>
+                )}
 
                 <Button type="submit" className="w-full h-16 text-xl font-black rounded-2xl shadow-xl gap-3 transition-transform hover:scale-[1.01]" disabled={isSending}>
                   {isSending ? <Loader2 className="animate-spin h-6 w-6" /> : <><Send className="h-6 w-6" /> Authorize Broadcast</>}
