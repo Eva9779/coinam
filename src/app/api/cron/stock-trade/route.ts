@@ -166,7 +166,7 @@ export async function GET(req: NextRequest) {
 
         await userDoc.ref.update({
           stockEntryPrice: 0,
-          totalBotEarnings: FieldValue.increment(Math.max(0, profitUsd)),
+          harvestedStockYield: FieldValue.increment(Math.max(0, profitUsd)),
           stockBotLogs: FieldValue.arrayUnion({
             timestamp: new Date().toISOString(),
             msg: `Harvested +${(harvestTarget * 100).toFixed(1)}% yield from ${symbol}. Profit settled: $${profitUsd.toFixed(2)}`,

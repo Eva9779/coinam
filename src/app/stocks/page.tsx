@@ -30,7 +30,8 @@ import {
   Sparkles,
   Zap,
   CheckCircle2,
-  ChevronRight
+  ChevronRight,
+  ExternalLink
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -82,12 +83,12 @@ EquityChart.displayName = "EquityChart";
 
 export default function StocksPage() {
   const { 
-    stockAssets, 
+    stockAssets = [], 
     stockBotActive, 
     stockBotRisk, 
     stockBotAllocation,
     stockBotLogs = [], 
-    totalBotEarnings,
+    harvestedStockYield,
     isAnalyzingStocks,
     updateStockBotSettings,
     clearStockBotLogs,
@@ -115,15 +116,17 @@ export default function StocksPage() {
       return;
     }
     updateStockBotSettings(!stockBotActive, allocationNum, localRisk);
+    toast({ title: !stockBotActive ? "Agent Launched" : "Agent Standby" });
   };
 
   const handleLiquidate = async () => {
     setIsLiquidating(true);
     await liquidateEarnings();
     setIsLiquidating(false);
+    toast({ title: "Yield Settled", description: "Profit moved to USDC vault." });
   };
 
-  const totalValue = (stockAssets || []).reduce((acc, s) => acc + s.totalValue, 0);
+  const totalValue = stockAssets.reduce((acc, s) => acc + s.totalValue, 0);
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20">
@@ -139,7 +142,7 @@ export default function StocksPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {totalBotEarnings > 0 && (
+          {harvestedStockYield > 0 && (
              <Button 
               variant="outline" 
               className="h-12 px-6 rounded-2xl border-secondary/30 text-secondary hover:bg-secondary/5 font-bold shadow-sm"
@@ -176,7 +179,7 @@ export default function StocksPage() {
                 <div className="space-y-1">
                   <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Harvested Yield</p>
                   <p className="text-3xl font-black tracking-tighter">
-                    ${totalBotEarnings.toFixed(2)}
+                    ${harvestedStockYield.toFixed(2)}
                   </p>
                 </div>
                 <div className="h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20">
@@ -257,7 +260,7 @@ export default function StocksPage() {
                 </button>
               </div>
             </CardHeader>
-            <CardContent className="flex-1 overflow-y-auto p-8 font-mono text-xs space-y-3 no-scrollbar max-h-[400px]">
+            <CardContent className="flex-1 overflow-y-auto p-8 font-mono text-xs space-y-4 no-scrollbar max-h-[400px]">
               {(stockBotLogs || []).length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center opacity-20 text-center space-y-6 py-20">
                   <Cpu className="h-16 w-16" />
@@ -265,12 +268,24 @@ export default function StocksPage() {
                 </div>
               ) : (
                 stockBotLogs.slice().reverse().map((log, i) => (
-                  <div key={i} className={cn(
-                    "flex gap-3 animate-in fade-in slide-in-from-left-4 duration-500",
-                    log.type === 'success' ? "text-green-400" : log.type === 'warning' ? "text-amber-400" : "text-blue-300"
-                  )}>
-                    <span className="opacity-30 shrink-0">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
-                    <span className="font-bold">{log.msg}</span>
+                  <div key={i} className="flex flex-col gap-2 p-3 rounded-xl bg-white/5 border border-white/5 animate-in fade-in slide-in-from-left-4 duration-500">
+                    <div className="flex items-center justify-between">
+                      <span className="opacity-30">[{new Date(log.timestamp).toLocaleTimeString()}]</span>
+                      {log.hash && (
+                        <a 
+                          href={`https://basescan.org/tx/${log.hash}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-[9px] font-black text-secondary hover:underline flex items-center gap-1"
+                        >
+                          RECEIPT <ExternalLink className="h-2.5 w-2.5" />
+                        </a>
+                      )}
+                    </div>
+                    <span className={cn(
+                      "font-bold",
+                      log.type === 'success' ? "text-green-400" : log.type === 'warning' ? "text-amber-400" : "text-blue-300"
+                    )}>{log.msg}</span>
                   </div>
                 ))
               )}

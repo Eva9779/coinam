@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth, useFirestore } from '@/firebase';
 import { useUser } from '@/firebase/auth/use-user';
 import { 
@@ -53,10 +53,23 @@ interface WalletContextType {
   botLogs: BotLog[];
   marketData: any[];
   liveBalances: { baseEth: number, mainnetEth: number, usdcBalance: number, ethPriceUsd: number };
+  
+  // Stock Bot State
+  stockBotActive: boolean;
+  stockBotAllocation: number;
+  stockBotRisk: 'low' | 'medium' | 'high';
+  selectedStockSymbol: string;
+  harvestedStockYield: number;
+  stockBotLogs: any[];
+  stockAssets: any[];
+  isAnalyzingStocks: boolean;
+
   addTransaction: (tx: any) => void;
   updateBalance: (currency: string, amount: number, fiatPrice: number) => Promise<void>;
   updateBotSettings: (settings: Partial<UserBotConfig>) => void;
+  updateStockBotSettings: (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => void;
   clearBotLogs: () => void;
+  clearStockBotLogs: () => void;
   liquidateEarnings: () => Promise<void>;
   syncOnChainBalance: (addr: string, curr: string) => Promise<{ onChain: number }>;
 }
@@ -71,6 +84,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [totalBotEarnings, setTotalBotEarnings] = useState(0);
   const [liveBalances, setLiveBalances] = useState({ baseEth: 0, mainnetEth: 0, usdcBalance: 0, ethPriceUsd: 0 });
   const [botConfig, setBotConfig] = useState<UserBotConfig | null>(null);
+
+  // Stock Bot State
+  const [stockBotActive, setStockBotActive] = useState(false);
+  const [stockBotAllocation, setStockBotAllocation] = useState(20);
+  const [stockBotRisk, setStockBotRisk] = useState<'low' | 'medium' | 'high'>('medium');
+  const [selectedStockSymbol, setSelectedStockSymbol] = useState('USDY');
+  const [harvestedStockYield, setHarvestedStockYield] = useState(0);
+  const [stockBotLogs, setStockBotLogs] = useState<any[]>([]);
+  const [isAnalyzingStocks, setIsAnalyzingStocks] = useState(false);
 
   const [initialized, setInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -114,6 +136,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const d = s.data();
       setTotalBotEarnings(d.totalBotEarnings || 0);
       setBotLogs(d.botLogs || []);
+      
+      // Stock bot fields
+      setStockBotActive(d.stockBotActive || false);
+      setStockBotAllocation(d.stockBotAllocation || 20);
+      setStockBotRisk(d.stockBotRisk || 'medium');
+      setSelectedStockSymbol(d.selectedStockSymbol || 'USDY');
+      setHarvestedStockYield(d.harvestedStockYield || 0);
+      setStockBotLogs(d.stockBotLogs || []);
     });
 
     const botRef = doc(db, 'userBots', user.uid);
@@ -164,7 +194,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     try {
       const live = await getLiveBalance(address, currency);
       const val = parseFloat(live);
-      const asset = assets.find(a => a.address === address);
+      const asset = assets.find(a => a.address === address && a.currency === currency);
       if (asset) {
         const livePrice = marketData.find(m => m.currency === currency)?.currentPriceUSD || 1;
         const assetRef = doc(db, 'users', user.uid, 'assets', asset.id);
@@ -183,19 +213,44 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const updateStockBotSettings = (active: boolean, allocation: number, risk: 'low' | 'medium' | 'high') => {
+    if (user && db) {
+      // Logic mapping: Low risk -> Bond (USDY), Balanced/High -> Equity (NVDA)
+      const symbol = risk === 'low' ? 'USDY' : 'NVDA';
+      updateDoc(doc(db, 'users', user.uid), {
+        stockBotActive: active,
+        stockBotAllocation: allocation,
+        stockBotRisk: risk,
+        selectedStockSymbol: symbol
+      });
+    }
+  };
+
+  const stockAssets = useMemo(() => {
+    return assets.filter(a => ['NVDA', 'USDY'].includes(a.currency)).map(a => ({
+      symbol: a.currency,
+      shares: a.amount,
+      totalValue: a.fiatValueUSD
+    }));
+  }, [assets]);
+
   return (
     <WalletContext.Provider value={{ 
       assets, transactions, initialized, isSyncing, user, totalBotEarnings,
       botConfig, botLogs, marketData, liveBalances, 
-      addTransaction, updateBalance, syncOnChainBalance, updateBotSettings,
+      stockBotActive, stockBotAllocation, stockBotRisk, selectedStockSymbol, harvestedStockYield, stockBotLogs, stockAssets, isAnalyzingStocks,
+      addTransaction, updateBalance, syncOnChainBalance, updateBotSettings, updateStockBotSettings,
       clearBotLogs: () => {
         if(user && db) updateDoc(doc(db, 'users', user.uid), { botLogs: [] });
       },
+      clearStockBotLogs: () => {
+        if(user && db) updateDoc(doc(db, 'users', user.uid), { stockBotLogs: [] });
+      },
       liquidateEarnings: async () => {
-        if (!db || !user || totalBotEarnings <= 0) return;
-        const profit = totalBotEarnings;
-        updateDoc(doc(db, 'users', user.uid), { totalBotEarnings: 0 });
-        addTransaction({ type: 'receive', currency: 'USDC', amount: profit, fiatValueUSD: profit, description: 'Yield Settlement' });
+        if (!db || !user || harvestedStockYield <= 0) return;
+        const profit = harvestedStockYield;
+        updateDoc(doc(db, 'users', user.uid), { harvestedStockYield: 0 });
+        addTransaction({ type: 'receive', currency: 'USDC', amount: profit, fiatValueUSD: profit, description: 'RWA Yield Settlement' });
       }
     }}>
       {children}
