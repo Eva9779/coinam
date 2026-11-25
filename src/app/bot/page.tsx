@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -25,13 +25,17 @@ import {
   BrainCircuit,
   Cpu,
   Coins,
-  ExternalLink
+  ExternalLink,
+  Target
 } from 'lucide-react';
 import { useWalletStore } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
 
 export default function TradingBotPage() {
+  const db = useFirestore();
   const { 
     botActive, botAllocation, botRiskLevel, botStrategy, botLogs, updateBotSettings, clearBotLogs, totalBotEarnings, runBotCycle, isSyncing
   } = useWalletStore();
@@ -39,6 +43,26 @@ export default function TradingBotPage() {
   const [cryptoAllocation, setCryptoAllocation] = useState(botAllocation?.toString() || "20");
   const [cryptoRisk, setCryptoRisk] = useState<'low' | 'medium' | 'high'>(botRiskLevel || 'medium');
   const [cryptoStrategy, setCryptoStrategy] = useState(botStrategy || 'standard');
+  const [targetAsset, setTargetAsset] = useState<string>("ETH");
+
+  // Sync targetAsset with Firestore
+  useEffect(() => {
+    if (!db) return;
+    const unsub = onSnapshot(doc(db, 'botState', 'ethUsdcBot'), (snap) => {
+      if (snap.exists()) {
+        setTargetAsset(snap.data().targetAsset || "ETH");
+      }
+    });
+    return () => unsub();
+  }, [db]);
+
+  const handleTargetAssetChange = async (val: string) => {
+    setTargetAsset(val);
+    if (db) {
+      await updateDoc(doc(db, 'botState', 'ethUsdcBot'), { targetAsset: val });
+      toast({ title: `Strategy Switched to ${val}` });
+    }
+  };
 
   const handleToggleBot = () => {
       const alloc = parseFloat(cryptoAllocation);
@@ -102,8 +126,8 @@ export default function TradingBotPage() {
             <Card className="rounded-[2.5rem] bg-card/50 backdrop-blur-xl border-primary/10 shadow-xl">
               <CardContent className="p-8 flex items-center justify-between">
                 <div className="space-y-1">
-                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Network Environment</p>
-                  <p className="text-4xl font-black tracking-tighter text-blue-600">MAINNET</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Active Strategy</p>
+                  <p className="text-4xl font-black tracking-tighter text-blue-600">{targetAsset} / USDC</p>
                 </div>
                 <div className="h-14 w-14 rounded-2xl bg-blue-500/10 flex items-center justify-center border-blue-500/20">
                   <Activity className="h-7 w-7 text-blue-600" />
@@ -162,6 +186,23 @@ export default function TradingBotPage() {
             <CardContent className="pt-6 space-y-6">
               <div className="space-y-4">
                 <div className="space-y-2">
+                  <Label className="text-xs font-black uppercase tracking-widest opacity-70">Strategy Target</Label>
+                  <Select value={targetAsset} onValueChange={handleTargetAssetChange} disabled={botActive}>
+                    <SelectTrigger className="h-12 rounded-xl font-bold border-2">
+                      <div className="flex items-center gap-2">
+                        <Target className="h-4 w-4 text-secondary" />
+                        <SelectValue />
+                      </div>
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border-2">
+                      <SelectItem value="ETH" className="font-bold">Ethereum (ETH)</SelectItem>
+                      <SelectItem value="BTC" className="font-bold">Bitcoin (BTC)</SelectItem>
+                      <SelectItem value="SOL" className="font-bold">Solana (SOL)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label className="text-xs font-black uppercase tracking-widest opacity-70">Allocation (USD)</Label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -183,9 +224,8 @@ export default function TradingBotPage() {
                       <SelectValue placeholder="Select Strategy" />
                     </SelectTrigger>
                     <SelectContent className="rounded-xl border-2">
-                      <SelectItem value="standard" className="font-bold">Base Momentum</SelectItem>
-                      <SelectItem value="bitcoin_multiplier" className="font-bold">BTC Correlation</SelectItem>
-                      <SelectItem value="sol_yield" className="font-bold">SOL Bridge Strategy</SelectItem>
+                      <SelectItem value="standard" className="font-bold">Momentum Harvester</SelectItem>
+                      <SelectItem value="bitcoin_multiplier" className="font-bold">Swing Accumulator</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -224,7 +264,7 @@ export default function TradingBotPage() {
 
               {botActive && (
                 <p className="text-center text-[10px] font-black text-green-600 uppercase animate-pulse">
-                  Agent is active on Mainnet bridge
+                  Agent is active on {targetAsset} pool
                 </p>
               )}
             </CardContent>

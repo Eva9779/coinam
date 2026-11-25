@@ -1,50 +1,35 @@
 import { ethers } from "ethers";
 
-// ============================================================================
-// 1. NETWORK & CONTRACT CONFIGURATION
-// ============================================================================
 const NETWORKS = {
-  BASE_SEPOLIA: {
-    chainId: 84532,
-    rpcs: [
-      "https://sepolia.base.org",
-      "https://publicnode.com"
-    ],
-    swapRouter02: "0x94cC0AaC535CCDB3C01d6787D6413C739ae12bc4",
-    quoterV2: "0xC5290058841028F1614F3A6F0F5816cAd0df5E27",
-    poolEthUsdc: "0x0FB597D6AeE439F5743E63C9B2A8B6b6E3cB8D52",
-    weth: "0x4200000000000000000000000000000000000006",
-    usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-    poolFee: 500
-  },
   BASE_MAINNET: {
     chainId: 8453,
-    rpcs: [
-      "https://mainnet.base.org",
-      "https://publicnode.com",
-      "https://1rpc.io"
-    ],
+    rpcs: ["https://mainnet.base.org", "https://publicnode.com"],
     swapRouter02: "0x2626664c2603336E57B271c5C0b26F421741e481",
     quoterV2: "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a",
-    poolEthUsdc: "0xd0b53D9277642d899DF5C87A3966A349A798F224",
-    weth: "0x4200000000000000000000000000000000000006",
-    usdc: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    tokens: {
+      ETH: "0x4200000000000000000000000000000000000006",
+      BTC: "0xcbB7C916ABF68b1330b07af079a08F5097474651", // cbBTC
+      SOL: "0x2bE4E0fB6997B286E6c6A7606eD4745E67D65191", // Wormhole SOL
+      USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    },
+    oracles: {
+      ETH: "0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70",
+      BTC: "0x64c911996D3c6aC71f9b455B1E8E7266BcbD848F",
+      SOL: "0x975043adBb80fc32276CbF9Bbcfd4A601a12462D"
+    },
     poolFee: 500
   }
 };
 
 const ACTIVE_NET = NETWORKS.BASE_MAINNET;
-
 const SAFETY_CONFIG = {
   MIN_ETH_GAS_RESERVE: ethers.parseEther("0.0015"),
   SLIPPAGE_BPS: 100n 
 };
 
-// ============================================================================
-// 2. ABIs
-// ============================================================================
-const POOL_ABI = [
-  "function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)"
+const CHAINLINK_ABI = [
+  "function decimals() external view returns (uint8)",
+  "function latestRoundData() external view returns (uint80 roundId, int256 answer, uint256 startedAt, uint256 updatedAt, uint80 answeredInRound)"
 ];
 
 const QUOTER_ABI = [
@@ -64,122 +49,79 @@ const ERC20_ABI = [
 function getProviderAndWallet(privateKey: string) {
   const providers = ACTIVE_NET.rpcs.map((url) => new ethers.JsonRpcProvider(url));
   const provider = new ethers.FallbackProvider(providers);
-  const wallet = new ethers.Wallet(privateKey, provider);
-  return { provider, wallet };
+  return { provider, wallet: new ethers.Wallet(privateKey, provider) };
 }
 
-export async function getOnChainEthPrice(provider: ethers.Provider): Promise<number> {
-  const pool = new ethers.Contract(ACTIVE_NET.poolEthUsdc, POOL_ABI, provider);
-  const { sqrtPriceX96 } = await pool.slot0();
-  const priceRatio = (Number(sqrtPriceX96) / 2 ** 96) ** 2;
-  return priceRatio * 10 ** (18 - 6);
+export async function getAssetOraclePrice(provider: ethers.Provider, symbol: string): Promise<number> {
+  const address = ACTIVE_NET.oracles[symbol as keyof typeof ACTIVE_NET.oracles];
+  const contract = new ethers.Contract(address, CHAINLINK_ABI, provider);
+  const [decimals, roundData] = await Promise.all([
+    contract.decimals(),
+    contract.latestRoundData()
+  ]);
+  return Number(ethers.formatUnits(roundData.answer, Number(decimals)));
 }
 
-export async function swapEthToUsdc(
+export async function swapAssetToUsdc(
   privateKey: string,
-  ethAmountToSellWei: bigint,
+  symbol: string,
+  amountIn: bigint,
   minExpectedUsdcOut: bigint
 ) {
   const { provider, wallet } = getProviderAndWallet(privateKey);
-  const currentEthBalance = await provider.getBalance(wallet.address);
+  const tokenIn = ACTIVE_NET.tokens[symbol as keyof typeof ACTIVE_NET.tokens];
   
-  if (currentEthBalance - ethAmountToSellWei < SAFETY_CONFIG.MIN_ETH_GAS_RESERVE) {
-    throw new Error("Trade blocked: Must keep MIN_ETH_GAS_RESERVE for gas.");
+  if (symbol === "ETH") {
+    const bal = await provider.getBalance(wallet.address);
+    if (bal - amountIn < SAFETY_CONFIG.MIN_ETH_GAS_RESERVE) throw new Error("Gas reserve low.");
+  } else {
+    const contract = new ethers.Contract(tokenIn, ERC20_ABI, wallet);
+    const allowance: bigint = await contract.allowance(wallet.address, ACTIVE_NET.swapRouter02);
+    if (allowance < amountIn) await (await contract.approve(ACTIVE_NET.swapRouter02, amountIn)).wait();
   }
 
   const quoter = new ethers.Contract(ACTIVE_NET.quoterV2, QUOTER_ABI, provider);
-  const [quotedUsdcOut]: [bigint] = await quoter.quoteExactInputSingle.staticCall({
-    tokenIn: ACTIVE_NET.weth,
-    tokenOut: ACTIVE_NET.usdc,
-    amountIn: ethAmountToSellWei,
-    fee: ACTIVE_NET.poolFee,
-    sqrtPriceLimitX96: 0n
+  const [quoted]: [bigint] = await quoter.quoteExactInputSingle.staticCall({
+    tokenIn, tokenOut: ACTIVE_NET.tokens.USDC, amountIn, fee: ACTIVE_NET.poolFee, sqrtPriceLimitX96: 0n
   });
 
-  if (quotedUsdcOut < minExpectedUsdcOut) {
-    return {
-      executed: false,
-      reason: `Quoted USDC (${ethers.formatUnits(quotedUsdcOut, 6)}) below target profit floor.`
-    };
-  }
+  if (quoted < minExpectedUsdcOut) return { executed: false, reason: "Below floor." };
 
-  const amountOutMinimum = (quotedUsdcOut * (10000n - SAFETY_CONFIG.SLIPPAGE_BPS)) / 10000n;
   const router = new ethers.Contract(ACTIVE_NET.swapRouter02, ROUTER_ABI, wallet);
   const tx = await router.exactInputSingle(
-    {
-      tokenIn: ACTIVE_NET.weth,
-      tokenOut: ACTIVE_NET.usdc,
-      fee: ACTIVE_NET.poolFee,
-      recipient: wallet.address,
-      amountIn: ethAmountToSellWei,
-      amountOutMinimum,
-      sqrtPriceLimitX96: 0n
-    },
-    { value: ethAmountToSellWei }
+    { tokenIn, tokenOut: ACTIVE_NET.tokens.USDC, fee: ACTIVE_NET.poolFee, recipient: wallet.address, amountIn, amountOutMinimum: (quoted * (10000n - SAFETY_CONFIG.SLIPPAGE_BPS)) / 10000n, sqrtPriceLimitX96: 0n },
+    symbol === "ETH" ? { value: amountIn } : {}
   );
 
-  const receipt = await tx.wait();
-  return {
-    executed: true,
-    txHash: receipt!.hash,
-    usdcReceivedEstimate: ethers.formatUnits(quotedUsdcOut, 6)
-  };
+  const rec = await tx.wait();
+  return { executed: true, txHash: rec.hash, usdcReceivedEstimate: ethers.formatUnits(quoted, 6) };
 }
 
-export async function swapUsdcToEth(
+export async function swapUsdcToAsset(
   privateKey: string,
+  symbol: string,
   usdcAmountIn: bigint,
-  minExpectedEthOutWei: bigint
+  minExpectedAssetOut: bigint
 ) {
   const { provider, wallet } = getProviderAndWallet(privateKey);
-  const usdcContract = new ethers.Contract(ACTIVE_NET.usdc, ERC20_ABI, wallet);
+  const tokenOut = ACTIVE_NET.tokens[symbol as keyof typeof ACTIVE_NET.tokens];
+  const usdc = new ethers.Contract(ACTIVE_NET.tokens.USDC, ERC20_ABI, wallet);
 
-  const usdcBalance: bigint = await usdcContract.balanceOf(wallet.address);
-  if (usdcBalance < usdcAmountIn) {
-    throw new Error("Insufficient USDC balance for dip buy.");
-  }
-
-  const currentAllowance: bigint = await usdcContract.allowance(
-    wallet.address,
-    ACTIVE_NET.swapRouter02
-  );
-  if (currentAllowance < usdcAmountIn) {
-    const approveTx = await usdcContract.approve(ACTIVE_NET.swapRouter02, usdcAmountIn);
-    await approveTx.wait();
-  }
+  const allowance: bigint = await usdc.allowance(wallet.address, ACTIVE_NET.swapRouter02);
+  if (allowance < usdcAmountIn) await (await usdc.approve(ACTIVE_NET.swapRouter02, usdcAmountIn)).wait();
 
   const quoter = new ethers.Contract(ACTIVE_NET.quoterV2, QUOTER_ABI, provider);
-  const [quotedEthOut]: [bigint] = await quoter.quoteExactInputSingle.staticCall({
-    tokenIn: ACTIVE_NET.usdc,
-    tokenOut: ACTIVE_NET.weth,
-    amountIn: usdcAmountIn,
-    fee: ACTIVE_NET.poolFee,
-    sqrtPriceLimitX96: 0n
+  const [quoted]: [bigint] = await quoter.quoteExactInputSingle.staticCall({
+    tokenIn: ACTIVE_NET.tokens.USDC, tokenOut, amountIn: usdcAmountIn, fee: ACTIVE_NET.poolFee, sqrtPriceLimitX96: 0n
   });
 
-  if (quotedEthOut < minExpectedEthOutWei) {
-    return {
-      executed: false,
-      reason: `Quoted ETH (${ethers.formatEther(quotedEthOut)}) below target accumulation floor.`
-    };
-  }
+  if (quoted < minExpectedAssetOut) return { executed: false, reason: "Below floor." };
 
-  const amountOutMinimum = (quotedEthOut * (10000n - SAFETY_CONFIG.SLIPPAGE_BPS)) / 10000n;
   const router = new ethers.Contract(ACTIVE_NET.swapRouter02, ROUTER_ABI, wallet);
   const tx = await router.exactInputSingle({
-    tokenIn: ACTIVE_NET.usdc,
-    tokenOut: ACTIVE_NET.weth,
-    fee: ACTIVE_NET.poolFee,
-    recipient: wallet.address,
-    amountIn: usdcAmountIn,
-    amountOutMinimum,
-    sqrtPriceLimitX96: 0n
+    tokenIn: ACTIVE_NET.tokens.USDC, tokenOut, fee: ACTIVE_NET.poolFee, recipient: wallet.address, amountIn: usdcAmountIn, amountOutMinimum: (quoted * (10000n - SAFETY_CONFIG.SLIPPAGE_BPS)) / 10000n, sqrtPriceLimitX96: 0n
   });
 
-  const receipt = await tx.wait();
-  return {
-    executed: true,
-    txHash: receipt!.hash,
-    wethReceivedEstimate: ethers.formatEther(quotedEthOut)
-  };
+  const rec = await tx.wait();
+  return { executed: true, txHash: rec.hash, assetReceivedEstimate: ethers.formatUnits(quoted, symbol === "BTC" ? 8 : 18) };
 }

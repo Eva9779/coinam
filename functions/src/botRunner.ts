@@ -4,9 +4,9 @@ import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { ethers } from "ethers";
 import {
-  getOnChainEthPrice,
-  swapEthToUsdc,
-  swapUsdcToEth
+  getAssetOraclePrice,
+  swapAssetToUsdc,
+  swapUsdcToAsset
 } from "./tradingBot";
 
 if (!getApps().length) {
@@ -17,14 +17,14 @@ const db = getFirestore();
 const walletPrivateKey = defineSecret("WALLET_PRIVATE_KEY");
 
 const TARGET_SWING_PERCENT = 0.025; 
-const TRADE_ETH_AMOUNT = ethers.parseEther("0.005"); 
 
 interface BotState {
   isActive: boolean;
-  holding: "ETH" | "USDC";
+  targetAsset: "ETH" | "BTC" | "SOL";
+  holding: "ASSET" | "USDC";
   lastReferencePrice: number; 
   lastUsdcReceivedRaw: string; 
-  lastEthSoldWei: string;      
+  lastAssetSoldRaw: string;      
 }
 
 export const runTradingBot = onSchedule(
@@ -39,35 +39,45 @@ export const runTradingBot = onSchedule(
     const stateSnap = await stateRef.get();
 
     const provider = new ethers.JsonRpcProvider("https://mainnet.base.org"); 
-    const currentPrice = await getOnChainEthPrice(provider);
-
+    
+    // 1. Initialization logic
     if (!stateSnap.exists) {
+      const currentPrice = await getAssetOraclePrice(provider, "ETH");
       const initialState: BotState = {
         isActive: false, 
-        holding: "ETH",
+        targetAsset: "ETH",
+        holding: "ASSET",
         lastReferencePrice: currentPrice,
         lastUsdcReceivedRaw: "0",
-        lastEthSoldWei: "0"
+        lastAssetSoldRaw: "0"
       };
       await stateRef.set(initialState);
       return;
     }
 
     const state = stateSnap.data() as BotState;
+    if (!state.isActive) return;
 
-    if (!state.isActive) {
-      return;
-    }
-
+    const assetSymbol = state.targetAsset || "ETH";
+    const currentPrice = await getAssetOraclePrice(provider, assetSymbol);
     const privateKey = walletPrivateKey.value();
 
-    if (state.holding === "ETH") {
+    // ========================================================================
+    // CASE A: HOLDING ASSET -> SELL ON PRICE RISE
+    // ========================================================================
+    if (state.holding === "ASSET") {
       const targetSellPrice = state.lastReferencePrice * (1 + TARGET_SWING_PERCENT);
+      
       if (currentPrice >= targetSellPrice) {
-        const expectedUsdValue = Number(ethers.formatEther(TRADE_ETH_AMOUNT)) * state.lastReferencePrice * 1.02;
+        // Trade amount depends on asset type (e.g. 0.005 ETH vs 0.0002 BTC)
+        const sellAmount = assetSymbol === "ETH" ? ethers.parseEther("0.005") : 
+                          assetSymbol === "BTC" ? ethers.parseUnits("0.0002", 8) : 
+                          ethers.parseEther("0.1");
+
+        const expectedUsdValue = Number(ethers.formatUnits(sellAmount, assetSymbol === "BTC" ? 8 : 18)) * state.lastReferencePrice * 1.02;
         const minExpectedUsdcOut = ethers.parseUnits(expectedUsdValue.toFixed(6), 6);
 
-        const result = await swapEthToUsdc(privateKey, TRADE_ETH_AMOUNT, minExpectedUsdcOut);
+        const result = await swapAssetToUsdc(privateKey, assetSymbol, sellAmount, minExpectedUsdcOut);
 
         if (result.executed && result.txHash && result.usdcReceivedEstimate) {
           const usdcReceivedUnits = ethers.parseUnits(result.usdcReceivedEstimate, 6).toString();
@@ -76,14 +86,14 @@ export const runTradingBot = onSchedule(
             holding: "USDC",
             lastReferencePrice: currentPrice,
             lastUsdcReceivedRaw: usdcReceivedUnits,
-            lastEthSoldWei: TRADE_ETH_AMOUNT.toString(),
+            lastAssetSoldRaw: sellAmount.toString(),
             updatedAt: FieldValue.serverTimestamp()
           });
 
           await db.collection("tradeLogs").add({
-            side: "SELL_ETH_FOR_USDC",
+            side: `SELL_${assetSymbol}_FOR_USDC`,
             priceUsd: currentPrice,
-            ethAmount: ethers.formatEther(TRADE_ETH_AMOUNT),
+            assetAmount: ethers.formatUnits(sellAmount, assetSymbol === "BTC" ? 8 : 18),
             usdcAmount: result.usdcReceivedEstimate,
             txHash: result.txHash,
             timestamp: FieldValue.serverTimestamp()
@@ -91,29 +101,33 @@ export const runTradingBot = onSchedule(
         }
       }
     }
+    // ========================================================================
+    // CASE B: HOLDING USDC -> BUY ON PRICE DIP
+    // ========================================================================
     else if (state.holding === "USDC") {
       const targetBuyPrice = state.lastReferencePrice * (1 - TARGET_SWING_PERCENT);
+      
       if (currentPrice <= targetBuyPrice) {
         const usdcToSpend = BigInt(state.lastUsdcReceivedRaw);
-        const previousEthSold = BigInt(state.lastEthSoldWei);
-        const minExpectedEthOutWei = (previousEthSold * 1015n) / 1000n;
+        const previousAssetSold = BigInt(state.lastAssetSoldRaw);
+        const minExpectedAssetOut = (previousAssetSold * 1015n) / 1000n;
 
-        const result = await swapUsdcToEth(privateKey, usdcToSpend, minExpectedEthOutWei);
+        const result = await swapUsdcToAsset(privateKey, assetSymbol, usdcToSpend, minExpectedAssetOut);
 
-        if (result.executed && result.txHash && result.wethReceivedEstimate) {
+        if (result.executed && result.txHash && result.assetReceivedEstimate) {
           await stateRef.update({
-            holding: "ETH",
+            holding: "ASSET",
             lastReferencePrice: currentPrice,
             lastUsdcReceivedRaw: "0",
-            lastEthSoldWei: "0",
+            lastAssetSoldRaw: "0",
             updatedAt: FieldValue.serverTimestamp()
           });
 
           await db.collection("tradeLogs").add({
-            side: "BUY_ETH_WITH_USDC",
+            side: `BUY_${assetSymbol}_WITH_USDC`,
             priceUsd: currentPrice,
             usdcSpent: ethers.formatUnits(usdcToSpend, 6),
-            ethReceived: result.wethReceivedEstimate,
+            assetReceived: result.assetReceivedEstimate,
             txHash: result.txHash,
             timestamp: FieldValue.serverTimestamp()
           });
