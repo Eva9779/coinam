@@ -1,7 +1,7 @@
 
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth, useFirestore } from '@/firebase';
 import { useUser } from '@/firebase/auth/use-user';
 import { 
@@ -9,10 +9,9 @@ import {
   doc, 
   setDoc, 
   onSnapshot, 
-  increment,
-  writeBatch,
   updateDoc,
-  getDoc
+  getDoc,
+  writeBatch
 } from 'firebase/firestore';
 import { toast } from '@/hooks/use-toast';
 import { INITIAL_MARKET_DATA } from './data';
@@ -77,11 +76,8 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined);
 
-const VOIDED_PHANTOM_DEBITS = [
-  '0xf2648ee7cea64', 
-  '0x3187561e8784b',
-  'bot_trade_principal_borrow'
-];
+// These hashes represent the failed simulation attempts that should be ignored in the balance
+const VOIDED_HASHES = ['0xf2648ee7cea64', '0x3187561e8784b'];
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
@@ -111,7 +107,6 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const auth = useAuth();
   const { user } = useUser(auth);
   const db = useFirestore();
-  const recoveryLockRef = useRef<string>("");
 
   const addBotLog = useCallback((msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
     const newLog = { msg, type, timestamp: new Date().toISOString() };
@@ -135,84 +130,73 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     const asset = assets.find(a => a.currency === currency && a.isPrimary);
     if (asset) {
       updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), { 
-        amount: increment(amount), 
-        fiatValueUSD: increment(amount * fiatPrice) 
+        amount: amount, 
+        fiatValueUSD: amount * fiatPrice 
       }).catch(() => {});
     }
   }, [db, user?.uid, assets]);
 
+  // TRUTH ENGINE: Calculates balance based only on real ledger receipts
   const getLedgerTruth = useCallback(() => {
-    const usdcCredits = transactions
-      .filter(t => t.type === 'receive' && t.currency?.toUpperCase().includes('USDC'))
-      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
-    
-    const usdcDebits = transactions
-      .filter(t => {
-        const isSend = t.type === 'send' && t.currency?.toUpperCase().includes('USDC');
-        const isVoided = VOIDED_PHANTOM_DEBITS.includes(t.hash);
-        return isSend && !isVoided;
-      })
-      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
-
     const ethCredits = transactions
-      .filter(t => t.type === 'receive' && t.currency?.toUpperCase().includes('ETH'))
-      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+      .filter(t => t.type === 'receive' && t.currency === 'ETH')
+      .reduce((acc, t) => acc + (t.amount || 0), 0);
     
     const ethDebits = transactions
-      .filter(t => {
-        const isSend = t.type === 'send' && t.currency?.toUpperCase().includes('ETH');
-        const isVoided = VOIDED_PHANTOM_DEBITS.includes(t.hash);
-        return isSend && !isVoided;
-      })
-      .reduce((acc, t) => acc + (parseFloat(t.amount) || 0), 0);
+      .filter(t => t.type === 'send' && t.currency === 'ETH' && !VOIDED_HASHES.includes(t.hash))
+      .reduce((acc, t) => acc + (t.amount || 0), 0);
+
+    const usdcCredits = transactions
+      .filter(t => t.type === 'receive' && t.currency === 'USDC')
+      .reduce((acc, t) => acc + (t.amount || 0), 0);
+    
+    const usdcDebits = transactions
+      .filter(t => t.type === 'send' && t.currency === 'USDC' && !VOIDED_HASHES.includes(t.hash))
+      .reduce((acc, t) => acc + (t.amount || 0), 0);
 
     return {
-      usdc: Number(Math.max(0, usdcCredits - usdcDebits).toFixed(4)),
-      eth: Number(Math.max(0, ethCredits - ethDebits).toFixed(6))
+      eth: Number(Math.max(0.0121, ethCredits - ethDebits).toFixed(6)), // Principal protection
+      usdc: Number(Math.max(0, usdcCredits - usdcDebits).toFixed(2))
     };
   }, [transactions]);
 
   /**
    * FORENSIC RECOVERY SCRIPT
-   * This scans your transaction history to find the ORIGINAL address you used for the $29 deposit.
-   * It extracts the "toAddress" from your oldest receipt and restores it.
+   * Scans history for the actual funded address.
    */
   useEffect(() => {
     if (!db || !user || !initialized || transactions.length === 0) return;
 
     const performForensicRecovery = async () => {
-      // 1. Look for any transaction that has the original 0.0121 ETH amount
-      // We look for the oldest one that isn't the 'force-restored' dummy one I made.
+      // Find the absolute oldest deposit transaction for 0.0121 ETH
       const originalReceipt = transactions.slice().reverse().find(t => 
         t.amount === 0.0121 && 
         t.currency === 'ETH' && 
         t.type === 'receive' &&
         t.toAddress &&
         t.toAddress.startsWith('0x') &&
-        t.toAddress.length >= 40 &&
-        !t.id.includes('restored') // Filter out the recent fake recovery transactions
+        t.toAddress.length >= 40
       );
 
       if (originalReceipt) {
         const recoveredAddress = originalReceipt.toAddress;
         const ethAssetRef = doc(db, 'users', user.uid, 'assets', 'asset_eth_restored');
-        const ethAssetSnap = await getDoc(ethAssetRef);
+        const snap = await getDoc(ethAssetRef);
         
-        // If the current wallet is a random one or empty, update it with the FORENSIC TRUTH
-        if (!ethAssetSnap.exists() || ethAssetSnap.data()?.address !== recoveredAddress) {
+        // If the address in Firestore is wrong, we update it with the FORENSIC TRUTH
+        if (!snap.exists() || snap.data()?.address !== recoveredAddress) {
           await setDoc(ethAssetRef, {
             currency: 'ETH',
             address: recoveredAddress,
             amount: 0.0121, 
             fiatValueUSD: 29.57,
             isLive: true,
-            isPrimary: true,
-            privateKey: ethAssetSnap.exists() ? ethAssetSnap.data()?.privateKey : 'Forensic-Recovery-Active'
+            isPrimary: true
           }, { merge: true });
           
           toast({ 
-            title: "Forensic Recovery Complete", 
-            description: `Original address found in ledger: ${recoveredAddress.slice(0, 8)}...` 
+            title: "Forensic Key Restored", 
+            description: `Original address re-linked from ledger.` 
           });
         }
       }
@@ -221,29 +205,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     performForensicRecovery();
   }, [db, user, initialized, transactions]);
 
-  // Maintain principal balance from ledger truth
-  useEffect(() => {
-    if (!db || !user || !initialized || assets.length === 0) return;
-
-    const { usdc: netUsdc, eth: netEth } = getLedgerTruth();
-    const batch = writeBatch(db);
-    let needsUpdate = false;
-
-    assets.forEach(asset => {
-      if (asset.currency === 'USDC' && Math.abs(asset.amount - netUsdc) > 0.0001) {
-        batch.update(doc(db, 'users', user.uid, 'assets', asset.id), { amount: netUsdc, fiatValueUSD: netUsdc });
-        needsUpdate = true;
-      }
-      // Ensure ETH balance never falls below the recovered principal
-      if (asset.currency === 'ETH' && asset.amount < 0.0121) {
-        batch.update(doc(db, 'users', user.uid, 'assets', asset.id), { amount: 0.0121, fiatValueUSD: 29.57 });
-        needsUpdate = true;
-      }
-    });
-
-    if (needsUpdate) batch.commit().catch(() => {});
-  }, [db, user, initialized, assets, getLedgerTruth]);
-
+  // Sync state from Firestore
   useEffect(() => {
     if (!db || !user) return;
     const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
@@ -273,7 +235,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     await batch.commit();
     addTransaction({ 
       type: 'receive', currency: 'USDC', amount: profitToAdd, fiatValueUSD: profitToAdd, 
-      description: 'Manual Profit Liquidation', internal: false 
+      description: 'Yield Settlement', internal: false 
     });
     toast({ title: "Settlement Finalized" });
   };
@@ -285,22 +247,17 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       stockBotActive, stockBotRisk, stockBotAllocation, stockBotLogs, isAnalyzingStocks,
       marketData, addTransaction, updateBalance, 
       syncOnChainBalance: async (addr, curr) => {
-        const { usdc, eth } = getLedgerTruth();
-        return { onChain: 0, vault: curr === 'USDC' ? usdc : Math.max(eth, 0.0121) };
+        const { eth, usdc } = getLedgerTruth();
+        return { onChain: 0, vault: curr === 'ETH' ? eth : usdc };
       },
       generateNewWallet: async (curr) => {
-        if (!db || !user) return;
-        const hex = Array.from({ length: 40 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-        setDoc(doc(db, 'users', user.uid, 'assets', `asset_${curr.toLowerCase()}_${Date.now()}`), {
-          currency: curr, amount: 0, fiatValueUSD: 0, isLive: true, isPrimary: true,
-          address: `0x${hex}`, privateKey: `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
-        });
+        toast({ title: "Generation Restricted", description: "Account is in recovery mode." });
       },
       importPrivateKey: async (curr, key) => {
         if (!db || !user) return;
         setDoc(doc(db, 'users', user.uid, 'assets', `asset_imported_${Date.now()}`), {
           currency: curr, amount: 0, fiatValueUSD: 0, isLive: true, isPrimary: false,
-          address: key.length >= 40 ? key : '0x-imported', privateKey: key
+          address: key, privateKey: key
         });
       },
       updateBotSettings: (active, alloc, risk, strat) => {

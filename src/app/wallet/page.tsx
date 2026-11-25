@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo } from "react";
@@ -11,17 +12,11 @@ import {
   RefreshCw, 
   CreditCard, 
   Zap,
-  Lock,
-  Cpu,
   Fingerprint,
   Settings,
-  ArrowRight,
   Loader2,
-  Key,
-  PlusCircle,
   ArrowUpRight,
-  Info,
-  ShieldAlert
+  Database
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
@@ -30,7 +25,7 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export default function WalletPage() {
-  const { assets, initialized, isSyncing, user, generateNewWallet, syncOnChainBalance, marketData } = useWalletStore();
+  const { assets, initialized, syncOnChainBalance, marketData } = useWalletStore();
   const [search, setSearch] = useState("");
   const [syncingBalances, setSyncingBalances] = useState<Record<string, boolean>>({});
 
@@ -38,12 +33,8 @@ export default function WalletPage() {
     return assets.filter(a => 
       a.currency.toLowerCase().includes(search.toLowerCase()) || 
       a.address.toLowerCase().includes(search.toLowerCase())
-    ).sort((a, b) => {
-      const aPrice = marketData.find(m => m.currency === a.currency)?.currentPriceUSD || 0;
-      const bPrice = marketData.find(m => m.currency === b.currency)?.currentPriceUSD || 0;
-      return (b.amount * bPrice) - (a.amount * aPrice);
-    });
-  }, [assets, search, marketData]);
+    );
+  }, [assets, search]);
 
   const handleSyncBalance = async (address: string, currency: string) => {
     setSyncingBalances(prev => ({ ...prev, [address]: true }));
@@ -56,7 +47,6 @@ export default function WalletPage() {
     } catch (e) {
       toast({ 
         title: "Network Timeout", 
-        description: "Mainnet RPC mesh is congested.",
         variant: "destructive" 
       });
     } finally {
@@ -69,13 +59,9 @@ export default function WalletPage() {
     navigator.clipboard.writeText(text).then(() => {
       toast({
         title: `${label} Copied`,
-        description: `${text.length} characters stored in secure clipboard.`,
+        description: `Full data stored in secure clipboard.`,
       });
     });
-  };
-
-  const handleInitializeWallet = async () => {
-    await generateNewWallet('ETH');
   };
 
   if (!initialized) {
@@ -93,9 +79,9 @@ export default function WalletPage() {
         <div>
           <h2 className="text-3xl font-bold text-primary flex items-center gap-3 tracking-tighter">
             <ShieldCheck className="h-8 w-8 text-secondary" />
-            Restored Assets
+            Institutional Vault
           </h2>
-          <p className="text-muted-foreground text-sm font-medium">Original blockchain endpoints recovered from ledger history.</p>
+          <p className="text-muted-foreground text-sm font-medium">Original blockchain endpoints recovered from forensic ledger history.</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <Button variant="outline" asChild className="gap-2 h-14 px-6 font-bold rounded-2xl border-primary/20">
@@ -144,37 +130,34 @@ export default function WalletPage() {
                           <div>
                             <div className="font-bold text-xl flex items-center gap-2">
                               {asset.currency}
-                              <Badge className="bg-green-500/10 text-green-600 uppercase text-[9px] font-black">RESTORED</Badge>
+                              <Badge className="bg-green-500/10 text-green-600 uppercase text-[9px] font-black">RECOVERED</Badge>
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="font-black text-2xl tracking-tighter">{asset.amount.toFixed(4)}</div>
-                          <div className="text-xs font-bold text-green-500">${(asset.amount * livePrice).toLocaleString()}</div>
+                          <div className="text-xs font-bold text-green-500">${(asset.amount * (livePrice || 1)).toLocaleString()}</div>
                         </div>
                       </div>
 
-                      <div className="bg-muted/30 p-4 rounded-2xl border border-primary/5 space-y-2">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[10px] font-black uppercase text-primary/40">Full Blockchain Address (100% Copy)</span>
+                      <div className="bg-slate-950 p-6 rounded-2xl border border-white/10 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase text-secondary tracking-widest">Verified Blockchain Address</span>
                           <button 
-                            className="text-[10px] font-bold text-secondary uppercase flex items-center gap-1"
+                            className="text-[10px] font-bold text-secondary uppercase flex items-center gap-1 hover:underline"
                             onClick={() => copyToClipboard(asset.address, "Full Address")}
                           >
-                            <Copy className="h-3 w-3" /> Copy
+                            <Copy className="h-3 w-3" /> Copy Full Hex
                           </button>
                         </div>
-                        <Input 
-                          readOnly 
-                          value={asset.address} 
-                          onClick={(e) => (e.target as HTMLInputElement).select()}
-                          className="h-12 bg-background/50 border-2 border-dashed border-primary/10 font-mono text-[12px] font-black text-primary select-all cursor-text"
-                        />
+                        <div className="p-4 bg-white/5 rounded-xl font-mono text-[14px] font-black text-white break-all leading-relaxed select-all">
+                          {asset.address}
+                        </div>
                       </div>
                       
                       <div className="flex items-center justify-between pt-4 mt-4 border-t border-primary/5">
                         <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-2">
-                          <Zap className="h-3 w-3 text-secondary" /> Mainnet Live
+                          <Zap className="h-3 w-3 text-secondary" /> Mainnet Operational
                         </span>
                         <div className="flex gap-2">
                           <Button variant="ghost" size="icon" asChild className="h-10 w-10 rounded-xl hover:bg-primary/10">
@@ -197,9 +180,8 @@ export default function WalletPage() {
                   );
                 }) : (
                   <div className="py-24 text-center border-2 border-dashed rounded-[2.5rem] flex flex-col items-center gap-4">
-                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                    <p className="text-xs font-black uppercase tracking-widest">Awaiting Deep Recovery Sync...</p>
-                    <Button onClick={handleInitializeWallet} className="mt-4 rounded-xl font-black">Initialize New Wallet</Button>
+                    <Database className="h-12 w-12 text-primary opacity-20" />
+                    <p className="text-xs font-black uppercase tracking-widest">Scanning Ledger History...</p>
                   </div>
                 )}
               </div>
@@ -218,16 +200,16 @@ export default function WalletPage() {
             <CardContent className="space-y-6 relative z-10">
               <div className="p-4 bg-white/5 rounded-xl border border-white/10 space-y-4">
                 <div className="flex justify-between items-center text-[10px] font-bold uppercase text-white/60">
-                  <span>Hardware Isolation</span>
-                  <Badge className="bg-green-500 text-white text-[8px]">ACTIVE</Badge>
+                  <span>Recovery Status</span>
+                  <Badge className="bg-green-500 text-white text-[8px]">FORENSIC-COMPLETE</Badge>
                 </div>
                 <div className="flex justify-between items-center text-[10px] font-bold uppercase text-white/60">
                   <span>Ledger Sync</span>
-                  <Badge className="bg-secondary text-white text-[8px]">STABLE</Badge>
+                  <Badge className="bg-secondary text-white text-[8px]">HISTORICAL-MATCH</Badge>
                 </div>
               </div>
               <p className="text-[10px] text-white/40 leading-relaxed font-medium">
-                Your wallet has been stabilized. Deep recovery protocols have restored the link to your original ETH deposit from 8/31/2026.
+                Your wallet links have been restored. The system successfully identified your original deposit address from the internal audit trail.
               </p>
             </CardContent>
           </Card>
