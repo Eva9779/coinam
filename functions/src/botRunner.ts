@@ -5,8 +5,8 @@ import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { ethers } from "ethers";
 import {
   getAssetOraclePrice,
-  swapAssetToUsdc,
-  swapUsdcToAsset
+  sellAssetForUsdc,
+  buyAssetWithUsdc
 } from "./tradingBot";
 
 if (!getApps().length) {
@@ -16,7 +16,7 @@ if (!getApps().length) {
 const db = getFirestore();
 const walletPrivateKey = defineSecret("WALLET_PRIVATE_KEY");
 
-const TARGET_SWING_PERCENT = 0.025; 
+const TARGET_SWING_PERCENT = 0.025; // 2.5% price move required to trigger a trade
 
 interface BotState {
   isActive: boolean;
@@ -77,7 +77,7 @@ export const runTradingBot = onSchedule(
         const expectedUsdValue = Number(ethers.formatUnits(sellAmount, assetSymbol === "BTC" ? 8 : 18)) * state.lastReferencePrice * 1.02;
         const minExpectedUsdcOut = ethers.parseUnits(expectedUsdValue.toFixed(6), 6);
 
-        const result = await swapAssetToUsdc(privateKey, assetSymbol, sellAmount, minExpectedUsdcOut);
+        const result = await sellAssetForUsdc(privateKey, assetSymbol, sellAmount, minExpectedUsdcOut);
 
         if (result.executed && result.txHash && result.usdcReceivedEstimate) {
           const usdcReceivedUnits = ethers.parseUnits(result.usdcReceivedEstimate, 6).toString();
@@ -110,9 +110,11 @@ export const runTradingBot = onSchedule(
       if (currentPrice <= targetBuyPrice) {
         const usdcToSpend = BigInt(state.lastUsdcReceivedRaw);
         const previousAssetSold = BigInt(state.lastAssetSoldRaw);
+        
+        // Accumulation logic: Require at least +1.5% more asset tokens than we sold
         const minExpectedAssetOut = (previousAssetSold * 1015n) / 1000n;
 
-        const result = await swapUsdcToAsset(privateKey, assetSymbol, usdcToSpend, minExpectedAssetOut);
+        const result = await buyAssetWithUsdc(privateKey, assetSymbol, usdcToSpend, minExpectedAssetOut);
 
         if (result.executed && result.txHash && result.assetReceivedEstimate) {
           await stateRef.update({
