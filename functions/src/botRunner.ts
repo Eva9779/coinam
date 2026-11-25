@@ -38,7 +38,7 @@ export const runTradingBot = onSchedule(
     const stateRef = db.collection("botState").doc("ethUsdcBot");
     const stateSnap = await stateRef.get();
 
-    const provider = new ethers.JsonRpcProvider("https://base.org"); 
+    const provider = new ethers.JsonRpcProvider("https://mainnet.base.org"); 
     const currentPrice = await getOnChainEthPrice(provider);
 
     if (!stateSnap.exists) {

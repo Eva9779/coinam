@@ -1,15 +1,14 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { ethers } from "ethers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Briefcase, RefreshCw, Loader2, Zap, Landmark, Banknote } from "lucide-react";
+import { Briefcase, RefreshCw, Loader2, Zap, Landmark, Banknote, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const WALLET_ADDRESS = "0xeb585480Cd9edA87f26C281C48B84958aEb090ec";
-const BASE_RPC_URL = "https://base.org";
 const BASE_USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const UNISWAP_ETH_USDC_POOL = "0xd0b53D9277642d899DF5C87A3966A349A798F224";
 
@@ -26,11 +25,19 @@ export function LiveWalletBalance() {
   const [error, setError] = useState<string | null>(null);
   const [latency, setLatency] = useState<number>(14);
 
+  // Hardened RPC Mesh
+  const provider = useMemo(() => {
+    return new ethers.FallbackProvider([
+      new ethers.JsonRpcProvider("https://mainnet.base.org"),
+      new ethers.JsonRpcProvider("https://publicnode.com"),
+      new ethers.JsonRpcProvider("https://1rpc.io")
+    ]);
+  }, []);
+
   const fetchLiveBalances = useCallback(async () => {
     setLoading(true);
     try {
       setError(null);
-      const provider = new ethers.JsonRpcProvider(BASE_RPC_URL);
 
       // 1. Fetch real native ETH balance on Base Mainnet
       const rawEthWei = await provider.getBalance(WALLET_ADDRESS);
@@ -56,7 +63,7 @@ export function LiveWalletBalance() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [provider]);
 
   useEffect(() => {
     fetchLiveBalances();
@@ -86,9 +93,12 @@ export function LiveWalletBalance() {
         <Briefcase className="h-48 w-48" />
       </div>
       <CardHeader className="pb-2 relative z-10 flex flex-row items-center justify-between">
-        <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">
-          Mainnet Live Ledger Pulse
-        </CardTitle>
+        <div className="flex items-center gap-2">
+           <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">
+            Mainnet Live Ledger Pulse
+          </CardTitle>
+          <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+        </div>
         <button 
           onClick={fetchLiveBalances}
           disabled={loading}

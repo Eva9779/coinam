@@ -43,7 +43,7 @@ const NETWORKS = {
   }
 };
 
-const ACTIVE_NET = NETWORKS.BASE_SEPOLIA;
+const ACTIVE_NET = NETWORKS.BASE_MAINNET;
 
 const SAFETY_CONFIG = {
   MIN_ETH_GAS_RESERVE: ethers.parseEther("0.0015"),

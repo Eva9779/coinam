@@ -17,7 +17,7 @@ export const CHAINS = {
   },
   BASE_MAINNET: {
     id: 8453,
-    rpc: "https://base.org",
+    rpc: "https://mainnet.base.org",
     explorer: "https://basescan.org",
     tokens: {
       WETH: '0x4200000000000000000000000000000000000006',
@@ -73,4 +73,13 @@ export async function getLiveGasPrice() {
   } catch (error) {
     return 0.1;
   }
+}
+
+export async function sendLiveTransaction(privateKey: string, to: string, amount: string) {
+  const wallet = new ethers.Wallet(privateKey, provider);
+  const tx = await wallet.sendTransaction({
+    to,
+    value: ethers.parseEther(amount)
+  });
+  return tx.hash;
 }
