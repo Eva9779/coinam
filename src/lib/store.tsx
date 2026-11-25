@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
@@ -19,6 +18,8 @@ import { toast } from '@/hooks/use-toast';
 import { INITIAL_MARKET_DATA } from './data';
 import { getLiveBalance } from '@/lib/blockchain';
 import { analyzeMarketAndTrade } from '@/ai/flows/trading-bot-flow';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export interface WalletAsset {
   id: string;
@@ -87,7 +88,8 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!db || !user) return;
     
-    const unsubProfile = onSnapshot(doc(db, 'users', user.uid), (s) => {
+    const profileRef = doc(db, 'users', user.uid);
+    const unsubProfile = onSnapshot(profileRef, (s) => {
       if (!s.exists()) return;
       const d = s.data();
       setTotalBotEarnings(d.totalBotEarnings || 0);
@@ -96,16 +98,36 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       setBotRiskLevel(d.botRiskLevel || 'medium');
       setBotStrategy(d.botStrategy || 'standard');
       setBotLogs(d.botLogs || []);
+    }, async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+        path: profileRef.path,
+        operation: 'get',
+      } satisfies SecurityRuleContext);
+      errorEmitter.emit('permission-error', permissionError);
     });
 
-    const unsubAssets = onSnapshot(collection(db, 'users', user.uid, 'assets'), (s) => {
+    const assetsRef = collection(db, 'users', user.uid, 'assets');
+    const unsubAssets = onSnapshot(assetsRef, (s) => {
       const loaded = s.docs.map(doc => ({ ...doc.data(), id: doc.id } as WalletAsset));
       setAssets(loaded.filter(a => !ADDRESS_BLACKLIST.includes(a.address)));
       setInitialized(true);
+    }, async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+        path: assetsRef.path,
+        operation: 'list',
+      } satisfies SecurityRuleContext);
+      errorEmitter.emit('permission-error', permissionError);
     });
 
-    const unsubTx = onSnapshot(collection(db, 'users', user.uid, 'transactions'), (s) => {
+    const txRef = collection(db, 'users', user.uid, 'transactions');
+    const unsubTx = onSnapshot(txRef, (s) => {
       setTransactions(s.docs.map(d => ({ ...d.data(), id: d.id } as any)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    }, async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+        path: txRef.path,
+        operation: 'list',
+      } satisfies SecurityRuleContext);
+      errorEmitter.emit('permission-error', permissionError);
     });
 
     return () => { unsubProfile(); unsubAssets(); unsubTx(); };
@@ -116,16 +138,27 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!initialized || !db || !user || assets.length > 0) return;
 
     const recover = async () => {
-      const q = query(collection(db, 'users', user.uid, 'transactions'), where('amount', '==', 0.0121));
+      const txColRef = collection(db, 'users', user.uid, 'transactions');
+      const q = query(txColRef, where('amount', '==', 0.0121));
       const snap = await getDocs(q);
       const original = snap.docs.find(d => !ADDRESS_BLACKLIST.includes(d.data().toAddress));
       
       if (original) {
         const addr = original.data().toAddress;
         const assetId = `recovered_${Date.now()}`;
-        setDoc(doc(db, 'users', user.uid, 'assets', assetId), {
+        const assetRef = doc(db, 'users', user.uid, 'assets', assetId);
+        const assetData = {
           id: assetId, currency: 'ETH', amount: 0.0121, fiatValueUSD: 29.57, address: addr, isLive: true, isPrimary: true
-        });
+        };
+        setDoc(assetRef, assetData)
+          .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+              path: assetRef.path,
+              operation: 'create',
+              requestResourceData: assetData,
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
+          });
       }
     };
     recover();
@@ -135,17 +168,36 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!db || !user) return;
     const txId = `tx_${Date.now()}`;
     const txRef = doc(db, 'users', user.uid, 'transactions', txId);
-    setDoc(txRef, { ...tx, id: txId, timestamp: new Date().toISOString(), status: tx.status || 'completed' }, { merge: true });
+    const txData = { ...tx, id: txId, timestamp: new Date().toISOString(), status: tx.status || 'completed' };
+    setDoc(txRef, txData, { merge: true })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: txRef.path,
+          operation: 'write',
+          requestResourceData: txData,
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+      });
   }, [db, user?.uid]);
 
   const updateBalance = useCallback(async (currency: string, amount: number, fiatPrice: number) => {
     if (!db || !user) return;
     const asset = assets.find(a => a.currency === currency && a.isPrimary);
     if (asset) {
-      updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), { 
+      const assetRef = doc(db, 'users', user.uid, 'assets', asset.id);
+      const updateData = { 
         amount: amount, 
         fiatValueUSD: amount * fiatPrice 
-      });
+      };
+      updateDoc(assetRef, updateData)
+        .catch(async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: assetRef.path,
+            operation: 'update',
+            requestResourceData: updateData,
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        });
     }
   }, [db, user?.uid, assets]);
 
@@ -168,7 +220,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         toast({ title: "Execution Delayed", description: result.error, variant: "destructive" });
       }
     } catch (e) {
-      console.error(error);
+      console.error(e);
     } finally {
       setIsSyncing(false);
     }
@@ -177,9 +229,16 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const liquidateEarnings = async () => { 
     if (!db || !user || totalBotEarnings <= 0) return;
     const profitToAdd = totalBotEarnings;
-    const batch = writeBatch(db);
-    batch.update(doc(db, 'users', user.uid), { totalBotEarnings: 0 });
-    await batch.commit();
+    const userRef = doc(db, 'users', user.uid);
+    updateDoc(userRef, { totalBotEarnings: 0 })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: userRef.path,
+          operation: 'update',
+          requestResourceData: { totalBotEarnings: 0 },
+        } satisfies SecurityRuleContext);
+        errorEmitter.emit('permission-error', permissionError);
+      });
     addTransaction({ 
       type: 'receive', currency: 'USDC', amount: profitToAdd, fiatValueUSD: profitToAdd, 
       description: 'Yield Settlement'
@@ -196,10 +255,20 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const asset = assets.find(a => a.address === address);
       if (asset && val !== asset.amount && val > 0) {
         const livePrice = marketData.find(m => m.currency === currency)?.currentPriceUSD || 1;
-        updateDoc(doc(db, 'users', user.uid, 'assets', asset.id), {
+        const assetRef = doc(db, 'users', user.uid, 'assets', asset.id);
+        const updateData = {
           amount: val,
           fiatValueUSD: val * livePrice
-        });
+        };
+        updateDoc(assetRef, updateData)
+          .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+              path: assetRef.path,
+              operation: 'update',
+              requestResourceData: updateData,
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
+          });
       }
       return { onChain: val };
     } finally {
@@ -218,17 +287,52 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         const clean = key.trim();
         const assetId = `imported_${Date.now()}`;
         const isAddress = clean.startsWith('0x') && clean.length === 42;
-        setDoc(doc(db, 'users', user.uid, 'assets', assetId), {
+        const assetRef = doc(db, 'users', user.uid, 'assets', assetId);
+        const assetData = {
           id: assetId,
           currency: curr, amount: 0, fiatValueUSD: 0, isLive: true, isPrimary: true,
           address: clean, privateKey: isAddress ? null : clean
-        });
+        };
+        setDoc(assetRef, assetData)
+          .catch(async (serverError) => {
+            const permissionError = new FirestorePermissionError({
+              path: assetRef.path,
+              operation: 'create',
+              requestResourceData: assetData,
+            } satisfies SecurityRuleContext);
+            errorEmitter.emit('permission-error', permissionError);
+          });
       },
       updateBotSettings: (active, alloc, risk, strat) => {
         setBotActive(active);
-        if (user && db) updateDoc(doc(db, 'users', user.uid), { botActive: active, botAllocation: alloc, botRiskLevel: risk, botStrategy: strat });
+        if (user && db) {
+          const userRef = doc(db, 'users', user.uid);
+          const updateData = { botActive: active, botAllocation: alloc, botRiskLevel: risk, botStrategy: strat };
+          updateDoc(userRef, updateData)
+            .catch(async (serverError) => {
+              const permissionError = new FirestorePermissionError({
+                path: userRef.path,
+                operation: 'update',
+                requestResourceData: updateData,
+              } satisfies SecurityRuleContext);
+              errorEmitter.emit('permission-error', permissionError);
+            });
+        }
       },
-      clearBotLogs: () => { if(user && db) updateDoc(doc(db, 'users', user.uid), { botLogs: [] }); },
+      clearBotLogs: () => { 
+        if(user && db) {
+          const userRef = doc(db, 'users', user.uid);
+          updateDoc(userRef, { botLogs: [] })
+            .catch(async (serverError) => {
+              const permissionError = new FirestorePermissionError({
+                path: userRef.path,
+                operation: 'update',
+                requestResourceData: { botLogs: [] },
+              } satisfies SecurityRuleContext);
+              errorEmitter.emit('permission-error', permissionError);
+            });
+        }
+      },
       liquidateEarnings
     }}>
       {children}

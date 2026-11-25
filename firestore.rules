@@ -1,6 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Shared Bot Configuration (Global Enclave State)
+    match /botState/{stateId} {
+      allow read, write: if request.auth != null;
+    }
+
     // Universal Owner-Silo Protocol
     // This rule explicitly authorizes a user to access their own root document
     // AND all nested sub-collections (assets, transactions, etc.) with a single, unbreakable identity check.

@@ -33,6 +33,8 @@ import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 import { doc, onSnapshot, updateDoc } from 'firebase/firestore';
 import { useFirestore } from '@/firebase';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError, type SecurityRuleContext } from '@/firebase/errors';
 
 export default function TradingBotPage() {
   const db = useFirestore();
@@ -48,26 +50,38 @@ export default function TradingBotPage() {
   // Sync targetAsset with Firestore
   useEffect(() => {
     if (!db) return;
-    const unsub = onSnapshot(doc(db, 'botState', 'ethUsdcBot'), (snap) => {
+    const docRef = doc(db, 'botState', 'ethUsdcBot');
+    const unsub = onSnapshot(docRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
         if (data.targetAsset) {
           setTargetAsset(data.targetAsset);
         }
       }
+    }, async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+        path: docRef.path,
+        operation: 'get',
+      } satisfies SecurityRuleContext);
+      errorEmitter.emit('permission-error', permissionError);
     });
     return () => unsub();
   }, [db]);
 
-  const handleTargetAssetChange = async (val: string) => {
+  const handleTargetAssetChange = (val: string) => {
     setTargetAsset(val);
     if (db) {
-      try {
-        await updateDoc(doc(db, 'botState', 'ethUsdcBot'), { targetAsset: val });
-        toast({ title: `Strategy Switched to ${val}`, description: "Backend target updated successfully." });
-      } catch (error) {
-        toast({ title: "Sync Failed", description: "Could not update target asset in cloud.", variant: "destructive" });
-      }
+      const docRef = doc(db, 'botState', 'ethUsdcBot');
+      updateDoc(docRef, { targetAsset: val })
+        .catch(async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+            path: docRef.path,
+            operation: 'update',
+            requestResourceData: { targetAsset: val },
+          } satisfies SecurityRuleContext);
+          errorEmitter.emit('permission-error', permissionError);
+        });
+      toast({ title: `Strategy Switched to ${val}`, description: "Backend target updated successfully." });
     }
   };
 
