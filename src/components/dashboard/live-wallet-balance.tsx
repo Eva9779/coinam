@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
@@ -25,7 +24,11 @@ export function LiveWalletBalance() {
     setLoading(true);
     try {
       setError(null);
-      const res = await fetch("/api/wallet-balance", { cache: "no-store" });
+      // 5-second timeout to prevent card hang
+      const res = await fetch("/api/wallet-balance", { 
+        cache: "no-store",
+        signal: AbortSignal.timeout(5000)
+      });
       if (!res.ok) throw new Error("Failed to load live balance");
 
       const data = await res.json();
@@ -34,8 +37,8 @@ export function LiveWalletBalance() {
       setUsdcBalance(data.usdcBalance);
       setEthPriceUsd(data.ethPriceUsd);
     } catch (err) {
-      console.error("Balance sync error:", err);
-      setError("Syncing with Global Ledger...");
+      console.warn("Balance sync delay:", err);
+      setError("Synchronizing Ledger (Background)...");
     } finally {
       setLoading(false);
     }
@@ -78,7 +81,11 @@ export function LiveWalletBalance() {
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6">
           <div className="space-y-6">
             <div className="text-6xl font-black tracking-tighter">
-              ${totalPortfolioUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {loading && totalPortfolioUsd === 0 ? (
+                <div className="h-16 w-48 bg-white/10 animate-pulse rounded-xl" />
+              ) : (
+                `$${totalPortfolioUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              )}
             </div>
             
             <div className="flex flex-wrap items-center gap-8">

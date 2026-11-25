@@ -8,7 +8,6 @@ import {
   Zap,
   Sparkles,
   Terminal,
-  TrendingUp,
   History,
   ArrowUpRight,
   ArrowDownLeft,
@@ -26,8 +25,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { LiveWalletBalance } from "@/components/dashboard/live-wallet-balance";
 
-const CustomPulseMarquee = ({ items, label }: { items: any[], label: string }) => {
-  if (!items || items.length === 0) return (
+const CustomPulseMarquee = ({ items, label, loading }: { items: any[], label: string, loading: boolean }) => {
+  if (loading || !items || items.length === 0) return (
     <div className="w-full bg-slate-900 h-[110px] rounded-2xl flex items-center justify-center opacity-30">
       <Loader2 className="h-4 w-4 animate-spin text-secondary mr-2" />
       <span className="text-[10px] font-black uppercase tracking-widest text-secondary">Awaiting On-Chain Oracle...</span>
@@ -87,7 +86,11 @@ export default function Dashboard() {
 
   const fetchMarketPulse = useCallback(async () => {
     try {
-      const res = await fetch("/api/market-pulse", { cache: "no-store" });
+      // 5-second timeout to prevent UI hang on slow RPCs
+      const res = await fetch("/api/market-pulse", { 
+        cache: "no-store",
+        signal: AbortSignal.timeout(5000)
+      });
       if (res.ok) {
         const data = await res.json();
         setPulseData({
@@ -96,7 +99,7 @@ export default function Dashboard() {
         });
       }
     } catch (err) {
-      console.error("Market Pulse Sync Failed:", err);
+      console.warn("Market Pulse Sync Delay:", err);
     } finally {
       setPulseLoading(false);
     }
@@ -109,14 +112,8 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [fetchMarketPulse]);
 
-  if (!initialized || !mounted) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[60vh] space-y-4">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest text-center">Syncing Mainnet Pulse...</p>
-      </div>
-    );
-  }
+  // Render the shell immediately even if data is still pending
+  if (!mounted) return null;
   
   return (
     <div className="space-y-8 max-w-7xl mx-auto pb-10">
@@ -155,7 +152,7 @@ export default function Dashboard() {
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
-            <CustomPulseMarquee items={pulseData.crypto} label="Mainnet Crypto Oracle" />
+            <CustomPulseMarquee items={pulseData.crypto} label="Mainnet Crypto Oracle" loading={pulseLoading} />
           </CardContent>
         </Card>
 
@@ -167,7 +164,7 @@ export default function Dashboard() {
              </CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
-            <CustomPulseMarquee items={pulseData.rwa} label="Commodity & Forex Oracle" />
+            <CustomPulseMarquee items={pulseData.rwa} label="Commodity & Forex Oracle" loading={pulseLoading} />
           </CardContent>
         </Card>
       </div>
@@ -185,7 +182,11 @@ export default function Dashboard() {
           </div>
           
           <div className="grid gap-3">
-            {transactions.length > 0 ? transactions.slice(0, 5).map((tx) => (
+            {!initialized ? (
+              Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-20 bg-muted/20 animate-pulse rounded-2xl" />
+              ))
+            ) : transactions.length > 0 ? transactions.slice(0, 5).map((tx) => (
               <Card key={tx.id} className="shadow-sm border-primary/5 hover:border-secondary/20 transition-all rounded-2xl overflow-hidden">
                 <CardContent className="p-4 flex items-center justify-between">
                    <div className="flex items-center gap-4">
