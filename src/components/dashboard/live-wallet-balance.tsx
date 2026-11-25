@@ -3,22 +3,13 @@
 import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Briefcase, RefreshCw, Loader2, Landmark, Banknote, ShieldCheck, Zap, Globe } from "lucide-react";
+import { Briefcase, RefreshCw, Loader2, Landmark, Banknote, ShieldCheck, Zap, Globe, Key } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useUserHook } from "@/firebase";
 import { BridgeToBaseButton } from "@/components/bot/bridge-to-base-button";
 import { useWalletStore } from "@/lib/store";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-
-const WALLET_ADDRESS = "0xeb585480Cd9edA87f26C281C48B84958aEb090ec";
 
 export function LiveWalletBalance() {
   const { user } = useUserHook();
@@ -30,13 +21,16 @@ export function LiveWalletBalance() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedWallet, setSelectedWallet] = useState<string>(WALLET_ADDRESS);
-
   const fetchLiveBalances = useCallback(async () => {
+    if (!botConfig?.address) {
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     try {
       setError(null);
-      const res = await fetch("/api/wallet-balance", { 
+      const res = await fetch(`/api/wallet-balance?address=${botConfig.address}`, { 
         cache: "no-store",
         signal: AbortSignal.timeout(5000)
       });
@@ -53,11 +47,11 @@ export function LiveWalletBalance() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [botConfig?.address]);
 
   useEffect(() => {
     fetchLiveBalances();
-    const interval = setInterval(fetchLiveBalances, 15000);
+    const interval = setInterval(fetchLiveBalances, 20000);
     return () => clearInterval(interval);
   }, [fetchLiveBalances]);
 
@@ -67,6 +61,21 @@ export function LiveWalletBalance() {
   
   const totalPortfolioUsd = (baseEthVal + mainnetEthVal) * ethPriceUsd + usdcVal;
 
+  if (!botConfig) {
+    return (
+      <Card className="shadow-2xl border-none bg-primary text-white rounded-[2rem] overflow-hidden relative min-h-[200px] flex items-center justify-center p-8 text-center">
+        <div className="space-y-4">
+          <Zap className="h-12 w-12 text-secondary mx-auto opacity-40" />
+          <h3 className="text-xl font-black uppercase tracking-tighter">Vault Not Initialized</h3>
+          <p className="text-sm opacity-60 max-w-xs">Initialize your non-custodial strategy enclave to activate real-time ledger monitoring.</p>
+          <Button variant="secondary" asChild className="h-12 px-8 rounded-xl font-bold">
+            <Link href="/bot">Provision Enclave</Link>
+          </Button>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card className="shadow-2xl border-none bg-primary text-white rounded-[2rem] overflow-hidden relative min-h-[160px]">
       <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none">
@@ -75,7 +84,7 @@ export function LiveWalletBalance() {
       <CardHeader className="pb-2 relative z-10 flex flex-row items-center justify-between">
         <div className="flex items-center gap-2">
            <CardTitle className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">
-            Global Cross-Chain Ledger Pulse
+            Private Sovereign Ledger Pulse
           </CardTitle>
           <div className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
         </div>
@@ -142,29 +151,17 @@ export function LiveWalletBalance() {
               </div>
             </div>
 
-            {user && (
-              <div className="max-w-md bg-white/5 p-6 rounded-[2rem] border border-white/10 space-y-6">
-                <div className="space-y-3">
-                   <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary opacity-80">
-                     Source Execution Vault
+            {user && botConfig && (
+              <div className="max-w-md bg-white/5 p-6 rounded-[2rem] border border-white/10 space-y-4">
+                <div className="space-y-2">
+                   <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-secondary opacity-80 flex items-center gap-2">
+                     <Key className="h-3 w-3" /> Linked Enclave Endpoint
                    </Label>
-                   <Select value={selectedWallet} onValueChange={setSelectedWallet}>
-                    <SelectTrigger className="h-12 bg-slate-900 border-white/10 text-white rounded-xl font-bold">
-                      <SelectValue placeholder="Select wallet" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-white/10 bg-slate-900 text-white shadow-2xl">
-                      <SelectItem value={WALLET_ADDRESS} className="font-bold">
-                         Institutional Vault ({WALLET_ADDRESS.slice(0, 8)}...)
-                      </SelectItem>
-                      {botConfig && (
-                        <SelectItem value={botConfig.address} className="font-bold">
-                          Personal Enclave ({botConfig.address.slice(0, 8)}...)
-                        </SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
+                   <div className="p-4 bg-slate-900 rounded-xl font-mono text-[11px] font-black text-white/70 break-all border border-white/5">
+                      {botConfig.address}
+                   </div>
                 </div>
-                <BridgeToBaseButton userId={user.uid} selectedAddress={selectedWallet} />
+                <BridgeToBaseButton userId={user.uid} selectedAddress={botConfig.address} />
               </div>
             )}
             
@@ -179,7 +176,7 @@ export function LiveWalletBalance() {
               </Link>
             </Button>
             <p className="text-[9px] font-mono text-center opacity-40 uppercase font-bold tracking-tighter select-all">
-              {WALLET_ADDRESS}
+              {botConfig.address.slice(0, 16)}...
             </p>
           </div>
         </div>

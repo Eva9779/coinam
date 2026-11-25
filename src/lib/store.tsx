@@ -80,8 +80,13 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const db = useFirestore();
 
   const fetchLive = useCallback(async () => {
+    if (!botConfig?.address) return;
+    
     try {
-      const res = await fetch("/api/wallet-balance", { cache: "no-store", signal: AbortSignal.timeout(5000) });
+      const res = await fetch(`/api/wallet-balance?address=${botConfig.address}`, { 
+        cache: "no-store", 
+        signal: AbortSignal.timeout(5000) 
+      });
       if (res.ok) {
         const data = await res.json();
         setLiveBalances({
@@ -92,7 +97,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } catch (e) {}
-  }, []);
+  }, [botConfig?.address]);
 
   useEffect(() => {
     fetchLive();
@@ -160,7 +165,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       const live = await getLiveBalance(address, currency);
       const val = parseFloat(live);
       const asset = assets.find(a => a.address === address);
-      if (asset && val !== asset.amount) {
+      if (asset) {
         const livePrice = marketData.find(m => m.currency === currency)?.currentPriceUSD || 1;
         const assetRef = doc(db, 'users', user.uid, 'assets', asset.id);
         updateDoc(assetRef, { amount: val, fiatValueUSD: val * livePrice });

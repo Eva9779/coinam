@@ -23,7 +23,6 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import { LiveWalletBalance } from "@/components/dashboard/live-wallet-balance";
 
 const CustomPulseMarquee = ({ items, label, loading }: { items: any[], label: string, loading: boolean }) => {
   if (loading || !items || items.length === 0) return (
@@ -76,7 +75,6 @@ export default function Dashboard() {
   const { 
     transactions, 
     initialized, 
-    botActive,
     botLogs
   } = useWalletStore();
   
@@ -86,7 +84,6 @@ export default function Dashboard() {
 
   const fetchMarketPulse = useCallback(async () => {
     try {
-      // 5-second timeout to prevent UI hang on slow RPCs
       const res = await fetch("/api/market-pulse", { 
         cache: "no-store",
         signal: AbortSignal.timeout(5000)
@@ -112,7 +109,6 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [fetchMarketPulse]);
 
-  // Render the shell immediately even if data is still pending
   if (!mounted) return null;
   
   return (
@@ -126,21 +122,11 @@ export default function Dashboard() {
           <p className="text-muted-foreground text-sm font-medium uppercase tracking-widest">Chainlink Oracles: Live On-Chain Market Discovery</p>
         </div>
         <div className="flex items-center gap-3">
-          {botActive && (
-            <Badge variant="outline" className="bg-secondary/10 text-secondary border-secondary/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px] animate-pulse">
-              <Zap className="h-3.5 w-3.5" />
-              BOT ACTIVE
-            </Badge>
-          )}
           <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/20 px-3 py-1 gap-1.5 font-bold uppercase text-[10px]">
             <ShieldCheck className="h-3 w-3" />
             ENCLAVE SECURE
           </Badge>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6">
-        <LiveWalletBalance />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -1,7 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { ethers } from "ethers";
 
-const WALLET_ADDRESS = "0xeb585480Cd9edA87f26C281C48B84958aEb090ec";
 const BASE_RPCS = [
   "https://mainnet.base.org",
   "https://base-rpc.publicnode.com",
@@ -22,7 +21,19 @@ const POOL_ABI = [
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const address = searchParams.get('address');
+
+  if (!address || !ethers.isAddress(address)) {
+    return NextResponse.json({
+      baseEth: "0.000000",
+      mainnetEth: "0.000000",
+      usdcBalance: "0.00",
+      ethPriceUsd: 0
+    });
+  }
+
   let baseEth = "0.000000";
   let mainnetEth = "0.000000";
   let usdcBalance = "0.00";
@@ -33,8 +44,8 @@ export async function GET() {
     try {
       const provider = new ethers.JsonRpcProvider(rpcUrl);
       const [rawEthWei, rawUsdc, slot0] = await Promise.all([
-        provider.getBalance(WALLET_ADDRESS),
-        new ethers.Contract(BASE_USDC_ADDRESS, ERC20_ABI, provider).balanceOf(WALLET_ADDRESS),
+        provider.getBalance(address),
+        new ethers.Contract(BASE_USDC_ADDRESS, ERC20_ABI, provider).balanceOf(address),
         new ethers.Contract(UNISWAP_ETH_USDC_POOL, POOL_ABI, provider).slot0()
       ]);
 
@@ -53,7 +64,7 @@ export async function GET() {
   for (const rpcUrl of ETH_RPCS) {
     try {
       const provider = new ethers.JsonRpcProvider(rpcUrl);
-      const rawEthWei = await provider.getBalance(WALLET_ADDRESS);
+      const rawEthWei = await provider.getBalance(address);
       mainnetEth = ethers.formatEther(rawEthWei);
       break;
     } catch (error) {

@@ -52,7 +52,6 @@ function TransactionsContent() {
   const [selectedAssetId, setSelectedAssetId] = useState("");
   const [lastTx, setLastTx] = useState<{ hash: string, url: string } | null>(null);
   
-  // PIN Auth State
   const [showPinDialog, setShowPinDialog] = useState(false);
   const [pin, setPin] = useState("");
 
@@ -71,7 +70,7 @@ function TransactionsContent() {
   }, [combinedAssets, selectedAssetId]);
 
   const activeAsset = combinedAssets.find(a => a.id === selectedAssetId);
-  const displayAddress = botConfig?.address || "0xeb585480Cd9edA87f26C281C48B84958aEb090ec";
+  const displayAddress = botConfig?.address || "Initialize Vault First";
 
   const handlePreSend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,10 +93,7 @@ function TransactionsContent() {
     setLastTx(null);
 
     try {
-      // 1. Decrypt Keystore with PIN
       const wallet = await ethers.Wallet.fromEncryptedJson(botConfig.encryptedJson, pin);
-      
-      // 2. Configure Provider
       const isBase = selectedAssetId.includes('BASE');
       const network = isBase ? CHAINS.BASE : CHAINS.ETHEREUM;
       const provider = new ethers.JsonRpcProvider(network.rpc);
@@ -142,7 +138,7 @@ function TransactionsContent() {
   };
 
   const copyToClipboard = (text: string, label: string) => {
-    if (!text) return;
+    if (!text || text === "Initialize Vault First") return;
     navigator.clipboard.writeText(text).then(() => {
       toast({ title: `${label} Copied` });
     });
