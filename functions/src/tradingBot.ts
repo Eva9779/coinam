@@ -1,5 +1,8 @@
 import { ethers } from "ethers";
 
+// ============================================================================
+// 1. NETWORK & CONTRACT CONFIGURATION
+// ============================================================================
 const NETWORKS = {
   BASE_SEPOLIA: {
     chainId: 84532,
@@ -37,6 +40,9 @@ const SAFETY_CONFIG = {
   SLIPPAGE_BPS: 100n 
 };
 
+// ============================================================================
+// 2. ABIs
+// ============================================================================
 const POOL_ABI = [
   "function slot0() external view returns (uint160 sqrtPriceX96, int24 tick, uint16 observationIndex, uint16 observationCardinality, uint16 observationCardinalityNext, uint8 feeProtocol, bool unlocked)"
 ];
