@@ -10,12 +10,6 @@
         "displayName": { "type": "string" },
         "updatedAt": { "type": "string" },
         "totalBotEarnings": { "type": "number" },
-        "botActive": { "type": "boolean" },
-        "botAllocation": { "type": "number" },
-        "botRiskLevel": { "type": "string", "enum": ["low", "medium", "high"] },
-        "botStrategy": { "type": "string", "enum": ["standard", "bitcoin_multiplier"] },
-        "cryptoPositions": { "type": "array", "items": { "type": "object" } },
-        "baselinePrices": { "type": "object" },
         "botLogs": { 
           "type": "array", 
           "items": { 
@@ -29,6 +23,21 @@
         }
       },
       "required": ["uid", "email"]
+    },
+    "UserBot": {
+      "title": "User Bot",
+      "description": "Per-user autonomous trading configuration and encrypted credentials.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "address": { "type": "string" },
+        "encryptedPrivateKey": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "targetAsset": { "type": "string", "enum": ["ETH", "BTC", "SOL"] },
+        "holding": { "type": "string", "enum": ["ASSET", "USDC"] },
+        "lastReferencePrice": { "type": "number" }
+      },
+      "required": ["userId", "address", "encryptedPrivateKey"]
     },
     "WalletAsset": {
       "title": "Wallet Asset",
@@ -63,17 +72,6 @@
         "description": { "type": "string" }
       },
       "required": ["type", "currency", "amount", "timestamp"]
-    },
-    "BotState": {
-      "title": "Bot State",
-      "description": "Global strategy parameters and execution state.",
-      "type": "object",
-      "properties": {
-        "isActive": { "type": "boolean" },
-        "targetAsset": { "type": "string", "enum": ["ETH", "BTC", "SOL"] },
-        "holding": { "type": "string" },
-        "lastReferencePrice": { "type": "number" }
-      }
     }
   },
   "auth": {
@@ -84,6 +82,10 @@
       "schema": "UserProfile",
       "description": "Root user identity."
     },
+    "/userBots/{userId}": {
+      "schema": "UserBot",
+      "description": "Encrypted trading bot configuration."
+    },
     "/users/{userId}/assets/{assetId}": {
       "schema": "WalletAsset",
       "description": "Individual vault endpoints."
@@ -91,10 +93,6 @@
     "/users/{userId}/transactions/{transactionId}": {
       "schema": "Transaction",
       "description": "Private financial ledger."
-    },
-    "/botState/{stateId}": {
-      "schema": "BotState",
-      "description": "Global strategy parameters."
     }
   }
 }
